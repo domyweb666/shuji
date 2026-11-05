@@ -1,0 +1,794 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#F2F2F7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<style>:root{color-scheme:light dark;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);height:100%;box-sizing:border-box}</style>
+<title>薯記</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="薯記">
+<style>
+/* 版面：三頁橫排（田｜主畫面｜設定），iOS 內建 app 介面；地瓜藤是唯一的插圖區 */
+:root{
+  --bg:#F2F2F7; --card:#FFFFFF; --fg:#000000; --fg2:rgba(60,60,67,.6); --fg3:rgba(60,60,67,.3);
+  --sep:rgba(60,60,67,.18); --fill:rgba(120,120,128,.12); --glass:rgba(255,255,255,.72);
+  --accent:#AF52DE; --accent-ink:#FFFFFF; --accent-soft:rgba(175,82,222,.12);
+  --soil:#B88A63; --soil-deep:#94673F; --grain:rgba(70,40,15,.18);
+  --leaf:#4E9F3D; --leaf-dark:#2F7A2A; --vine:#6B8E3A; --root:rgba(255,236,214,.75);
+  --flower:#C084E6; --flower-core:#7B2FA8;
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang TC","Heiti TC",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#000000; --card:#1C1C1E; --fg:#FFFFFF; --fg2:rgba(235,235,245,.6); --fg3:rgba(235,235,245,.3);
+  --sep:rgba(84,84,88,.6); --fill:rgba(120,120,128,.24); --glass:rgba(44,44,46,.72);
+  --accent:#BF5AF2; --accent-ink:#FFFFFF; --accent-soft:rgba(191,90,242,.2);
+  --soil:#5A3D27; --soil-deep:#3F2919; --grain:rgba(0,0,0,.28);
+  --leaf:#4A9339; --leaf-dark:#2C6A26; --vine:#5C7C33; --root:rgba(255,226,196,.45);
+  --flower:#C98BEB; --flower-core:#8A3BB8; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#000000; --card:#1C1C1E; --fg:#FFFFFF; --fg2:rgba(235,235,245,.6); --fg3:rgba(235,235,245,.3);
+  --sep:rgba(84,84,88,.6); --fill:rgba(120,120,128,.24); --glass:rgba(44,44,46,.72);
+  --accent:#BF5AF2; --accent-ink:#FFFFFF; --accent-soft:rgba(191,90,242,.2);
+  --soil:#5A3D27; --soil-deep:#3F2919; --grain:rgba(0,0,0,.28);
+  --leaf:#4A9339; --leaf-dark:#2C6A26; --vine:#5C7C33; --root:rgba(255,226,196,.45);
+  --flower:#C98BEB; --flower-core:#8A3BB8; color-scheme:dark}
+
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:17px;-webkit-font-smoothing:antialiased;overflow:hidden;
+  -webkit-tap-highlight-color:transparent}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+input,textarea{font:inherit;color:var(--fg)}
+
+#app{position:relative;height:100%;overflow:hidden}
+#dots{position:absolute;top:6px;left:50%;transform:translateX(-50%);display:flex;justify-content:center;gap:0;z-index:5;transition:opacity .2s;padding:0 4px;border-radius:16px;background:var(--glass);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px)}
+#dots button{width:28px;height:22px;display:grid;place-items:center}
+#dots i{width:7px;height:7px;border-radius:50%;background:var(--fg3);transition:background .2s,transform .2s}
+#dots button[aria-current="true"] i{background:var(--fg);transform:scale(1.1)}
+#dots.off{opacity:0;pointer-events:none}
+
+#track{display:flex;height:100%;width:300%;transition:transform .38s cubic-bezier(.2,.8,.2,1);will-change:transform}
+#track.drag{transition:none}
+.pane{width:33.3334%;height:100%;overflow-y:auto;overflow-x:hidden;touch-action:pan-y;-webkit-overflow-scrolling:touch;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));box-sizing:border-box}
+.pane-inner{padding-block:40px 40px;max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
+
+/* 標題 */
+.big{font-size:34px;font-weight:700;letter-spacing:.2px;margin:0;line-height:1.15}
+.sub{color:var(--fg2);font-size:17px;margin:4px 0 0}
+.h2{font-size:22px;font-weight:700;margin:0 0 -10px 2px}
+.foot{color:var(--fg2);font-size:13px;margin:-14px 18px 0;line-height:1.45}
+
+/* 卡片、列 */
+.card{background:var(--card);border-radius:26px;overflow:hidden}
+.row{min-height:56px;display:flex;align-items:center;gap:12px;padding:0 18px;position:relative;box-sizing:border-box}
+.row + .row::before{content:"";position:absolute;top:0;left:18px;right:0;height:.5px;background:var(--sep)}
+.row .k{flex:1;min-width:0}
+.row .v{color:var(--fg2);font-variant-numeric:tabular-nums;text-align:right}
+.row .chev{color:var(--fg3);font-size:20px;margin-left:-4px}
+button.row{width:100%;text-align:left}
+.row input.txt{flex:1;min-width:0;border:0;background:transparent;text-align:right;color:var(--fg2);font-size:17px;padding:16px 0}
+.row input.txt::placeholder{color:var(--fg3)}
+.row.stack{flex-direction:column;align-items:stretch;gap:2px;padding-block:12px}
+.row.stack .lab{font-size:13px;color:var(--fg2)}
+.row.stack input.txt{text-align:left;padding:4px 0;color:var(--fg)}
+.danger{color:#FF3B30}
+
+/* iOS 開關 */
+.sw{position:relative;width:51px;height:31px;flex:none}
+.sw input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer}
+.sw span{position:absolute;inset:0;border-radius:31px;background:var(--fill);transition:background .2s}
+.sw span::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;
+  box-shadow:0 3px 8px rgba(0,0,0,.15),0 1px 1px rgba(0,0,0,.16);transition:transform .2s}
+.sw input:checked + span{background:#34C759}
+.sw input:checked + span::after{transform:translateX(20px)}
+.sw input:disabled + span{opacity:.4}
+
+/* 分段 */
+.seg{display:flex;background:var(--fill);border-radius:9px;padding:2px;gap:2px}
+.seg button{flex:1;min-width:30px;height:28px;border-radius:7px;font-size:13px;font-weight:600;color:var(--fg);font-variant-numeric:tabular-nums}
+.seg button[aria-pressed="true"]{background:var(--card);box-shadow:0 3px 8px rgba(0,0,0,.12)}
+
+/* 主畫面 */
+#main{display:flex;flex-direction:column;height:100%;padding-top:40px;box-sizing:border-box;max-width:560px;margin:0 auto}
+#main .head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px}
+.chip{font-size:13px;font-weight:600;color:var(--accent);background:var(--accent-soft);padding:5px 10px;border-radius:20px;white-space:nowrap}
+.switchcard{margin-top:18px;padding:20px 20px 22px;transition:opacity .3s}
+.switchcard .lab{font-size:13px;color:var(--fg2);margin-bottom:8px;letter-spacing:.3px}
+.switchcard .sentence{font-size:22px;line-height:1.5;font-weight:400;text-wrap:balance}
+.switchcard .sentence b{font-weight:700}
+.switchcard.dim{opacity:.55}
+#action{display:flex;flex-direction:column;align-items:center;gap:10px;margin-top:22px;min-height:190px}
+#hold{position:relative;width:140px;height:140px;border-radius:50%;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+#hold .disc{position:absolute;inset:12px;border-radius:50%;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;
+  font-size:22px;font-weight:700;letter-spacing:2px;transition:transform .15s}
+#hold.pressing .disc{transform:scale(.94)}
+#hold svg{position:absolute;inset:0;transform:rotate(-90deg)}
+#hold .ring-bg{stroke:var(--accent-soft)}
+#hold .ring{stroke:var(--accent)}
+#done{display:flex;align-items:center;gap:6px;background:var(--fill);color:var(--fg2);border-radius:22px;padding:11px 18px;font-size:15px;font-weight:600}
+.hint{font-size:15px;color:var(--fg2);text-align:center;min-height:20px;line-height:1.4}
+.phrase{font-size:17px;color:var(--fg);text-align:center;min-height:24px}
+.link{color:var(--accent);font-size:15px;font-weight:600}
+#field-canvas{flex:none;width:calc(100% + max(16px,env(safe-area-inset-left,0px)) + max(16px,env(safe-area-inset-right,0px)));min-height:200px;margin-left:calc(-1 * max(16px,env(safe-area-inset-left,0px)));margin-right:calc(-1 * max(16px,env(safe-area-inset-right,0px)));display:block;touch-action:pan-y}
+#vinewrap{flex:1;display:flex;min-height:200px;margin-top:8px}
+
+/* 首次設定 */
+.ob{display:flex;flex-direction:column;gap:14px;margin-top:18px}
+.ob .card{padding:18px 18px 20px}
+.ob label{display:block;font-size:13px;color:var(--fg2);margin-bottom:6px}
+.ob input.big-in{width:100%;box-sizing:border-box;border:0;background:var(--fill);border-radius:14px;padding:14px;font-size:20px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.chips button{font-size:14px;padding:7px 12px;border-radius:16px;background:var(--fill)}
+.preview{font-size:17px;line-height:1.5;color:var(--fg2);padding:0 4px}
+.preview b{color:var(--fg)}
+.warn{font-size:14px;color:var(--fg);background:var(--accent-soft);border-radius:14px;padding:10px 12px;line-height:1.45}
+.btn{height:50px;border-radius:25px;background:var(--accent);color:var(--accent-ink);font-weight:600;font-size:17px;padding:0 24px}
+.btn:disabled{opacity:.35}
+.btn.ghost{background:var(--fill);color:var(--fg)}
+
+/* 底部彈出卡 */
+#scrim{position:fixed;inset:0;background:rgba(0,0,0,.35);opacity:0;pointer-events:none;transition:opacity .25s;z-index:20}
+#scrim.on{opacity:1;pointer-events:auto}
+#sheet{position:fixed;left:0;right:0;bottom:0;z-index:21;background:var(--bg);border-radius:34px 34px 0 0;transform:translateY(105%);
+  transition:transform .32s cubic-bezier(.2,.8,.2,1);max-height:88%;overflow-y:auto;
+  padding:10px max(16px,env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));box-sizing:border-box}
+#sheet.on{transform:none}
+#sheet .grab{width:36px;height:5px;border-radius:3px;background:var(--fg3);margin:0 auto 14px}
+#sheet .inner{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+#sheet h3{font-size:22px;margin:0 2px;font-weight:700}
+#sheet p{margin:0 2px;color:var(--fg2);font-size:15px;line-height:1.5}
+#sheet textarea{width:100%;box-sizing:border-box;min-height:120px;border:0;border-radius:14px;background:var(--card);padding:12px;font-size:13px;font-family:ui-monospace,Menlo,monospace}
+.q{padding:14px 18px;display:flex;flex-direction:column;gap:10px}
+.q .t{font-size:16px;line-height:1.45}
+.q .scale{display:flex;justify-content:space-between;font-size:12px;color:var(--fg2)}
+
+/* 田 */
+.chart{padding:14px 12px 8px}
+.chart svg{width:100%;height:auto;display:block}
+.chart .axis{fill:var(--fg2);font-size:11px}
+.chart .grid{stroke:var(--sep)}
+.chart .line{stroke:var(--accent);fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+.chart .area{fill:var(--accent-soft)}
+.chart .pt{fill:var(--accent)}
+.empty{padding:22px 18px;color:var(--fg2);font-size:15px;line-height:1.5}
+.sig{width:22px;height:22px;border-radius:50%;border:1.5px solid var(--fg3);display:grid;place-items:center;flex:none;box-sizing:border-box}
+.sig.ok{background:var(--accent);border-color:var(--accent)}
+.sig.ok::after{content:"";width:9px;height:5px;border:2px solid #fff;border-top:0;border-right:0;transform:rotate(-45deg) translate(1px,-1px)}
+.mini{font-size:13px;color:var(--fg2);margin-top:2px;line-height:1.4}
+.potato{width:44px;height:30px;flex:none}
+.pillrow{display:flex;gap:8px;padding:0 18px 14px;flex-wrap:wrap}
+.pillrow button{font-size:14px;font-weight:600;padding:8px 14px;border-radius:18px;background:var(--fill)}
+.pillrow button.pri{background:var(--accent);color:var(--accent-ink)}
+
+.toast{position:fixed;left:50%;bottom:calc(28px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);opacity:0;z-index:30;
+  background:var(--glass);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);padding:10px 18px;border-radius:20px;font-size:15px;
+  box-shadow:0 6px 24px rgba(0,0,0,.12);white-space:nowrap;transition:opacity .25s,transform .25s;pointer-events:none}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+#hap{position:absolute;opacity:0;pointer-events:none;width:1px;height:1px}
+@media (prefers-reduced-motion: reduce){#track,#sheet,.toast,#scrim{transition:none}}
+</style>
+</head>
+<body>
+
+
+<div id="app">
+  <div id="dots" role="tablist" aria-label="頁面">
+    <button data-go="0" aria-label="田"><i></i></button>
+    <button data-go="1" aria-label="今天"><i></i></button>
+    <button data-go="2" aria-label="設定"><i></i></button>
+  </div>
+  <div id="track">
+    <section class="pane" id="p-field"><div class="pane-inner" id="field"></div></section>
+    <section class="pane" id="p-main"><div id="main"></div></section>
+    <section class="pane" id="p-set"><div class="pane-inner" id="settings"></div></section>
+  </div>
+</div>
+<div id="scrim"></div>
+<div id="sheet" role="dialog" aria-modal="true"><div class="grab"></div><div class="inner" id="sheet-in"></div></div>
+<div class="toast" id="toast"></div>
+<input type="checkbox" switch id="hap" aria-hidden="true" tabindex="-1"><label for="hap" id="hapl" hidden></label>
+
+<script>
+(()=>{
+"use strict";
+/* ---------- 文案 ---------- */
+const PHRASES=["一節。","根紮下去了。","今天這一下，算數。","開關按到了。","藤又往前一點。","做了就好，做多少是另一件事。","記下了，去忙吧。","土裡的事，慢慢長。","又一條根。","今天的份，到手。","小到不像話，但有算。","這一下不用想，就對了。","藤不急，你也不用急。","一節一節來。","按到了，收工。","今天也有出現。","根比葉子重要。","最小的一步，最難漏。","開關一響，手就動了。","今天的藤，長好了。","看得到的是葉子，長的是根。","好，明天同一個時候見。"];
+const RETURNS=["回來了。","藤沒有枯，接著長。","漏掉的那天不用補，今天這一下就夠。","回來的那一節才會開花。","根都還在。","從這一節接上。","停了一下而已。","接回來了。","這朵花是給回來的人的。","回來，比沒漏過還重要。"];
+const FLOOR_EX=["打開檔案寫一句","坐上蒲團按計時器","換上球鞋出門","讀一頁書","做一下伸展"];
+const TRIG_EX=["起床喝完第一杯水","刷完牙","咖啡端上桌","坐到書桌前","闔上筆電","上床前"];
+const WEEK=["日","一","二","三","四","五","六"];
+
+/* ---------- 資料 ---------- */
+const KEY="shuji-proto-v1";
+const blank=()=>({v:1,habit:null,logs:{},weekly:[],basket:[],queue:[],pressure:null,letgo:null,letgoResult:null,
+  justDug:null,travelEndedOn:null,settings:{sound:true,reviewDay:0,leave:2},dayOffset:0});
+let S=load();
+function load(){try{const r=localStorage.getItem(KEY);if(r){const o=JSON.parse(r);return Object.assign(blank(),o,{settings:Object.assign(blank().settings,o.settings||{})});}}catch(e){}return blank();}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
+
+/* ---------- 日期（凌晨四點換日） ---------- */
+const pad=n=>String(n).padStart(2,"0");
+const key=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const parse=k=>{const[a,b,c]=k.split("-").map(Number);return new Date(a,b-1,c);};
+const add=(k,n)=>{const d=parse(k);d.setDate(d.getDate()+n);return key(d);};
+const diff=(a,b)=>Math.round((Date.UTC(...ymd(b))-Date.UTC(...ymd(a)))/864e5);
+function ymd(k){const[a,b,c]=k.split("-").map(Number);return[a,b-1,c];}
+function today(){const d=new Date(Date.now()-4*36e5);d.setDate(d.getDate()+S.dayOffset);return key(d);}
+const fmt=k=>{const d=parse(k);return `${d.getMonth()+1}月${d.getDate()}日 星期${WEEK[d.getDay()]}`;};
+const fmtShort=k=>{const d=parse(k);return `${d.getMonth()+1}/${d.getDate()}`;};
+
+/* ---------- 計算 ---------- */
+const doneKeys=()=>Object.keys(S.logs).filter(k=>S.logs[k].t==="done").sort();
+function isReturn(k){const ds=doneKeys();if(!ds.length||ds[0]>=k)return false;return !S.logs[add(k,-1)];}
+function stats(){
+  const t=today(),ds=doneKeys();let missed=0;
+  if(S.habit){for(let k=S.habit.planted;k<t;k=add(k,1)){if(!S.logs[k])missed++;}}
+  const ret=ds.filter(isReturn).length;
+  const m=t.slice(0,7);const leaves=Object.keys(S.logs).filter(k=>k.startsWith(m)&&S.logs[k].t==="leave").length;
+  return{nodes:ds.length,ret,missed,leaves,leaveLeft:Math.max(0,S.settings.leave-leaves)};
+}
+function lastDone(){const ds=doneKeys();return ds[ds.length-1]||null;}
+function consecutiveMissed(){const t=today();if(!S.habit)return 0;let n=0;for(let k=add(t,-1);k>=S.habit.planted&&!S.logs[k];k=add(k,-1))n++;return n;}
+function needReview(){
+  const t=today();if(!S.habit||parse(t).getDay()!==S.settings.reviewDay)return false;
+  const last=S.weekly[S.weekly.length-1];return !last||diff(last.date,t)>=6;
+}
+function signals(){
+  const w=S.weekly;let s1=false,flatLow=false;
+  if(w.length>=6){const l=w.slice(-3).map(x=>x.avg);s1=Math.max(...l)-Math.min(...l)<=0.5;flatLow=s1&&l[2]<3;}
+  return{s1,flatLow,s2:S.pressure===true,s3:!!(S.letgoResult&&S.letgoResult.pass),n:w.length};
+}
+
+/* ---------- 觸感與聲音 ---------- */
+const hapl=document.getElementById("hapl");
+function haptic(){try{hapl.click();}catch(e){}}
+let AC=null;
+function audio(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==="suspended")AC.resume();}
+function pluck(freq,dur,type,vol){
+  if(!S.settings.sound||!AC)return;const t=AC.currentTime;const o=AC.createOscillator(),g=AC.createGain(),f=AC.createBiquadFilter();
+  o.type=type;o.frequency.setValueAtTime(freq*1.6,t);o.frequency.exponentialRampToValueAtTime(freq,t+.03);
+  f.type="lowpass";f.frequency.value=freq*6;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(vol,t+.005);
+  g.gain.exponentialRampToValueAtTime(.0001,t+dur);o.connect(f).connect(g).connect(AC.destination);o.start(t);o.stop(t+dur+.02);
+}
+const thunk=()=>{pluck(150,.22,"triangle",.5);pluck(300,.12,"sine",.18);};
+const ping=()=>{pluck(880,.5,"sine",.16);setTimeout(()=>pluck(1320,.4,"sine",.08),70);};
+
+/* ---------- 小工具 ---------- */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches;
+let toastT;function toast(m){const e=$("#toast");e.textContent=m;e.classList.add("on");clearTimeout(toastT);toastT=setTimeout(()=>e.classList.remove("on"),2000);}
+const NEG=/[不別戒]|少[吃滑喝看玩]|停止|避免|減少/;
+const FOOD=/減重|減肥|卡路里|熱量|少吃|斷食|體重/;
+const dayNo=k=>Math.floor(Date.UTC(...ymd(k))/864e5);
+const phraseFor=(k,ret)=>ret?RETURNS[dayNo(k)%RETURNS.length]:PHRASES[dayNo(k)%PHRASES.length];
+
+/* ---------- 頁面切換與滑動 ---------- */
+let page=1,locked=false;
+const track=$("#track");
+function go(i,anim=true){page=Math.max(0,Math.min(2,i));track.classList.toggle("drag",!anim);track.style.transform=`translateX(${-page*33.3334}%)`;
+  document.querySelectorAll("#dots button").forEach((b,j)=>b.setAttribute("aria-current",j===page?"true":"false"));
+  if(page===0)renderField();if(page===2)renderSettings();}
+document.querySelectorAll("#dots button").forEach(b=>b.addEventListener("click",()=>{if(!locked)go(+b.dataset.go);}));
+(function swipe(){
+  let sx=0,sy=0,dx=0,mode=null,id=null;
+  track.addEventListener("pointerdown",e=>{if(locked||sheetOpen||e.target.closest("#hold"))return;sx=e.clientX;sy=e.clientY;dx=0;mode=null;id=e.pointerId;});
+  track.addEventListener("pointermove",e=>{if(e.pointerId!==id)return;const x=e.clientX-sx,y=e.clientY-sy;
+    if(!mode){if(Math.abs(x)>10&&Math.abs(x)>Math.abs(y)*1.2)mode="h";else if(Math.abs(y)>10)mode="v";}
+    if(mode==="h"){dx=x;const w=track.parentElement.clientWidth;let off=-page*w+dx;if((page===0&&dx>0)||(page===2&&dx<0))off=-page*w+dx*.3;
+      track.classList.add("drag");track.style.transform=`translateX(${off/3/w*100}%)`;}});
+  const end=e=>{if(e.pointerId!==id)return;id=null;if(mode==="h"){track.classList.remove("drag");if(dx<-60)go(page+1);else if(dx>60)go(page-1);else go(page);}mode=null;};
+  track.addEventListener("pointerup",end);track.addEventListener("pointercancel",end);
+})();
+function lock(on){locked=on;$("#dots").classList.toggle("off",on);}
+
+/* ---------- 底部彈出卡 ---------- */
+let sheetOpen=false;
+function openSheet(html,bind){$("#sheet-in").innerHTML=html;$("#sheet").classList.add("on");$("#scrim").classList.add("on");sheetOpen=true;bind&&bind($("#sheet-in"));}
+function closeSheet(){$("#sheet").classList.remove("on");$("#scrim").classList.remove("on");sheetOpen=false;}
+$("#scrim").addEventListener("click",closeSheet);
+
+/* ================= 主畫面 ================= */
+function renderMain(){
+  const m=$("#main"),t=today();
+  if(!S.habit){lock(true);return renderOnboard(m);}
+  lock(false);
+  if(S.justDug){return renderDug(m);}
+  const h=S.habit,log=S.logs[t],st=stats();
+  const floor=S.travel?(h.travelFloor||h.floor):h.floor;
+  const head=`<div class="head"><div><h1 class="big">今天</h1><p class="sub">${fmt(t)} · 第 ${st.nodes} 節</p></div>${S.travel?'<span class="chip">旅行中</span>':''}</div>`;
+  const sentence=`<div class="lab">開關</div><div class="sentence">如果<b>${esc(h.trigger)}</b>，我就<b>${esc(floor)}</b>。</div>`;
+  let body="";
+  if(S.letgo){
+    const left=14-diff(S.letgo.start,t);
+    if(left<=0)return renderLetgoEnd(m);
+    body=`<div class="card switchcard">${sentence}</div>
+      <div id="action"><p class="phrase" style="margin-top:30px">放手測試中，照常做就好，不用記。</p><p class="hint">還有 ${left} 天</p>
+      <button class="link" id="lg-end">提早結束</button></div>`;
+  }else if(!log&&lastDone()&&diff(lastDone(),t)>14){
+    body=`<div class="card switchcard"><div class="sentence" style="font-size:20px">藤還在，根都還在。</div>
+      <p class="mini" style="font-size:15px;margin-top:10px">停了一陣子。接上之前，看一下哪裡卡住：</p></div>
+      <div class="card">
+        <button class="row" data-goto="trigger"><span class="k">開關有出現嗎？</span><span class="chev">›</span></button>
+        <button class="row" data-goto="floor"><span class="k">最小一步太大嗎？</span><span class="chev">›</span></button>
+        <button class="row" data-goto="tips"><span class="k">旁邊有更近的東西搶走了嗎？</span><span class="chev">›</span></button>
+      </div>`;
+    body+=holdBlock("從這一節接上，按住");
+  }else if(log&&log.t==="done"){
+    const ret=isReturn(t);
+    body=`<div class="card switchcard dim">${sentence}</div>
+      <div id="action"><p class="phrase" style="margin-top:26px">${esc(phraseFor(t,ret))}</p>
+      <button id="done" aria-label="今天記好了，更多選項">今天記好了 <span aria-hidden="true">⋯</span></button>
+      ${needReview()?'<button class="link" id="review">今天週回顧 · 開始四問 ›</button>':''}</div>`;
+  }else if(log&&log.t==="leave"){
+    body=`<div class="card switchcard dim">${sentence}</div>
+      <div id="action"><p class="phrase" style="margin-top:26px">今天請假。</p><p class="hint">${esc(log.reason||"")}</p>
+      <button id="done">今天請假了 <span aria-hidden="true">⋯</span></button></div>`;
+  }else{
+    let hint="做完最小一步，按住一下";
+    const cm=consecutiveMissed();
+    let extra="";
+    if(cm>=2)extra=`<button class="link" id="stuck">卡住的話，看看開關有沒有出現，或最小一步太大 ›</button>`;
+    else if(S.travelEndedOn&&S.travelEndedOn===add(t,-1))extra=`<p class="hint">回家第一天，東西擺回原位了嗎？</p>`;
+    body=`<div class="card switchcard">${sentence}</div>`+holdBlock(hint,extra);
+  }
+  m.innerHTML=head+body+`<div id="vinewrap"><canvas id="field-canvas" aria-label="地瓜藤，共 ${st.nodes} 節"></canvas></div>`;
+  bindMain(m);
+  vine.attach($("#field-canvas"));
+}
+function holdBlock(hint,extra=""){
+  return `<div id="action"><button id="hold" aria-label="按住一秒半，記一節">
+    <svg viewBox="0 0 140 140"><circle class="ring-bg" cx="70" cy="70" r="64" fill="none" stroke-width="6"/>
+    <circle class="ring" cx="70" cy="70" r="64" fill="none" stroke-width="6" stroke-linecap="round" stroke-dasharray="402.1" stroke-dashoffset="402.1"/></svg>
+    <span class="disc">按住</span></button><p class="hint">${hint}</p>${extra}
+    <button class="link" id="more" style="font-weight:400;color:var(--fg2);font-size:14px">昨天忘了記 · 今天請假</button></div>`;
+}
+function bindMain(m){
+  const h=$("#hold");if(h)bindHold(h);
+  $("#done")?.addEventListener("click",moreSheet);
+  $("#more")?.addEventListener("click",moreSheet);
+  $("#review")?.addEventListener("click",reviewSheet);
+  $("#stuck")?.addEventListener("click",()=>go(2));
+  $("#lg-end")?.addEventListener("click",()=>{S.letgo.start=add(today(),-14);save();renderMain();});
+  m.querySelectorAll("[data-goto]").forEach(b=>b.addEventListener("click",()=>{go(2);setTimeout(()=>{const el=document.getElementById("set-"+b.dataset.goto);el&&el.scrollIntoView({block:"center"});el&&el.focus&&el.focus();},400);}));
+}
+function bindHold(h){
+  const ring=h.querySelector(".ring"),C=402.1,DUR=1500;let t0=0,raf=0,on=false;
+  const reset=()=>{on=false;cancelAnimationFrame(raf);h.classList.remove("pressing");ring.style.transition="stroke-dashoffset .25s";ring.style.strokeDashoffset=C;lock(false);};
+  h.addEventListener("pointerdown",e=>{e.preventDefault();audio();haptic();on=true;t0=performance.now();h.classList.add("pressing");ring.style.transition="none";lock(true);
+    try{h.setPointerCapture(e.pointerId);}catch(_){}
+    const step=n=>{if(!on)return;const p=Math.min(1,(n-t0)/DUR);ring.style.strokeDashoffset=C*(1-p);if(p>=1){on=false;h.classList.remove("pressing");lock(false);logToday();}else raf=requestAnimationFrame(step);};
+    raf=requestAnimationFrame(step);});
+  ["pointerup","pointercancel","pointerleave"].forEach(ev=>h.addEventListener(ev,()=>{if(on)reset();}));
+  h.addEventListener("contextmenu",e=>e.preventDefault());
+  h.addEventListener("keydown",e=>{if(e.key===" "||e.key==="Enter"){e.preventDefault();audio();logToday();}});
+}
+function logToday(){
+  const t=today();if(S.logs[t])return;
+  S.logs[t]={t:"done"};save();
+  const ret=isReturn(t);
+  haptic();thunk();if(ret)setTimeout(ping,800);
+  vine.grow=true;renderMain();
+}
+
+/* 首次設定 */
+function renderOnboard(m){
+  const d=S._draft||(S._draft={floor:S.queue[0]||"",trigger:"",step:1});
+  const warnFor=(fv,tv)=>{let w="";
+    if(NEG.test(fv))w=`「就」後面要放一個做得出來的動作。「不做某件事」沒辦法每天重複，換成你要做什麼，例如「想滑手機時，就站起來倒杯水」。`;
+    else if(fv.length>20)w=`這比較像平常想做到的量。最小一步要小到最糟的一天也做得到，兩分鐘內做完。`;
+    if(FOOD.test(fv+(tv||"")))w+=(w?"<br><br>":"")+`跟飲食、體重有關的目標，這個 app 可能不適合。<button class="link" id="ob-unfit">看說明</button>`;
+    return w?`<div class="warn">${w}</div>`:"";};
+  const stepLine=`<p class="mini" style="font-size:13px;letter-spacing:.3px;margin:0 0 -6px 2px">第 ${d.step} 步，共 2 步</p>`;
+  if(d.step===1){
+    const qchips=S.queue.map(x=>`<button style="background:var(--accent-soft);color:var(--accent);font-weight:600">${esc(x)}</button>`).join("");
+    m.innerHTML=`<div><h1 class="big">種一個習慣</h1><p class="sub">一次只種一個，長好了再種下一個。</p></div>
+    <div class="ob">${stepLine}
+      <div class="card">
+        <label for="ob-floor">每天想多做的事，最小的那一步是？</label>
+        <input class="big-in" id="ob-floor" maxlength="40" placeholder="打開檔案寫一句" value="${esc(d.floor)}" autocomplete="off">
+        ${qchips?`<p class="mini" style="margin:12px 0 0">排隊中</p><div class="chips" id="ex-queue" style="margin-top:6px">${qchips}</div><p class="mini" style="margin:12px 0 0">或從這些開始</p>`:""}
+        <div class="chips" id="ex-floor" ${qchips?'style="margin-top:6px"':""}>${FLOOR_EX.map(x=>`<button>${x}</button>`).join("")}</div>
+        <p class="mini" style="margin:12px 0 0">小到最糟的一天也做得到，兩分鐘內做完。</p>
+      </div>
+      <div id="ob-warn"></div>
+      <button class="btn" id="ob-next">下一步</button>
+      <button class="link" id="ob-restore" style="font-weight:400;color:var(--fg2);font-size:14px;align-self:center">從備份還原</button>
+    </div>`;
+    const f=$("#ob-floor"),btn=$("#ob-next");
+    const upd=()=>{d.floor=f.value;const fv=f.value.trim();$("#ob-warn").innerHTML=warnFor(fv,"");$("#ob-unfit")?.addEventListener("click",unfitSheet);btn.disabled=!fv||NEG.test(fv);};
+    f.addEventListener("input",upd);
+    const pick=e=>{if(e.target.tagName==="BUTTON"){f.value=e.target.textContent;upd();}};
+    $("#ex-floor").addEventListener("click",pick);$("#ex-queue")?.addEventListener("click",pick);
+    f.addEventListener("keydown",e=>{if(e.key==="Enter"&&!btn.disabled)btn.click();});
+    btn.addEventListener("click",()=>{d.step=2;renderOnboard(m);setTimeout(()=>$("#ob-trig")?.focus(),50);});
+    $("#ob-restore").addEventListener("click",restoreSheet);
+    upd();return;
+  }
+  const fv=d.floor.trim();
+  m.innerHTML=`<div><h1 class="big">掛在哪裡</h1><p class="sub">找一個每天一定會發生的瞬間。</p></div>
+  <div class="ob">${stepLine}
+    <div class="card">
+      <label for="ob-trig">「${esc(fv)}」要接在每天哪個瞬間後面？</label>
+      <input class="big-in" id="ob-trig" maxlength="30" placeholder="起床喝完第一杯水" value="${esc(d.trigger)}" autocomplete="off">
+      <div class="chips" id="ex-trig">${TRIG_EX.map(x=>`<button>${x}</button>`).join("")}</div>
+      <p class="mini" style="margin:12px 0 0">一個瞬間，不是一段時間。「早上有空時」不算，「刷完牙」算。</p>
+    </div>
+    <div class="card switchcard" style="margin-top:0"><div class="lab">開關</div><div class="sentence" id="ob-prev"></div></div>
+    <div id="ob-warn"></div>
+    <button class="btn" id="ob-go">種下去</button>
+    <button class="link" id="ob-back" style="font-weight:400;color:var(--fg2);font-size:14px;align-self:center">‹ 改最小一步</button>
+  </div>`;
+  const tr=$("#ob-trig"),btn=$("#ob-go");
+  const upd=()=>{d.trigger=tr.value;const tv=tr.value.trim();
+    $("#ob-prev").innerHTML=`如果<b>${esc(tv||"＿＿")}</b>，我就<b>${esc(fv)}</b>。`;
+    $("#ob-warn").innerHTML=FOOD.test(tv)&&!FOOD.test(fv)?warnFor("",tv):"";$("#ob-unfit")?.addEventListener("click",unfitSheet);
+    btn.disabled=!tv;};
+  tr.addEventListener("input",upd);
+  $("#ex-trig").addEventListener("click",e=>{if(e.target.tagName==="BUTTON"){tr.value=e.target.textContent;upd();}});
+  $("#ob-back").addEventListener("click",()=>{d.step=1;renderOnboard(m);});
+  btn.addEventListener("click",()=>{const t=today();
+    S.habit={floor:fv,trigger:tr.value.trim(),travelFloor:"",obstacle:"",backup:"",why:"",planted:t};
+    const qi=S.queue.indexOf(fv);if(qi>=0)S.queue.splice(qi,1);
+    S.logs={};S.weekly=[];S.pressure=null;S.letgo=null;S.letgoResult=null;delete S._draft;save();renderMain();toast("種下去了。做完最小一步，就按住。");});
+  upd();
+}
+function renderDug(m){
+  const p=S.justDug;lock(false);
+  m.innerHTML=`<div><h1 class="big">挖出來了</h1><p class="sub">${fmt(today())}</p></div>
+  <div class="card switchcard" style="text-align:center">${potatoSVG(120)}
+    <div class="sentence" style="margin-top:8px"><b>${esc(p.floor)}</b></div>
+    <p class="mini" style="font-size:15px">${p.nodes} 條根 · 回來 ${p.ret} 次 · 種了 ${p.days} 天</p></div>
+  <div class="card" style="padding:16px 18px"><p class="mini" style="font-size:15px;margin:0">開關、東西擺的位置都留著，只是不用再記了。</p></div>
+  <div style="display:flex;flex-direction:column;gap:10px;margin-top:6px">
+    <button class="btn" id="next">種下一個${S.queue[0]?`：${esc(S.queue[0])}`:""}</button></div>`;
+  $("#next").addEventListener("click",()=>{S.justDug=null;S.habit=null;save();renderMain();});
+}
+function renderLetgoEnd(m){
+  lock(false);
+  m.innerHTML=`<div><h1 class="big">放手兩週到了</h1><p class="sub">不用翻紀錄，憑感覺回想就好。</p></div>
+  <div class="card q"><div class="t">這兩週，大概有幾天做了「${esc(S.habit.floor)}」？</div>
+  <input type="range" id="lg-n" min="0" max="14" value="12" style="accent-color:var(--accent)"><div class="scale"><span>0 天</span><span id="lg-v" style="color:var(--fg);font-weight:600">12 天</span><span>14 天</span></div></div>
+  <button class="btn" id="lg-ok">記下來</button>`;
+  $("#lg-n").addEventListener("input",e=>$("#lg-v").textContent=e.target.value+" 天");
+  $("#lg-ok").addEventListener("click",()=>{const n=+$("#lg-n").value,prior=S.letgo.prior;
+    S.letgoResult={days:n,prior,pass:n>=prior-2};S.letgo=null;save();renderMain();
+    toast(S.letgoResult.pass?"沒有明顯變少。":"比之前少一些，先繼續記。");go(0);});
+}
+
+/* 更多選項 */
+function moreSheet(){
+  const t=today(),y=add(t,-1),st=stats(),log=S.logs[t];
+  const canY=S.habit&&!S.logs[y]&&y>=S.habit.planted;
+  const lastLeave=Object.keys(S.logs).filter(k=>S.logs[k].t==="leave").sort().pop();
+  openSheet(`<h3>今天</h3><div class="card">
+    ${canY?'<button class="row" id="o-y"><span class="k">昨天做了，忘了記</span><span class="chev">›</span></button>':''}
+    ${!log?`<button class="row" id="o-l" ${st.leaveLeft?"":"disabled"}><span class="k">今天請假</span><span class="v">本月剩 ${st.leaveLeft} 次</span></button>`:''}
+    ${log?'<button class="row danger" id="o-u"><span class="k">撤銷今天</span></button>':''}
+  </div>
+  <div id="leave-box" hidden><div class="card"><div class="row stack"><span class="lab">請假的原因，一行就好</span><input class="txt" id="o-r" maxlength="40" placeholder="出遠門、發燒…"></div></div>
+  ${lastLeave&&S.logs[lastLeave].reason?`<p>上次請假：${esc(S.logs[lastLeave].reason)}</p>`:""}
+  <p id="same" hidden>這個原因第二次了，可能是開關要換。</p>
+  <button class="btn" id="o-lok" style="width:100%;margin-top:4px">請假</button></div>
+  <p>補記只能補昨天，而且是補紀錄，不是補做。</p>`,el=>{
+    el.querySelector("#o-y")?.addEventListener("click",()=>{S.logs[y]={t:"done"};save();closeSheet();vine.grow=false;renderMain();toast("昨天那一節補上了。");});
+    el.querySelector("#o-u")?.addEventListener("click",()=>{delete S.logs[t];save();closeSheet();renderMain();});
+    el.querySelector("#o-l")?.addEventListener("click",()=>{el.querySelector("#leave-box").hidden=false;el.querySelector("#o-r").focus();});
+    el.querySelector("#o-r")?.addEventListener("input",e=>{const v=e.target.value.trim();el.querySelector("#same").hidden=!(v&&lastLeave&&S.logs[lastLeave].reason&&S.logs[lastLeave].reason.trim()===v);});
+    el.querySelector("#o-lok")?.addEventListener("click",()=>{S.logs[t]={t:"leave",reason:el.querySelector("#o-r").value.trim()};save();closeSheet();renderMain();});
+  });
+}
+
+/* 開始四問 */
+function reviewSheet(){
+  const f=S.habit.floor;
+  const qs=[`「${f}」這件事的開始，是我自動會做的。`,`我不用刻意記得，就會開始。`,`我不用想，就會開始。`,`我意識到之前，就已經開始了。`];
+  const vals=[4,4,4,4];
+  openSheet(`<h3>開始四問</h3><p>只問開始那一下，不問做得好不好。1 是完全不像，7 是完全就是。</p>
+    ${qs.map((q,i)=>`<div class="card q"><div class="t">${esc(q)}</div><div class="seg" data-i="${i}">${[1,2,3,4,5,6,7].map(n=>`<button aria-pressed="${n===4}">${n}</button>`).join("")}</div></div>`).join("")}
+    <button class="btn" id="rv-ok" style="width:100%">記下這週</button>`,el=>{
+    el.querySelectorAll(".seg").forEach(s=>s.addEventListener("click",e=>{if(e.target.tagName!=="BUTTON")return;const i=+s.dataset.i;vals[i]=+e.target.textContent;
+      s.querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",b===e.target));}));
+    el.querySelector("#rv-ok").addEventListener("click",()=>{const avg=vals.reduce((a,b)=>a+b,0)/4;
+      S.weekly.push({date:today(),scores:vals.slice(),avg});save();closeSheet();renderMain();if(page===0)renderField();toast("記下了。");});
+  });
+}
+
+/* ================= 地瓜藤 ================= */
+const vine=(()=>{
+  let cv,ctx,W=0,H=0,dpr=1,cam=0,camT=0,leaves=[],parts=[],anim=null,raf=0,gx=0,gy=1,colors={};
+  const SP=48;
+  function readColors(){const cs=getComputedStyle(document.documentElement);["soil","soil-deep","grain","leaf","leaf-dark","vine","root","flower","flower-core"].forEach(k=>colors[k]=cs.getPropertyValue("--"+k).trim());}
+  function seeded(i){let x=Math.sin(i*127.1+311.7)*43758.5453;return x-Math.floor(x);}
+  function attach(c){
+    cv=c;ctx=cv.getContext("2d");readColors();size();
+    const ds=doneKeys();
+    leaves=ds.map((k,i)=>({k,i,a:0,w:0,ret:isReturn(k)}));
+    const target=(ds.length-1)*SP+40-W*0.62;
+    if(vine.grow&&ds.length){anim={t0:performance.now(),i:ds.length-1,ret:leaves[ds.length-1].ret};cam=target-SP;}
+    else{anim=null;cam=target;}
+    camT=target;vine.grow=false;
+    cv.onpointerdown=tap;
+    cancelAnimationFrame(raf);raf=requestAnimationFrame(loop);
+  }
+  function size(){if(!cv)return;const r=cv.getBoundingClientRect();dpr=Math.min(2,devicePixelRatio||1);W=r.width;H=r.height;cv.width=W*dpr;cv.height=H*dpr;}
+  addEventListener("resize",()=>{size();});
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change",readColors);
+  function soilY(){return Math.max(H*0.5,H-150);}
+  function nodePos(i){const x=40+i*SP-cam,y=soilY()-4+Math.sin(i*0.9)*5;return[x,y];}
+  function tap(e){const r=cv.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;
+    for(const L of leaves){const[nx,ny]=nodePos(L.i);if(Math.hypot(nx-x,ny-30-y)<30){L.w+=(x<nx?-1:1)*7;}}}
+  window.addEventListener("deviceorientation",e=>{if(e.gamma==null)return;gx=Math.sin((e.gamma||0)*Math.PI/180);},true);
+  function leafPath(s){ctx.beginPath();ctx.moveTo(0,0);
+    ctx.bezierCurveTo(-14*s,-4*s,-20*s,-20*s,-9*s,-27*s);ctx.bezierCurveTo(-4*s,-30*s,-1*s,-28*s,0,-24*s);
+    ctx.bezierCurveTo(1*s,-28*s,4*s,-30*s,9*s,-27*s);ctx.bezierCurveTo(20*s,-20*s,14*s,-4*s,0,0);ctx.closePath();}
+  function flower(x,y,s,rot){ctx.save();ctx.translate(x,y);ctx.rotate(rot);ctx.scale(s,s);
+    ctx.fillStyle=colors.flower;for(let k=0;k<5;k++){ctx.beginPath();ctx.ellipse(0,-6,5.2,6.8,k*Math.PI*2/5,0,Math.PI*2);ctx.rotate(Math.PI*2/5);ctx.fill();}
+    ctx.beginPath();ctx.arc(0,0,6.5,0,Math.PI*2);ctx.fill();ctx.fillStyle=colors["flower-core"];ctx.beginPath();ctx.arc(0,0,3,0,Math.PI*2);ctx.fill();ctx.restore();}
+  const ease=t=>1-Math.pow(1-t,3);
+  const spring=t=>t>=1?1:1-Math.exp(-6*t)*Math.cos(10*t);
+  let last=performance.now();
+  function loop(now){
+    if(!cv||!cv.isConnected){return;}
+    const dt=Math.min(.05,(now-last)/1000);last=now;
+    if(!W){size();}
+    cam+=(camT-cam)*(reduce?1:Math.min(1,dt*3));
+    ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);
+    const sy=soilY();
+    // 土
+    ctx.fillStyle=colors.soil;ctx.beginPath();ctx.moveTo(0,H);ctx.lineTo(0,sy+4);
+    for(let x=0;x<=W+10;x+=10){ctx.lineTo(x,sy+3+Math.sin((x+cam*0.6)*0.05)*2.2);}ctx.lineTo(W,H);ctx.closePath();ctx.fill();
+    const g=ctx.createLinearGradient(0,sy,0,H);g.addColorStop(0,"rgba(0,0,0,0)");g.addColorStop(1,colors["soil-deep"]);ctx.fillStyle=g;ctx.fillRect(0,sy+6,W,H-sy);
+    ctx.fillStyle=colors.grain;for(let i=0;i<90;i++){const gx2=((seeded(i)*W*2-cam*0.6)%(W+20)+W+20)%(W+20)-10;const gy2=sy+12+seeded(i+99)*(H-sy-16);ctx.fillRect(gx2,gy2,2,2);}
+    const n=leaves.length;
+    let a=anim?(now-anim.t0)/1000:9;if(reduce&&anim)a=9;
+    // 根
+    ctx.strokeStyle=colors.root;ctx.lineCap="round";
+    for(const L of leaves){const[x,y]=nodePos(L.i);if(x<-60||x>W+60)continue;
+      let p=1;if(anim&&L.i===anim.i)p=Math.max(0,Math.min(1,(a-.6)/.8));if(p<=0)continue;
+      const len=34+seeded(L.i)*40;ctx.lineWidth=1.6;ctx.beginPath();ctx.moveTo(x,y+2);
+      const segs=8;for(let s=1;s<=segs*p;s++){const t=s/segs;ctx.lineTo(x+Math.sin(t*5+L.i)*4*t+(seeded(L.i+3)-.5)*14*t,y+2+len*t);}ctx.stroke();
+      ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x+1,y+len*.4*p+2);ctx.lineTo(x+(seeded(L.i+7)-.5)*26*p,y+len*.6*p+6);ctx.stroke();}
+    // 藤
+    if(n){ctx.strokeStyle=colors.vine;ctx.lineWidth=3.2;ctx.beginPath();const[x0,y0]=nodePos(0);ctx.moveTo(x0-40,y0+3);
+      for(let i=0;i<n;i++){let[x,y]=nodePos(i);if(anim&&i===anim.i){const p=ease(Math.min(1,a/.6));const[px,py]=i?nodePos(i-1):[x-40,y];x=px+(x-px)*p;y=py+(y-py)*p;}
+        const[px,py]=i?nodePos(i-1):[x0-40,y0+3];ctx.quadraticCurveTo((px+x)/2,Math.min(py,y)-6,x,y);}
+      ctx.stroke();
+      // 尾端捲鬚
+      const[tx,ty]=nodePos(n-1);const tp=anim?ease(Math.min(1,a/.6)):1;if(tp>=1){ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(tx,ty);ctx.quadraticCurveTo(tx+18,ty-8,tx+22,ty-18);ctx.quadraticCurveTo(tx+24,ty-26,tx+17,ty-24);ctx.stroke();}}
+    // 葉、花
+    for(const L of leaves){const[x,y]=nodePos(L.i);if(x<-60||x>W+60)continue;
+      const base=(L.i%2?0.3:-0.3);const target=gx*0.6;
+      L.w+=(-(L.a-target)*38-L.w*3.2)*dt;L.a+=L.w*dt;
+      let s=1;if(anim&&L.i===anim.i){s=a<.3?0:spring((a-.3)/.6);}
+      if(s<=0)continue;
+      ctx.save();ctx.translate(x,y);ctx.rotate(base+L.a);
+      ctx.strokeStyle=colors.vine;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(0,-14*s);ctx.stroke();
+      ctx.translate(0,-12*s);const sc=s*(0.9+seeded(L.i)*0.25);
+      leafPath(sc);ctx.fillStyle=colors.leaf;ctx.fill();
+      ctx.strokeStyle=colors["leaf-dark"];ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,-1);ctx.lineTo(0,-23*sc);ctx.stroke();
+      ctx.restore();
+      if(L.ret){let fs=1;if(anim&&L.i===anim.i)fs=a<.8?0:spring((a-.8)/.5);if(fs>0)flower(x+(L.i%2?-14:14),y-10,fs*1.05,(1-fs)*.8+L.a*.5);}
+    }
+    // 土粒
+    if(anim&&!anim.spawned&&a>.65&&!reduce){anim.spawned=1;const[x,y]=nodePos(anim.i);for(let k=0;k<8;k++)parts.push({x:x+(Math.random()-.5)*14,y:y+4,vx:(Math.random()-.5)*80,vy:-60-Math.random()*90,life:0});}
+    ctx.fillStyle=colors["soil-deep"];parts=parts.filter(p=>{p.life+=dt;p.vy+=420*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;ctx.globalAlpha=Math.max(0,1-p.life/0.7);ctx.fillRect(p.x,p.y,3,3);return p.life<.7;});ctx.globalAlpha=1;
+    if(!n){ctx.fillStyle=colors.vine;ctx.beginPath();ctx.moveTo(W*.5,sy+2);ctx.quadraticCurveTo(W*.5-2,sy-10,W*.5+6,sy-16);ctx.lineWidth=2.4;ctx.strokeStyle=colors.vine;ctx.stroke();
+      ctx.save();ctx.translate(W*.5+6,sy-16);ctx.rotate(.5);leafPath(.45);ctx.fillStyle=colors.leaf;ctx.fill();ctx.restore();}
+    if(anim&&a>2.2)anim=null;
+    raf=requestAnimationFrame(loop);
+  }
+  return{attach,grow:false};
+})();
+
+/* ================= 田 ================= */
+function potatoSVG(w=44){return `<svg class="potato" viewBox="0 0 88 60" style="width:${w}px;height:${w*0.68}px" aria-hidden="true">
+  <path d="M20 22 C30 4 52 6 60 14" stroke="var(--vine)" stroke-width="3" fill="none"/><path d="M58 13 c-8 -10 2 -16 8 -10 c4 -6 14 0 6 10 z" fill="var(--leaf)"/>
+  <ellipse cx="44" cy="38" rx="36" ry="19" fill="var(--accent)" transform="rotate(-8 44 38)"/>
+  <ellipse cx="34" cy="31" rx="14" ry="5" fill="#fff" opacity=".22" transform="rotate(-14 34 31)"/>
+  <path d="M30 44 q6 2 12 0 M52 40 q5 2 10 -1" stroke="#000" stroke-opacity=".18" stroke-width="1.5" fill="none"/></svg>`;}
+function chartSVG(){
+  const w=S.weekly.slice(-8);if(!w.length)return `<div class="empty">每週做一次開始四問，這裡會畫出一條線。它會先爬、後來走平，走平就是快長好了。</div>`;
+  const Wd=320,Hd=150,l=26,r=12,t=12,b=26,iw=Wd-l-r,ih=Hd-t-b;
+  const X=i=>l+(w.length===1?iw/2:i*iw/(w.length-1)),Y=v=>t+ih-(v-1)/6*ih;
+  const pts=w.map((d,i)=>[X(i),Y(d.avg)]);
+  const line=pts.map((p,i)=>(i?"L":"M")+p[0].toFixed(1)+" "+p[1].toFixed(1)).join(" ");
+  const area=line+` L${pts[pts.length-1][0]} ${Y(1)} L${pts[0][0]} ${Y(1)} Z`;
+  return `<div class="chart"><svg viewBox="0 0 ${Wd} ${Hd}" role="img" aria-label="開始四問最近 ${w.length} 週">
+    ${[1,4,7].map(v=>`<line class="grid" x1="${l}" x2="${Wd-r}" y1="${Y(v)}" y2="${Y(v)}" stroke-width="1"/><text class="axis" x="${l-8}" y="${Y(v)+4}" text-anchor="end">${v}</text>`).join("")}
+    <path class="area" d="${area}"/><path class="line" d="${line}"/>
+    ${pts.map((p,i)=>`<circle class="pt" cx="${p[0]}" cy="${p[1]}" r="${i===pts.length-1?4.5:2.5}"/>`).join("")}
+    ${w.map((d,i)=>(i===0||i===w.length-1)?`<text class="axis" x="${X(i)}" y="${Hd-6}" text-anchor="middle">${fmtShort(d.date)}</text>`:"").join("")}
+  </svg></div>`;
+}
+function renderField(){
+  const f=$("#field");
+  if(!S.habit){f.innerHTML=`<div><h1 class="big">田</h1><p class="sub">還沒種東西</p></div>`+queueHTML()+basketHTML();bindField(f);return;}
+  const st=stats(),sg=signals(),h=S.habit;
+  const passN=[sg.s1,sg.s2,sg.s3].filter(Boolean).length;
+  f.innerHTML=`<div><h1 class="big">田</h1><p class="sub">${esc(h.trigger)} → ${esc(h.floor)}</p></div>
+  <div class="card">
+    <div class="row"><span class="k">根</span><span class="v">${st.nodes} 條</span></div>
+    <div class="row"><span class="k">回來／漏掉</span><span class="v">${st.ret} 次／${st.missed} 天</span></div>
+    <div class="row"><span class="k">本月請假</span><span class="v">${st.leaves}／${S.settings.leave}</span></div>
+    <div class="row"><span class="k">種下去那天</span><span class="v">${fmtShort(h.planted)}</span></div>
+  </div>
+  <p class="foot">只數做了的，不數連續。漏掉的日子不會讓藤枯掉。</p>
+  <h2 class="h2">開始四問</h2>
+  <div class="card">${chartSVG()}<button class="row" id="f-rv"><span class="k" style="color:var(--accent)">做這週的開始四問</span><span class="chev">›</span></button></div>
+  <h2 class="h2">長好了嗎</h2>
+  <div class="card">
+    <div class="row" style="padding-block:12px"><span class="sig ${sg.s1?"ok":""}"></span><span class="k">曲線走平<div class="mini">最近三週相差 0.5 以內${sg.n<6?`，至少要 6 週（現在 ${sg.n}）`:""}</div></span></div>
+    <div class="row" style="padding-block:12px"><span class="sig ${sg.s2?"ok":""}"></span><span class="k">壓力週還照做<div class="mini">最近最忙、出遠門或不舒服的那週，有做最小一步，而且沒怎麼掙扎</div></span></div>
+    ${S.pressure===null||S.pressure===false?`<div class="pillrow"><button class="pri" id="p-yes">有，照做了</button><button id="p-no">還沒遇到／那週掉了</button></div>`:""}
+    <div class="row" style="padding-block:12px"><span class="sig ${sg.s3?"ok":""}"></span><span class="k">不記也照做<div class="mini">${S.letgo?`放手測試進行中`:S.letgoResult?`放手兩週，回想做了 ${S.letgoResult.days} 天（之前兩週 ${S.letgoResult.prior} 天）`:`兩週不記，看做的天數有沒有變少`}</div></span></div>
+    ${!S.letgo&&!sg.s3?`<div class="pillrow"><button id="lg-start">開始放手測試</button></div>`:""}
+    ${sg.flatLow?`<div class="row" style="padding-block:12px"><span class="k mini" style="font-size:14px">有些事會一直需要你出力，這也沒關係。要不要看看開關和最小一步？</span></div>`:""}
+    ${passN>=2?`<div class="pillrow"><button class="pri" id="dig">挖地瓜</button></div>`:""}
+  </div>
+  <p class="foot">三個訊號有兩個通過就算長好了。${S.queue[0]?`挖出來之後，下一個是「${esc(S.queue[0])}」。`:""}</p>`+queueHTML()+basketHTML();
+  bindField(f);
+}
+function basketHTML(){
+  return `<h2 class="h2">竹籃</h2><div class="card">${S.basket.length?S.basket.map((p,i)=>`<button class="row" data-pot="${i}" style="padding-block:10px">${potatoSVG()}<span class="k">${esc(p.floor)}<div class="mini">${p.nodes} 條根 · 回來 ${p.ret} 次 · ${p.days} 天</div></span><span class="chev">›</span></button>`).join(""):`<div class="empty">長好的習慣會變成一顆地瓜，收在這裡。</div>`}</div>`;
+}
+function queueHTML(){
+  return `<h2 class="h2">排隊</h2><div class="card">${S.queue.map((q,i)=>`<div class="row"><span class="k">${esc(q)}</span><button class="link" data-qdel="${i}" style="font-weight:400" aria-label="移除 ${esc(q)}">移除</button></div>`).join("")}
+  <div class="row"><input class="txt" id="q-in" placeholder="之後想種的，寫一行" style="text-align:left;color:var(--fg)" maxlength="40"><button class="link" id="q-add">加入</button></div></div>
+  <p class="foot">一次種一個。兩個都還在長的時候，會搶同一份注意力。這一個長好、挖出來之後，排第一的會出現在種下一個的畫面。</p>`;
+}
+function bindField(f){
+  $("#f-rv")?.addEventListener("click",reviewSheet);
+  $("#p-yes")?.addEventListener("click",()=>{S.pressure=true;save();renderField();});
+  $("#p-no")?.addEventListener("click",()=>{S.pressure=false;save();toast("等遇到了再回來按。");});
+  $("#lg-start")?.addEventListener("click",()=>{const t=today();let prior=0;for(let i=1;i<=14;i++)if(S.logs[add(t,-i)]?.t==="done")prior++;
+    S.letgo={start:t,prior};save();renderField();renderMain();toast("接下來兩週照常做，不用記。");});
+  $("#dig")?.addEventListener("click",dig);
+  f.querySelectorAll("[data-pot]").forEach(b=>b.addEventListener("click",()=>{const p=S.basket[+b.dataset.pot];
+    openSheet(`<div style="text-align:center">${potatoSVG(120)}</div><h3 style="text-align:center">${esc(p.floor)}</h3>
+    <div class="card"><div class="row"><span class="k">開關</span><span class="v">${esc(p.trigger)}</span></div>
+    <div class="row"><span class="k">根</span><span class="v">${p.nodes} 條</span></div><div class="row"><span class="k">回來</span><span class="v">${p.ret} 次</span></div>
+    <div class="row"><span class="k">種了</span><span class="v">${fmtShort(p.planted)} – ${fmtShort(p.dug)}</span></div></div>`);}));
+  f.querySelectorAll("[data-qdel]").forEach(b=>b.addEventListener("click",()=>{S.queue.splice(+b.dataset.qdel,1);save();renderField();}));
+  const add2=()=>{const v=$("#q-in").value.trim();if(!v)return;S.queue.push(v);save();renderField();};
+  $("#q-add")?.addEventListener("click",add2);$("#q-in")?.addEventListener("keydown",e=>{if(e.key==="Enter")add2();});
+}
+function dig(){
+  const st=stats(),t=today(),h=S.habit;
+  const p={floor:h.floor,trigger:h.trigger,nodes:st.nodes,ret:st.ret,days:diff(h.planted,t)+1,planted:h.planted,dug:t};
+  S.basket.unshift(p);S.justDug=p;S.logs={};S.weekly=[];S.pressure=null;S.letgo=null;S.letgoResult=null;save();
+  audio();ping();go(1);renderMain();
+}
+
+/* ================= 設定 ================= */
+function renderSettings(){
+  const s=$("#settings"),h=S.habit||{};
+  const dis=S.habit?"":"disabled";
+  s.innerHTML=`<div><h1 class="big">設定</h1></div>
+  <h2 class="h2">開關句</h2>
+  <div class="card">
+    <div class="row stack"><label class="lab" for="set-trigger">如果（每天一定會發生的瞬間）</label><input class="txt" id="set-trigger" ${dis} value="${esc(h.trigger)}" maxlength="30"></div>
+    <div class="row stack"><label class="lab" for="set-floor">我就（最小一步）</label><input class="txt" id="set-floor" ${dis} value="${esc(h.floor)}" maxlength="40"></div>
+    <div class="row stack"><label class="lab" for="set-obstacle">障礙版：如果〔障礙〕，就〔替代〕</label><input class="txt" id="set-obstacle" ${dis} value="${esc(h.obstacle)}" placeholder="如果早上要出門，就在捷運上用手機寫三行" maxlength="60"></div>
+    <div class="row stack"><label class="lab" for="set-backup">備用開關：主開關沒出現的日子</label><input class="txt" id="set-backup" ${dis} value="${esc(h.backup)}" placeholder="中午前還沒做，就在第一餐吃完時做" maxlength="60"></div>
+  </div>
+  <p class="foot" id="set-neg" hidden>「就」後面要放一個做得出來的動作。</p>
+  <div class="card"><div class="row stack"><label class="lab" for="set-why">這件事為了什麼（選填）</label><input class="txt" id="set-why" ${dis} value="${esc(h.why)}" maxlength="60"></div></div>
+  <h2 class="h2">旅行中</h2>
+  <div class="card">
+    <div class="row"><span class="k">旅行中</span><span class="sw"><input type="checkbox" id="set-travel" ${S.travel?"checked":""} ${dis} aria-label="旅行中"><span></span></span></div>
+    <div class="row stack"><label class="lab" for="set-tfloor">旅行版最小一步</label><input class="txt" id="set-tfloor" ${dis} value="${esc(h.travelFloor)}" placeholder="在手機上寫三行" maxlength="40"></div>
+  </div>
+  <p class="foot">帶得走的照做最小一步，藤照長。回家第一天會提醒你把東西擺回原位。</p>
+  <h2 class="h2">節奏</h2>
+  <div class="card">
+    <div class="row"><span class="k">每月請假</span><div class="seg" id="set-leave" style="width:170px">${[0,1,2,3].map(n=>`<button aria-pressed="${S.settings.leave===n}">${n}</button>`).join("")}</div></div>
+    <div class="row" style="flex-wrap:wrap;padding-block:12px"><span class="k">週回顧日</span><div class="seg" id="set-rday" style="width:100%">${WEEK.map((d,i)=>`<button aria-pressed="${S.settings.reviewDay===i}">${d}</button>`).join("")}</div></div>
+  </div>
+  <h2 class="h2">讓開始更容易</h2>
+  <div class="card">
+    <div class="row" style="padding-block:12px"><span class="k">前一晚把東西準備好，開關一出現只剩一個動作</span></div>
+    <div class="row" style="padding-block:12px"><span class="k">開關那一刻最常搶走你的東西，放到另一個房間</span></div>
+    <div class="row" style="padding-block:12px"><span class="k">要做的決定（寫哪篇、練哪個）前一晚就決定</span></div>
+  </div>
+  <h2 class="h2">聲音與提醒</h2>
+  <div class="card">
+    <div class="row"><span class="k">聲音</span><span class="sw"><input type="checkbox" id="set-sound" ${S.settings.sound?"checked":""} aria-label="聲音"><span></span></span></div>
+    <div class="row"><span class="k">收工檢查<div class="mini">原生版才有。預設關閉，開關要在生活裡，不在手機裡。</div></span><span class="sw"><input type="checkbox" disabled aria-label="收工檢查"><span></span></span></div>
+  </div>
+  <h2 class="h2">資料</h2>
+  <div class="card">
+    <button class="row" id="set-export"><span class="k">匯出備份</span><span class="chev">›</span></button>
+    <button class="row" id="set-import"><span class="k">從備份還原</span><span class="chev">›</span></button>
+  </div>
+  <p class="foot">資料只存在這支手機的瀏覽器裡。刪掉主畫面捷徑會連資料一起刪，換之前先匯出。</p>
+  <div class="card"><button class="row" id="set-tips"><span class="k">什麼時候不適合用這個 app</span><span class="chev">›</span></button></div>
+  <h2 class="h2">測試區</h2>
+  <div class="card">
+    <div class="row"><span class="k">現在是<div class="mini">${fmt(today())}${S.dayOffset?`（往後 ${S.dayOffset} 天）`:""}</div></span></div>
+    <button class="row" id="t-next"><span class="k" style="color:var(--accent)">往後一天</span></button>
+    <button class="row" id="t-week"><span class="k" style="color:var(--accent)">往後一週（不記）</span></button>
+    <button class="row" id="t-now"><span class="k" style="color:var(--accent)">回到真正的今天</span></button>
+    <button class="row" id="t-demo"><span class="k" style="color:var(--accent)">載入示範資料（會蓋掉目前的）</span></button>
+    <button class="row danger" id="t-wipe"><span class="k">清除全部</span></button>
+  </div>
+  <p class="foot">原型專用。正式版沒有這一區。</p>`;
+  const bindTxt=(id,k)=>{const el=$("#"+id);el&&el.addEventListener("change",()=>{if(!S.habit)return;const v=el.value.trim();
+    if(k==="floor"&&(NEG.test(v)||!v)){$("#set-neg").hidden=false;el.value=S.habit.floor;return;}$("#set-neg").hidden=true;
+    if(k==="trigger"&&!v){el.value=S.habit.trigger;return;}S.habit[k]=v;save();renderMain();});};
+  bindTxt("set-trigger","trigger");bindTxt("set-floor","floor");bindTxt("set-obstacle","obstacle");bindTxt("set-backup","backup");bindTxt("set-why","why");bindTxt("set-tfloor","travelFloor");
+  $("#set-travel").addEventListener("change",e=>{S.travel=e.target.checked;if(!S.travel)S.travelEndedOn=today();save();renderMain();});
+  $("#set-sound").addEventListener("change",e=>{S.settings.sound=e.target.checked;save();});
+  $("#set-leave").addEventListener("click",e=>{if(e.target.tagName!=="BUTTON")return;S.settings.leave=+e.target.textContent;save();renderSettings();});
+  $("#set-rday").addEventListener("click",e=>{if(e.target.tagName!=="BUTTON")return;S.settings.reviewDay=WEEK.indexOf(e.target.textContent);save();renderSettings();renderMain();});
+  $("#set-export").addEventListener("click",exportSheet);$("#set-import").addEventListener("click",restoreSheet);
+  $("#set-tips").addEventListener("click",unfitSheet);
+  $("#t-next").addEventListener("click",()=>{S.dayOffset++;save();renderSettings();renderMain();toast("到了"+fmt(today()));});
+  $("#t-week").addEventListener("click",()=>{S.dayOffset+=7;save();renderSettings();renderMain();toast("到了"+fmt(today()));});
+  $("#t-now").addEventListener("click",()=>{S.dayOffset=0;save();renderSettings();renderMain();});
+  $("#t-demo").addEventListener("click",()=>{demo();renderSettings();renderMain();go(1);toast("載入示範資料：種了 45 天。");});
+  $("#t-wipe").addEventListener("click",e=>{const b=e.currentTarget;if(b.dataset.arm){S=blank();save();renderMain();renderSettings();go(1);}else{b.dataset.arm=1;b.querySelector(".k").textContent="再按一次，全部清除";}});
+}
+function exportSheet(){
+  const json=JSON.stringify(S);
+  openSheet(`<h3>匯出備份</h3><p>複製下面這段，貼到備忘錄或傳給自己。要還原時貼回「從備份還原」。</p>
+    <textarea id="ex-t" readonly>${esc(json)}</textarea><button class="btn" id="ex-c" style="width:100%">複製</button>`,el=>{
+    el.querySelector("#ex-c").addEventListener("click",()=>{const ta=el.querySelector("#ex-t");
+      navigator.clipboard?.writeText(json).then(()=>toast("複製好了。"),()=>{ta.select();toast("已選取，長按複製。");})??(ta.select(),toast("已選取，長按複製。"));});
+  });
+}
+function restoreSheet(){
+  openSheet(`<h3>從備份還原</h3><p>貼上之前匯出的那段文字，或選一個備份檔。目前的資料會被取代。</p>
+    <textarea id="im-t" placeholder="貼在這裡"></textarea><input type="file" id="im-f" accept=".json,.txt,application/json,text/plain">
+    <p id="im-err" class="danger" hidden>這段讀不出來，確認是完整複製的那一整段。</p>
+    <button class="btn" id="im-ok" style="width:100%">還原</button>`,el=>{
+    el.querySelector("#im-f").addEventListener("change",e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>el.querySelector("#im-t").value=r.result;r.readAsText(f);});
+    el.querySelector("#im-ok").addEventListener("click",()=>{try{const o=JSON.parse(el.querySelector("#im-t").value);if(typeof o!=="object"||!("logs" in o))throw 0;
+      S=Object.assign(blank(),o,{settings:Object.assign(blank().settings,o.settings||{})});save();closeSheet();renderMain();renderSettings();toast("還原好了。");}
+      catch(e){el.querySelector("#im-err").hidden=false;}});
+  });
+}
+function unfitSheet(){
+  openSheet(`<h3>什麼時候不適合用這個 app</h3>
+  <p>這個 app 幫你把一個新行為接到生活裡的固定瞬間。下面這些情況，單靠習慣設計不夠，先找專業的人看：</p>
+  <div class="card">
+    <div class="row" style="padding-block:12px"><span class="k">停不下來的渴望、量控制不了、不做會很難受（菸、酒、賭博、某些網路使用）</span></div>
+    <div class="row" style="padding-block:12px"><span class="k">做某件事是為了壓下一個停不下來的念頭</span></div>
+    <div class="row" style="padding-block:12px"><span class="k">拔頭髮、摳皮膚、咬指甲到受傷</span></div>
+    <div class="row" style="padding-block:12px"><span class="k">跟飲食、體重、身形有關的目標</span></div>
+    <div class="row" style="padding-block:12px"><span class="k">兩週以上對大部分事情都提不起勁</span></div>
+  </div>
+  <div class="card">
+    <div class="row"><span class="k">安心專線（24 小時、免付費）</span><span class="v" style="user-select:all">1925</span></div>
+    <div class="row"><span class="k">戒菸專線（免付費）</span><span class="v" style="user-select:all">0800-63-63-63</span></div>
+  </div>
+  <p>也可以掛精神科、身心科，或找臨床心理師。</p>`);
+}
+
+/* ---------- 示範資料 ---------- */
+function demo(){
+  const t=today();const start=add(t,-45);
+  S=Object.assign(blank(),{dayOffset:S.dayOffset,settings:S.settings});
+  S.habit={floor:"打開檔案寫一句",trigger:"起床喝完第一杯水",travelFloor:"在手機上寫三行",obstacle:"如果早上要出門，就在捷運上用手機寫三行",backup:"如果中午前還沒打開過檔案，就在第一餐吃完時打開",why:"把複雜的事想清楚、寫下來",planted:start};
+  const skip=new Set([5,6,13,21,22,30,38]);
+  for(let i=0;i<45;i++){const k=add(start,i);if(i===17)S.logs[k]={t:"leave",reason:"出遠門"};else if(!skip.has(i))S.logs[k]={t:"done"};}
+  const av=[2.25,3,3.75,4.25,4.75,5,5];
+  av.forEach((a,i)=>S.weekly.push({date:add(start,6+i*7),scores:[a,a,a,a],avg:a}));
+  S.queue=["坐上蒲團按計時器","換上球鞋拿球出門"];
+  S.basket=[{floor:"刷完牙做一下伸展",trigger:"刷完牙",nodes:71,ret:9,days:84,planted:add(start,-90),dug:add(start,-6)}];
+  save();
+}
+
+/* ---------- 啟動 ---------- */
+go(1,false);renderMain();
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)renderMain();});
+})();
+</script>
+
+</body>
+</html>
