@@ -112,12 +112,31 @@ async function relaunch() {
   try { await c.simctl(['launch', 'booted', BUNDLE]); } catch (e) { log('relaunch failed', e?.message); }
   await sleep(3000);
 }
-async function goPage(name) { // 田 / 今天 / 設定：上面那排小點
-  if (!(await tapLabel(name, { wait: 900 }))) {
-    const dir = name === '田' ? 'right' : 'left';
-    try { await c.scroll(dir, 600); } catch {}
-    await sleep(900);
+const PAGES = ['田', '今天', '設定'];
+async function goPage(name) { // 上面那排小點的容器叫「頁面」，三等分點下去
+  const i = PAGES.indexOf(name);
+  const f = await frameOf('頁面');
+  if (f) {
+    await c.tap(f.x + f.width * (i + 0.5) / 3, f.y + f.height / 2);
+    log('tap page dot', name);
+    await sleep(1000);
+    return;
   }
+  log('page dots not found, swiping to', name);
+  const dir = name === '田' ? 1 : -1;
+  try {
+    await c.performActions([
+      { type: 'touchDown', x: 200 - dir * 120, y: 600 },
+      { type: 'touchMove', x: 200 + dir * 120, y: 600 },
+      { type: 'touchUp', x: 200 + dir * 120, y: 600 },
+    ]);
+  } catch (e) { log('swipe failed', e?.message); }
+  await sleep(1000);
+}
+async function waitFor(label, ms = 6000) {
+  const end = Date.now() + ms;
+  while (Date.now() < end) { if (await has(label)) return true; await sleep(500); }
+  return false;
 }
 
 try {
@@ -152,17 +171,23 @@ try {
   check('首次打開停在「種一個習慣」', await has('種一個習慣'));
 
   // 首次設定兩步
-  await tapField('打開檔案寫一句');
-  await type('打開檔案寫一句');
+  await tapLabel('打開檔案寫一句', { wait: 600 }); // 點範例片，等於填進去
   await shot('02-ob1-typed');
   await tapLabel('下一步', { wait: 900 });
   await shot('03-ob2');
   check('第二步出現「掛在哪裡」', await has('掛在哪裡'));
-  await tapField('起床喝完第一杯水');
-  await type('起床喝完第一杯水');
+  await tapLabel('起床喝完第一杯水', { wait: 600 }); // 點範例片
   await shot('04-ob2-typed');
-  await tapLabel('種下去', { wait: 1500 });
+  // 鍵盤蓋住「種下去」，按 return（欄位的 onSubmit 也會種下去）；不行再捲下去點
+  try { await c.pressKey('enter'); log('pressed enter'); } catch (e) { log('enter failed', e?.message); }
+  await sleep(1500);
+  if (!(await has(HOLD))) {
+    try { await c.scroll('down', 800); } catch {}
+    await sleep(600);
+    await tapLabel('種下去', { wait: 1500 });
+  }
   await allowIfAsked();
+  await waitFor(HOLD);
   await shot('05-main-empty');
   await dump('main');
   check('種下去後進主畫面，有按住鈕', await has(HOLD));
@@ -184,6 +209,7 @@ try {
   await shot('07-more-sheet');
   await dump('more');
   await tapLabel('撤銷今天', { wait: 1200 });
+  await waitFor(HOLD, 3000);
   await shot('08-undone');
   check('撤銷後回到按住', await has(HOLD));
   await hold(1800, 15);

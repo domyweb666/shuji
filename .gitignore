@@ -8,3 +8,4 @@ build/
 *.ipa
 .DS_Store
 .swiftpm/
+build-artifact/
