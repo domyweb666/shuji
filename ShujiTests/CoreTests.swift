@@ -443,6 +443,47 @@ final class StoreTests: XCTestCase {
         XCTAssertTrue(LogNodeIntent.log(into: s).hasPrefix("回來了。"), "漏兩天後再記是回來")
     }
 
+    func testWidgetSnapshotFollowsMainScreenOrder() {
+        var d = AppState()
+        XCTAssertEqual(WidgetBridge.snapshot(state: d, today: T).status, .empty)
+        d = AppState.demo(today: T)
+        let none = WidgetBridge.snapshot(state: d, today: T)
+        XCTAssertEqual(none.status, .none)
+        XCTAssertEqual(none.nodes, 37)
+        XCTAssertEqual(none.trigger, "起床喝完第一杯水")
+        XCTAssertEqual(none.floor, "打開檔案寫一句")
+        XCTAssertEqual(none.day, T.string)
+        d.logs[T.string] = .done
+        XCTAssertEqual(WidgetBridge.snapshot(state: d, today: T).status, .done)
+        XCTAssertEqual(WidgetBridge.snapshot(state: d, today: T).nodes, 38)
+        d.logs[T.string] = .leave("出遠門")
+        XCTAssertEqual(WidgetBridge.snapshot(state: d, today: T).status, .leave)
+        d.letgo = LetGo(start: T, prior: 10)
+        XCTAssertEqual(WidgetBridge.snapshot(state: d, today: T).status, .letgo, "放手測試優先於今天的紀錄")
+        d.letgo = nil
+        d.travel = true
+        XCTAssertEqual(WidgetBridge.snapshot(state: d, today: T).floor, "在手機上寫三行", "旅行中顯示旅行版最小一步")
+        d.travel = false
+        d.justDug = Potato(floor: "x", trigger: "y", nodes: 1, ret: 0, days: 1, planted: T, dug: T)
+        XCTAssertEqual(WidgetBridge.snapshot(state: d, today: T).status, .dug, "剛挖出來優先於一切")
+    }
+
+    func testWidgetSnapshotResetsAfterDayChange() {
+        let snap = WidgetSnapshot(trigger: "a", floor: "b", nodes: 3, status: .done, day: T.string, updated: Date())
+        XCTAssertEqual(snap.display(today: T), .done)
+        XCTAssertEqual(snap.display(today: T.adding(1)), .none, "換日後記了要變回還沒記")
+        let leave = WidgetSnapshot(trigger: "a", floor: "b", nodes: 3, status: .leave, day: T.string, updated: Date())
+        XCTAssertEqual(leave.display(today: T.adding(1)), .none)
+        let letgo = WidgetSnapshot(trigger: "a", floor: "b", nodes: 3, status: .letgo, day: T.string, updated: Date())
+        XCTAssertEqual(letgo.display(today: T.adding(1)), .letgo, "放手測試中換日也不變")
+
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("shuji-widget-\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let url = dir.appendingPathComponent("widget.json")
+        XCTAssertTrue(snap.write(to: url))
+        XCTAssertEqual(WidgetSnapshot.read(from: url), snap)
+    }
+
     func testDigAndPlantNext() {
         let s = makeStore()
         s.state = AppState.demo(today: T)

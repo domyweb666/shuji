@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		5A00000000000000000000EA /* ShujiWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 5A00000000000000000000E1 /* ShujiWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		5A00000000000000000000C9 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -14,11 +18,33 @@
 			remoteGlobalIDString = 5A00000000000000000000B0;
 			remoteInfo = Shuji;
 		};
+		5A00000000000000000000EC /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 5A00000000000000000000A0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5A00000000000000000000E0;
+			remoteInfo = ShujiWidgetExtension;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		5A00000000000000000000E9 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				5A00000000000000000000EA /* ShujiWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		5A00000000000000000000B1 /* Shuji.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Shuji.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5A00000000000000000000C1 /* ShujiTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ShujiTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		5A00000000000000000000E1 /* ShujiWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShujiWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -26,8 +52,17 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
+				Shuji.entitlements,
 			);
 			target = 5A00000000000000000000B0 /* Shuji */;
+		};
+		5A00000000000000000000A8 /* Exceptions for "ShujiWidget" folder in "ShujiWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+				ShujiWidget.entitlements,
+			);
+			target = 5A00000000000000000000E0 /* ShujiWidgetExtension */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -53,6 +88,27 @@
 			path = ShujiTests;
 			sourceTree = "<group>";
 		};
+		5A00000000000000000000A6 /* Shared */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		5A00000000000000000000A7 /* ShujiWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				5A00000000000000000000A8 /* Exceptions for "ShujiWidget" folder in "ShujiWidgetExtension" target */,
+			);
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = ShujiWidget;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -70,6 +126,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		5A00000000000000000000E3 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -77,6 +140,8 @@
 			isa = PBXGroup;
 			children = (
 				5A00000000000000000000A3 /* Shuji */,
+				5A00000000000000000000A6 /* Shared */,
+				5A00000000000000000000A7 /* ShujiWidget */,
 				5A00000000000000000000A4 /* ShujiTests */,
 				5A00000000000000000000A2 /* Products */,
 			);
@@ -87,6 +152,7 @@
 			children = (
 				5A00000000000000000000B1 /* Shuji.app */,
 				5A00000000000000000000C1 /* ShujiTests.xctest */,
+				5A00000000000000000000E1 /* ShujiWidgetExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -101,13 +167,16 @@
 				5A00000000000000000000B2 /* Sources */,
 				5A00000000000000000000B3 /* Frameworks */,
 				5A00000000000000000000B4 /* Resources */,
+				5A00000000000000000000E9 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				5A00000000000000000000EB /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				5A00000000000000000000A3 /* Shuji */,
+				5A00000000000000000000A6 /* Shared */,
 			);
 			name = Shuji;
 			packageProductDependencies = (
@@ -139,6 +208,29 @@
 			productReference = 5A00000000000000000000C1 /* ShujiTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		5A00000000000000000000E0 /* ShujiWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5A00000000000000000000E5 /* Build configuration list for PBXNativeTarget "ShujiWidgetExtension" */;
+			buildPhases = (
+				5A00000000000000000000E2 /* Sources */,
+				5A00000000000000000000E3 /* Frameworks */,
+				5A00000000000000000000E4 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				5A00000000000000000000A7 /* ShujiWidget */,
+				5A00000000000000000000A6 /* Shared */,
+			);
+			name = ShujiWidgetExtension;
+			packageProductDependencies = (
+			);
+			productName = ShujiWidgetExtension;
+			productReference = 5A00000000000000000000E1 /* ShujiWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -155,6 +247,9 @@
 					5A00000000000000000000C0 = {
 						CreatedOnToolsVersion = 16.0;
 						TestTargetID = 5A00000000000000000000B0;
+					};
+					5A00000000000000000000E0 = {
+						CreatedOnToolsVersion = 16.0;
 					};
 				};
 			};
@@ -174,6 +269,7 @@
 			targets = (
 				5A00000000000000000000B0 /* Shuji */,
 				5A00000000000000000000C0 /* ShujiTests */,
+				5A00000000000000000000E0 /* ShujiWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -187,6 +283,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		5A00000000000000000000C4 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5A00000000000000000000E4 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -210,6 +313,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		5A00000000000000000000E2 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -217,6 +327,11 @@
 			isa = PBXTargetDependency;
 			target = 5A00000000000000000000B0 /* Shuji */;
 			targetProxy = 5A00000000000000000000C9 /* PBXContainerItemProxy */;
+		};
+		5A00000000000000000000EB /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 5A00000000000000000000E0 /* ShujiWidgetExtension */;
+			targetProxy = 5A00000000000000000000EC /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -345,6 +460,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Shuji/Shuji.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
@@ -379,6 +495,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Shuji/Shuji.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
@@ -450,6 +567,66 @@
 			};
 			name = Release;
 		};
+		5A00000000000000000000E6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = ShujiWidget/ShujiWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ShujiWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "薯記";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = org.domyweb.shuji.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		5A00000000000000000000E7 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = ShujiWidget/ShujiWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ShujiWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "薯記";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = org.domyweb.shuji.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -476,6 +653,15 @@
 			buildConfigurations = (
 				5A00000000000000000000C6 /* Debug */,
 				5A00000000000000000000C7 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		5A00000000000000000000E5 /* Build configuration list for PBXNativeTarget "ShujiWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5A00000000000000000000E6 /* Debug */,
+				5A00000000000000000000E7 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
