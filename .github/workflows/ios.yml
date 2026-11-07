@@ -16,16 +16,28 @@ jobs:
       - name: Xcode 版本
         run: xcodebuild -version
 
-      - name: 挑一台可用的 iPhone 模擬器
+      - name: 挑一台可用的 iPhone 模擬器（最新 iOS runtime，用 UDID 指定）
         id: sim
         run: |
-          NAME=$(xcrun simctl list devices available -j | python3 -c '
-          import json, sys
+          PICK=$(xcrun simctl list devices available -j | python3 -c '
+          import json, re, sys
           data = json.load(sys.stdin)["devices"]
-          names = [d["name"] for runtime, devs in data.items() if "iOS" in runtime for d in devs if d["name"].startswith("iPhone")]
-          print(names[-1] if names else "iPhone 16")')
-          echo "name=$NAME" >> "$GITHUB_OUTPUT"
-          echo "用 $NAME"
+          best = None
+          for runtime, devs in data.items():
+              if "iOS" not in runtime:
+                  continue
+              m = re.search(r"iOS-(\d+)-(\d+)", runtime)
+              ver = tuple(int(x) for x in m.groups()) if m else (0, 0)
+              for d in devs:
+                  if d.get("isAvailable", True) and d["name"].startswith("iPhone"):
+                      key = (ver, d["name"])
+                      if best is None or key > best[0]:
+                          best = (key, d["udid"], d["name"], runtime)
+          if best is None:
+              sys.exit("找不到任何 iPhone 模擬器")
+          print(best[1] + "|" + best[2] + "|" + best[3])')
+          echo "id=${PICK%%|*}" >> "$GITHUB_OUTPUT"
+          echo "用 $PICK"
 
       - name: 建置並跑單元測試
         run: |
@@ -33,7 +45,7 @@ jobs:
           xcodebuild test \
             -project Shuji.xcodeproj \
             -scheme Shuji \
-            -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.id }}" \
             -resultBundlePath build/Tests.xcresult \
             CODE_SIGNING_ALLOWED=NO \
             | tail -n 200
