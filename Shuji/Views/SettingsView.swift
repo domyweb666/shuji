@@ -50,7 +50,7 @@ struct SettingsView: View {
             Button("取消", role: .cancel) {}
         } message: {
             Text("藤、竹籃、排隊、設定都會刪掉。先匯出備份比較穩。")
-        }
+        } // 只有 Debug 測試區按得到；正式版照原型，不給清
     }
 
     // MARK: 開關句
@@ -235,8 +235,6 @@ struct SettingsView: View {
                 RowButton(text: "匯出備份") { showExport = true }
                 RowSep()
                 RowButton(text: "從備份還原") { showRestore = true }
-                RowSep()
-                RowButton(text: "全部清除", chevron: false, color: Theme.danger) { confirmWipe = true }
             }
             Foot("資料存在這支手機裡，會跟著 iPhone 的 iCloud 備份走。換手機前自己匯出一份比較穩。")
         }
@@ -258,8 +256,10 @@ struct SettingsView: View {
                 RowButton(text: "回到真正的今天", chevron: false, color: Theme.accent) { store.resetOffset() }
                 RowSep()
                 RowButton(text: "載入示範資料（會蓋掉目前的）", chevron: false, color: Theme.accent) { store.loadDemo() }
+                RowSep()
+                RowButton(text: "全部清除", chevron: false, color: Theme.danger) { confirmWipe = true }
             }
-            Foot("原型專用。正式版沒有這一區。")
+            Foot("原型專用。正式版沒有這一區，也沒有全部清除。")
         }
     }
     #endif
