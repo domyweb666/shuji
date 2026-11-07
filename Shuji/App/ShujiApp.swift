@@ -6,6 +6,7 @@ struct ShujiApp: App {
         let s = Store()
         s.onSaved = { state, today in
             CheckNotification.reschedule(state: state, today: today)
+            WidgetBridge.write(state: state, today: today)
         }
         Store.live = s
         return s
