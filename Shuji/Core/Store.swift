@@ -21,8 +21,8 @@ final class Store {
     var toast: String? = nil
     /// 剛記了一節，下次畫藤要播長出來的動畫
     var vineGrow = false
-    /// 放手測試「提早結束」按了，直接進結算畫面
-    var letgoEndRequested = false
+    /// 正在跑的那個 Store（給 App Intent 用，讓捷徑記的那一節畫面馬上看得到）
+    static weak var live: Store?
     var settingsTarget: SettingsTarget? = nil
     private(set) var tick = 0
 
@@ -202,26 +202,20 @@ final class Store {
         show("接下來兩週照常做，不用記。")
     }
 
-    func endLetGoEarly() {
-        guard state.letgo != nil else { return }
-        letgoEndRequested = true
-    }
-
     /// 放手兩週到了，憑感覺回想做了幾天
     func finishLetGo(days: Int) {
         guard let lg = state.letgo else { return }
         let pass = days >= lg.prior - 2
         state.letgoResult = LetGoResult(days: days, prior: lg.prior, pass: pass, start: lg.start, end: today)
         state.letgo = nil
-        letgoEndRequested = false
         save()
         show(pass ? "沒有明顯變少。" : "比之前少一些，先繼續記。")
         page = 0
     }
 
+    /// 兩週就是兩週，沒有提早結束
     var showLetGoEnd: Bool {
         guard state.letgo != nil else { return false }
-        if letgoEndRequested { return true }
         return (state.letgoDaysLeft(today: today) ?? 1) <= 0
     }
 

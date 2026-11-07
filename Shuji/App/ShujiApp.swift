@@ -7,6 +7,7 @@ struct ShujiApp: App {
         s.onSaved = { state, today in
             CheckNotification.reschedule(state: state, today: today)
         }
+        Store.live = s
         return s
     }()
     @Environment(\.scenePhase) private var scenePhase

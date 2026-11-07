@@ -79,7 +79,6 @@ struct TodayView: View {
                         .multilineTextAlignment(.center)
                         .padding(.top, 30)
                     Text("還有 \(left) 天").font(.subheadline).foregroundStyle(Theme.fg2)
-                    LinkButton(title: "提早結束") { store.endLetGoEarly() }
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.top, 22)
