@@ -17,6 +17,8 @@ Shuji/                  原生 app 程式
   PrivacyInfo.xcprivacy 隱私清單（不蒐集任何資料）
 ShujiTests/             單元測試，標準答案是用 Node 跑原型的 JS 算出來的
 docs/功能增刪建議.md     原生版之後要補、要砍的東西
+docs/習慣-app-0*.md     階段一到三的設計文件（核心動作、機制表、UX 規格、AI 方案）
+ai/                     AI 功能交接、五份知識包、六個任務的提示詞與輸出格式（v1.5 以後才用）
 .github/workflows/      GitHub Actions：在 macOS 上建置、跑測試、打包未簽名 IPA
 ```
 
