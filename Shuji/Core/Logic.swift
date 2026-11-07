@@ -69,6 +69,30 @@ extension AppState {
         return DayKey.days(from: last.date, to: t) >= 6
     }
 
+    /// 這週的回顧日：今天，或今天之前最近的那一個
+    func lastReviewDay(today t: DayKey) -> DayKey {
+        let back = ((t.weekday - settings.reviewDay) + 7) % 7
+        return t.adding(-back)
+    }
+
+    /// 回顧日當天到之後三天內，這週的四問還沒做。回顧日當天的判斷跟 needReview 一樣。
+    func reviewPending(today t: DayKey) -> Bool {
+        guard habit != nil else { return false }
+        let r = lastReviewDay(today: t)
+        guard DayKey.days(from: r, to: t) <= 3 else { return false }
+        guard let last = weekly.last else { return true }
+        return DayKey.days(from: last.date, to: r) >= 6
+    }
+
+    /// 舊資料的「障礙版」併進「不順的時候」（backup）。obstacle 留著不動，原型還讀得到。
+    mutating func migrateFields() {
+        guard var h = habit else { return }
+        if h.backup.isEmpty, !h.obstacle.isEmpty {
+            h.backup = h.obstacle
+            habit = h
+        }
+    }
+
     struct Signals: Equatable {
         var s1: Bool
         var flatLow: Bool

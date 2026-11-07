@@ -20,8 +20,7 @@ struct SettingsView: View {
                     switchSection
                     travelSection
                     rhythmSection
-                    tipsSection
-                    soundSection
+                    reminderSection
                     dataSection
                     Card {
                         RowButton(text: "什麼時候不適合用這個 app") { showUnfit = true }
@@ -39,9 +38,7 @@ struct SettingsView: View {
             .onChange(of: store.settingsTarget) { _, target in
                 guard let target else { return }
                 withAnimation { proxy.scrollTo(target, anchor: .center) }
-                if target != .tips {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { focus = target }
-                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { focus = target }
                 store.settingsTarget = nil
             }
         }
@@ -82,13 +79,8 @@ struct SettingsView: View {
                 }
                 .id(SettingsTarget.floor)
                 RowSep()
-                CommitField(label: "障礙版：如果〔障礙〕，就〔替代〕", placeholder: "如果早上要出門，就在捷運上用手機寫三行",
-                            value: habit?.obstacle ?? "", limit: 60, enabled: habit != nil, focus: $focus, tag: .obstacle) { v in
-                    store.updateHabit { $0.obstacle = v }
-                    return true
-                }
-                RowSep()
-                CommitField(label: "備用開關：主開關沒出現的日子", placeholder: "中午前還沒做，就在第一餐吃完時做",
+                CommitField(label: "不順的時候（選填）：主開關沒出現、或有東西擋著，改做什麼",
+                            placeholder: "早上要出門，就在捷運上用手機寫三行",
                             value: habit?.backup ?? "", limit: 60, enabled: habit != nil, focus: $focus, tag: .backup) { v in
                     store.updateHabit { $0.backup = v }
                     return true
@@ -164,41 +156,16 @@ struct SettingsView: View {
                 .padding(.horizontal, Theme.rowInset)
                 .padding(.vertical, 12)
             }
+            Foot("凌晨四點換日：過了午夜才記的那一節，還是算前一天。")
         }
     }
 
-    // MARK: 讓開始更容易
+    // MARK: 提醒
 
-    private var tipsSection: some View {
+    private var reminderSection: some View {
         Group {
-            SectionTitle("讓開始更容易")
+            SectionTitle("提醒")
             Card {
-                RowLabel(text: "前一晚把東西準備好，開關一出現只剩一個動作")
-                RowSep()
-                RowLabel(text: "開關那一刻最常搶走你的東西，放到另一個房間")
-                RowSep()
-                RowLabel(text: "要做的決定（寫哪篇、練哪個）前一晚就決定")
-            }
-            .id(SettingsTarget.tips)
-        }
-    }
-
-    // MARK: 聲音與提醒
-
-    private var soundSection: some View {
-        Group {
-            SectionTitle("聲音與提醒")
-            Card {
-                HStack {
-                    Text("聲音")
-                    Spacer()
-                    Toggle("聲音", isOn: Binding(get: { store.state.settings.sound },
-                                               set: { v in store.updateSettings { $0.sound = v } }))
-                        .labelsHidden()
-                }
-                .padding(.horizontal, Theme.rowInset)
-                .frame(minHeight: Theme.rowHeight)
-                RowSep()
                 HStack(alignment: .top, spacing: 12) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("收工檢查")
