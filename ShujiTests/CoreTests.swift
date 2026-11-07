@@ -400,22 +400,47 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(s.state.letgo?.prior, 13)
         XCTAssertEqual(s.state.letgoDaysLeft(today: T), 14)
         XCTAssertFalse(s.showLetGoEnd)
-        s.endLetGoEarly()
-        XCTAssertTrue(s.showLetGoEnd)
+        s.advance(days: 13)
+        XCTAssertFalse(s.showLetGoEnd, "第 13 天還沒到")
+        s.advance(days: 1)
+        XCTAssertTrue(s.showLetGoEnd, "兩週就是兩週，沒有提早結束")
         s.finishLetGo(days: 11)
         XCTAssertNil(s.state.letgo)
         XCTAssertEqual(s.state.letgoResult?.pass, true, "11 >= 13 - 2 算過")
         XCTAssertEqual(s.state.letgoResult?.start, T)
-        XCTAssertEqual(s.state.letgoResult?.end, T)
+        XCTAssertEqual(s.state.letgoResult?.end, T.adding(14))
         XCTAssertEqual(s.page, 0)
         XCTAssertTrue(s.state.signals().s3)
+        s.resetOffset()
 
         let f = makeStore()
         f.state = AppState.demo(today: T)
         f.startLetGo()
-        f.endLetGoEarly()
+        f.advance(days: 14)
         f.finishLetGo(days: 10)
         XCTAssertEqual(f.state.letgoResult?.pass, false, "10 < 11 不算過")
+    }
+
+    func testLogNodeIntentReplies() {
+        let s = makeStore()
+        XCTAssertEqual(LogNodeIntent.log(into: s), "還沒種東西。先打開薯記種一個。")
+        s.plant(floor: "打開檔案寫一句", trigger: "起床喝完第一杯水")
+        XCTAssertEqual(LogNodeIntent.log(into: s), "記好了。打開檔案寫一句，第 1 節。")
+        XCTAssertEqual(s.state.log(on: T)?.t, .done)
+        XCTAssertEqual(LogNodeIntent.log(into: s), "今天已經記過了。", "同一天不會記兩次")
+        XCTAssertEqual(s.state.stats(today: T).nodes, 1)
+        s.undoToday()
+        s.leaveToday(reason: "出遠門")
+        XCTAssertEqual(LogNodeIntent.log(into: s), "今天請假了。")
+        s.undoToday()
+        s.startLetGo()
+        XCTAssertEqual(LogNodeIntent.log(into: s), "放手測試中，照常做就好，不用記。")
+        XCTAssertNil(s.state.log(on: T))
+        s.state.letgo = nil
+        s.state = AppState.demo(today: T)
+        s.state.logs[T.adding(-1).string] = nil
+        s.state.logs[T.adding(-2).string] = nil
+        XCTAssertTrue(LogNodeIntent.log(into: s).hasPrefix("回來了。"), "漏兩天後再記是回來")
     }
 
     func testDigAndPlantNext() {

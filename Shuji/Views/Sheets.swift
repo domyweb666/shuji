@@ -109,7 +109,9 @@ struct MoreSheet: View {
 struct ReviewSheet: View {
     @Environment(Store.self) private var store
     @Environment(\.dismiss) private var dismiss
-    @State private var scores: [Double] = [4, 4, 4, 4]
+    /// 0 代表還沒點。原型預設 4，很多人直接送出，曲線永遠走平，所以改成一定要點
+    @State private var scores: [Int] = [0, 0, 0, 0]
+    private var allPicked: Bool { scores.allSatisfy { $0 >= 1 } }
 
     var body: some View {
         SheetFrame {
@@ -122,19 +124,23 @@ struct ReviewSheet: View {
                         Text(questions[i]).font(.system(size: 16)).lineSpacing(4)
                         Picker(questions[i], selection: $scores[i]) {
                             ForEach(1...7, id: \.self) { n in
-                                Text("\(n)").tag(Double(n))
+                                Text("\(n)").tag(n)
                             }
                         }
                         .pickerStyle(.segmented)
+                        .accessibilityIdentifier("review-q\(i + 1)")
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(EdgeInsets(top: 14, leading: 18, bottom: 14, trailing: 18))
                 }
             }
-            PrimaryButton(title: "記下這週") {
-                store.recordReview(scores: scores)
+            PrimaryButton(title: allPicked ? "記下這週" : "四題都點一下才能記") {
+                guard allPicked else { return }
+                store.recordReview(scores: scores.map(Double.init))
                 dismiss()
             }
+            .disabled(!allPicked)
+            .opacity(allPicked ? 1 : 0.35)
         }
     }
 }

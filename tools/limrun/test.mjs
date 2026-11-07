@@ -274,9 +274,16 @@ try {
   if (await tapLabel('做這週的開始四問', { contains: true, wait: 1000 })) {
     await shot('18-review');
     await dump('review');
+    check('四問沒點之前不能記', await has('四題都點一下才能記'));
+    // 四題各點一個「5」：四個同名元素，照 y 排序逐一點 frame
+    const fives = (await nodes()).filter(n => n.AXLabel === '5').sort((a, b) => a.frame.y - b.frame.y);
+    log('fives', fives.length);
+    for (const n of fives) { await c.tap(n.frame.x + n.frame.width / 2, n.frame.y + n.frame.height / 2); await sleep(300); }
+    await shot('18b-review-picked');
+    check('四題都點過後「記下這週」亮起', await has('記下這週', { exact: true }));
     await tapLabel('記下這週', { wait: 1200 });
     await shot('19-review-done');
-    check('開始四問記完後關掉', !(await has('記下這週')));
+    check('開始四問記完後關掉', !(await has('記下這週')) && !(await has('四題都點一下才能記')));
   } else {
     log('田頁沒有開始四問按鈕（可能這週已做）');
   }
