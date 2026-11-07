@@ -1,0 +1,10 @@
+# Xcode
+xcuserdata/
+*.xcuserstate
+*.xcuserdatad
+DerivedData/
+build/
+*.xcresult
+*.ipa
+.DS_Store
+.swiftpm/
