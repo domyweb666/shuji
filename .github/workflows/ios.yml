@@ -50,6 +50,20 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             | tail -n 200
 
+      - name: 打包模擬器版 .app（通用架構，給 Limrun 雲端模擬器）
+        run: |
+          set -o pipefail
+          xcodebuild build             -project Shuji.xcodeproj             -scheme Shuji             -configuration Debug             -destination "generic/platform=iOS Simulator"             -derivedDataPath build/sim             CODE_SIGNING_ALLOWED=NO ONLY_ACTIVE_ARCH=NO             | tail -n 60
+          (cd build/sim/Build/Products/Debug-iphonesimulator && zip -qry ../../../../Shuji-simulator.app.zip Shuji.app)
+          ls -la build/Shuji-simulator.app.zip
+
+      - name: 上傳模擬器版 .app
+        uses: actions/upload-artifact@v4
+        with:
+          name: Shuji-simulator-app
+          path: build/Shuji-simulator.app.zip
+          retention-days: 30
+
       - name: 打包未簽名的 IPA（給 Sideloadly / AltStore 自己簽）
         run: |
           set -o pipefail
