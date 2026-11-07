@@ -131,6 +131,47 @@ final class LogicTests: XCTestCase {
         XCTAssertFalse(d.needReview(today: T), "今天星期六，回顧日是星期五")
     }
 
+    func testReviewPendingStaysThreeDays() {
+        var d = demo
+        d.settings.reviewDay = 6   // 2026-11-07 是星期六
+        d.weekly = []
+        XCTAssertEqual(d.lastReviewDay(today: T), T)
+        XCTAssertTrue(d.reviewPending(today: T))
+        XCTAssertTrue(d.reviewPending(today: T.adding(1)))
+        XCTAssertTrue(d.reviewPending(today: T.adding(3)))
+        XCTAssertFalse(d.reviewPending(today: T.adding(4)), "回顧日過了三天就不留了")
+        XCTAssertEqual(d.lastReviewDay(today: T.adding(4)), T)
+        XCTAssertEqual(d.lastReviewDay(today: T.adding(7)), T.adding(7))
+
+        d.weekly = [WeeklyReview(date: T.adding(-6), scores: [4, 4, 4, 4])]
+        XCTAssertTrue(d.reviewPending(today: T), "回顧日當天的判斷跟 needReview 相同")
+        XCTAssertEqual(d.reviewPending(today: T), d.needReview(today: T))
+        d.weekly = [WeeklyReview(date: T.adding(-5), scores: [4, 4, 4, 4])]
+        XCTAssertFalse(d.reviewPending(today: T))
+        XCTAssertEqual(d.reviewPending(today: T), d.needReview(today: T))
+
+        d.weekly = [WeeklyReview(date: T.adding(1), scores: [4, 4, 4, 4])]
+        XCTAssertFalse(d.reviewPending(today: T.adding(2)), "回顧日隔天做了，之後就不再提")
+
+        d.habit = nil
+        XCTAssertFalse(d.reviewPending(today: T))
+    }
+
+    func testObstacleMigratesIntoBackup() {
+        var d = demo
+        d.habit?.backup = ""
+        d.habit?.obstacle = "如果早上要出門，就在捷運上用手機寫三行"
+        d.migrateFields()
+        XCTAssertEqual(d.habit?.backup, "如果早上要出門，就在捷運上用手機寫三行")
+        XCTAssertEqual(d.habit?.obstacle, "如果早上要出門，就在捷運上用手機寫三行", "obstacle 留著，原型還讀得到")
+
+        var e = demo
+        e.habit?.backup = "已經有備案"
+        e.habit?.obstacle = "舊的障礙版"
+        e.migrateFields()
+        XCTAssertEqual(e.habit?.backup, "已經有備案", "backup 有值就不蓋")
+    }
+
     func testSignals() {
         let sg = demo.signals()
         XCTAssertEqual(sg, AppState.Signals(s1: true, flatLow: false, s2: false, s3: false, n: 7))
@@ -273,8 +314,29 @@ final class CodableTests: XCTestCase {
 
 @MainActor
 final class StoreTests: XCTestCase {
-    private func makeStore() -> Store {
-        Store(now: { localDate(2026, 11, 7, 12, 0) }, fileURL: nil)
+    private func makeStore(backupDir: URL? = nil) -> Store {
+        Store(now: { localDate(2026, 11, 7, 12, 0) }, fileURL: nil, backupDir: backupDir)
+    }
+
+    func testDigWritesBackupFirst() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("shuji-test-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let s = makeStore(backupDir: dir)
+        s.state = AppState.demo(today: T)
+        s.dig()
+        let url = dir.appendingPathComponent("薯記備份-挖地瓜-2026-11-07.json")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
+        let saved = try JSONDecoder().decode(AppState.self, from: Data(contentsOf: url))
+        XCTAssertEqual(saved.logs.count, 38, "備份是挖之前的狀態")
+        XCTAssertEqual(saved.habit?.floor, "打開檔案寫一句")
+        XCTAssertTrue(s.state.logs.isEmpty, "挖完才歸零")
+    }
+
+    func testImportMigratesObstacle() {
+        let s = makeStore()
+        let json = "{\"habit\":{\"floor\":\"讀一頁書\",\"trigger\":\"刷完牙\",\"obstacle\":\"出門的話在車上讀\",\"planted\":\"2026-11-01\"},\"logs\":{}}"
+        XCTAssertTrue(s.importJSON(json))
+        XCTAssertEqual(s.state.habit?.backup, "出門的話在車上讀")
     }
 
     func testTodayAndOffset() {

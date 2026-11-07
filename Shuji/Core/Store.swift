@@ -5,11 +5,9 @@ import Observation
 enum SettingsTarget: Hashable {
     case trigger
     case floor
-    case obstacle
     case backup
     case why
     case travelFloor
-    case tips
 }
 
 /// 整個 app 唯一的狀態容器。動作都在這裡，畫面只負責畫。
@@ -30,13 +28,19 @@ final class Store {
 
     let now: () -> Date
     private let fileURL: URL?
+    /// 自動備份檔放哪（挖地瓜那一刻會寫一份）。預設是 Documents，檔案 app 看得到。
+    private let backupDir: URL?
     @ObservationIgnored private var toastTask: Task<Void, Never>?
     @ObservationIgnored var onSaved: ((AppState, DayKey) -> Void)?
 
-    init(now: @escaping () -> Date = Date.init, fileURL: URL? = Store.defaultFileURL()) {
+    init(now: @escaping () -> Date = Date.init,
+         fileURL: URL? = Store.defaultFileURL(),
+         backupDir: URL? = Store.defaultBackupDir()) {
         self.now = now
         self.fileURL = fileURL
+        self.backupDir = backupDir
         self.state = Store.load(from: fileURL)
+        self.state.migrateFields()
         #if !DEBUG
         self.state.dayOffset = 0
         #endif
@@ -59,6 +63,20 @@ final class Store {
         let dir = base.appendingPathComponent("Shuji", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir.appendingPathComponent("state.json")
+    }
+
+    nonisolated static func defaultBackupDir() -> URL? {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+    }
+
+    /// 寫一份備份檔：薯記備份-<tag>-<日期>.json。回傳寫到哪，失敗回 nil。
+    @discardableResult
+    func writeBackup(tag: String) -> URL? {
+        guard let dir = backupDir, let data = try? JSONEncoder().encode(state) else { return nil }
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let url = dir.appendingPathComponent("薯記備份-\(tag)-\(today.string).json")
+        guard (try? data.write(to: url, options: .atomic)) != nil else { return nil }
+        return url
     }
 
     nonisolated private static func load(from url: URL?) -> AppState {
@@ -92,6 +110,7 @@ final class Store {
               obj["logs"] != nil,
               let s = try? JSONDecoder().decode(AppState.self, from: data) else { return false }
         state = s
+        state.migrateFields()
         #if !DEBUG
         state.dayOffset = 0
         #endif
@@ -211,6 +230,8 @@ final class Store {
     func dig() {
         let t = today
         guard let h = state.habit else { return }
+        // 資料要歸零了，先留一份
+        writeBackup(tag: "挖地瓜")
         let st = state.stats(today: t)
         let p = Potato(floor: h.floor, trigger: h.trigger, nodes: st.nodes, ret: st.ret,
                        days: DayKey.days(from: h.planted, to: t) + 1, planted: h.planted, dug: t)

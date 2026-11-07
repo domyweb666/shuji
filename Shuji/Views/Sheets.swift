@@ -139,6 +139,23 @@ struct ReviewSheet: View {
     }
 }
 
+// MARK: 讓開始更容易（從設定頁搬過來，卡住的時候才看）
+
+struct TipsSheet: View {
+    var body: some View {
+        SheetFrame {
+            SheetTitle("讓開始更容易")
+            SheetNote("開關出現的那一刻，手邊的阻力越小越好。三件前一晚就能做的事：")
+            Card {
+                ForEach(Array(Phrases.tips.enumerated()), id: \.offset) { i, tip in
+                    if i > 0 { RowSep() }
+                    RowLabel(text: tip)
+                }
+            }
+        }
+    }
+}
+
 // MARK: 什麼時候不適合用這個 app
 
 struct UnfitSheet: View {

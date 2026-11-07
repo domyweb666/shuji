@@ -9,6 +9,7 @@ struct TodayView: View {
     enum TodaySheet: String, Identifiable {
         case more
         case review
+        case tips
         var id: String { rawValue }
     }
 
@@ -26,6 +27,7 @@ struct TodayView: View {
             switch which {
             case .more: MoreSheet()
             case .review: ReviewSheet()
+            case .tips: TipsSheet()
             }
         }
     }
@@ -92,12 +94,23 @@ struct TodayView: View {
                     .padding(EdgeInsets(top: 20, leading: 20, bottom: 22, trailing: 20))
                 }
                 .padding(.top, 18)
+                if !h.why.isEmpty {
+                    Card {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("你說這是為了").font(.footnote).foregroundStyle(Theme.fg2)
+                            Text(h.why)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(EdgeInsets(top: 14, leading: 20, bottom: 16, trailing: 20))
+                    }
+                    .padding(.top, 14)
+                }
                 Card {
                     RowButton(text: "開關有出現嗎？") { goSettings(.trigger) }
                     RowSep()
                     RowButton(text: "最小一步太大嗎？") { goSettings(.floor) }
                     RowSep()
-                    RowButton(text: "旁邊有更近的東西搶走了嗎？") { goSettings(.tips) }
+                    RowButton(text: "旁邊有更近的東西搶走了嗎？") { sheet = .tips }
                 }
                 .padding(.top, 14)
                 holdBlock(hint: "從這一節接上，按住")
@@ -120,8 +133,8 @@ struct TodayView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("今天記好了，更多選項")
-                    if store.state.needReview(today: t) {
-                        LinkButton(title: "今天週回顧 · 開始四問 ›") { sheet = .review }
+                    if store.state.reviewPending(today: t) {
+                        LinkButton(title: t.weekday == store.state.settings.reviewDay ? "今天週回顧 · 開始四問 ›" : "這週的開始四問還沒做 ›") { sheet = .review }
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -156,6 +169,13 @@ struct TodayView: View {
                 holdBlock(hint: "做完最小一步，按住一下") {
                     if missed >= 2 {
                         LinkButton(title: "卡住的話，看看開關有沒有出現，或最小一步太大 ›") { goSettings(nil) }
+                        if !h.backup.isEmpty {
+                            Text("不順的時候：\(h.backup)")
+                                .font(.subheadline)
+                                .foregroundStyle(Theme.fg2)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 8)
+                        }
                     } else if cameHome {
                         Text("回家第一天，東西擺回原位了嗎？")
                             .font(.subheadline)
@@ -182,15 +202,15 @@ struct TodayView: View {
         .frame(minHeight: 190)
     }
 
+    /// 聲音跟手機側邊的靜音鍵走，app 裡不再有開關
     private func recordNode() {
         let isReturn = store.logToday()
-        let sound = store.state.settings.sound
         Haptic.thunk()
-        if sound { SoundPlayer.shared.thunk() }
+        SoundPlayer.shared.thunk()
         if isReturn {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
                 Haptic.bloom()
-                if sound { SoundPlayer.shared.ping() }
+                SoundPlayer.shared.ping()
             }
         }
     }
