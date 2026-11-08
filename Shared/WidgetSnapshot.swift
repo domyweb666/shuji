@@ -24,6 +24,8 @@ struct WidgetSnapshot: Codable, Equatable {
     /// 這份快照算的是哪一天（YYYY-MM-DD，凌晨四點換日）
     var day: String
     var updated: Date
+    /// 小工具是完整版的功能。舊快照沒有這欄，讀成 nil，當沒買
+    var full: Bool? = nil
 
     static let groupID = "group.org.domyweb.shuji"
     static let fileName = "widget.json"
@@ -53,5 +55,5 @@ struct WidgetSnapshot: Codable, Equatable {
 
     /// 預覽、還沒拿到資料時用
     static let sample = WidgetSnapshot(trigger: "起床喝完第一杯水", floor: "打開檔案寫一句", nodes: 12,
-                                       status: .none, day: DayKey.today().string, updated: Date())
+                                       status: .none, day: DayKey.today().string, updated: Date(), full: true)
 }

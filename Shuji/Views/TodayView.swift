@@ -5,11 +5,15 @@ import SwiftUI
 struct TodayView: View {
     @Environment(Store.self) private var store
     @State private var sheet: TodaySheet? = nil
+    /// 「這週有被打斷過嗎？」點過就不再出現（記的是哪個習慣，換習慣會重新出現一次）
+    @AppStorage("shuji.ai.obstaclePromptSeen") private var obstaclePromptSeen = ""
 
     enum TodaySheet: String, Identifiable {
         case more
         case review
         case tips
+        case diagnose
+        case obstacle
         var id: String { rawValue }
     }
 
@@ -28,6 +32,8 @@ struct TodayView: View {
             case .more: MoreSheet()
             case .review: ReviewSheet()
             case .tips: TipsSheet()
+            case .diagnose: DiagnoseSheet()
+            case .obstacle: ObstacleSheet()
             }
         }
     }
@@ -112,6 +118,11 @@ struct TodayView: View {
                     RowButton(text: "旁邊有更近的東西搶走了嗎？") { sheet = .tips }
                 }
                 .padding(.top, 14)
+                if AIClient.shared.isAvailable {
+                    LinkButton(title: "回答三題，幫我找哪裡要改 ›") { sheet = .diagnose }
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 12)
+                }
                 holdBlock(hint: "從這一節接上，按住")
             } else if let log, log.t == .done {
                 SwitchCard(trigger: h.trigger, floor: floor, dim: true).padding(.top, 18)
@@ -132,6 +143,12 @@ struct TodayView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("今天記好了，更多選項")
+                    if AIClient.shared.isAvailable && store.state.obstaclePromptReady(today: t) && obstaclePromptSeen != h.planted.string {
+                        LinkButton(title: "這週有被打斷過嗎？ ›") {
+                            obstaclePromptSeen = h.planted.string
+                            sheet = .obstacle
+                        }
+                    }
                     if store.state.reviewPending(today: t) {
                         LinkButton(title: t.weekday == store.state.settings.reviewDay ? "今天週回顧 · 開始四問 ›" : "這週的開始四問還沒做 ›") { sheet = .review }
                     }

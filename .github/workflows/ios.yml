@@ -7,6 +7,26 @@ on:
   workflow_dispatch:
 
 jobs:
+  server:
+    name: AI 中繼伺服器測試
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - name: Worker 打包檢查（不部署）
+        run: npx wrangler deploy --dry-run --outdir .wrangler/dry
+
   build-and-test:
     runs-on: macos-latest
     timeout-minutes: 45

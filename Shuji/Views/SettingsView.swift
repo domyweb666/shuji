@@ -9,6 +9,11 @@ struct SettingsView: View {
     @State private var showRestore = false
     @State private var showUnfit = false
     @State private var confirmWipe = false
+    @State private var showObstacle = false
+    @State private var showPaywall = false
+    @AppStorage("shuji.ai.devToken") private var devToken = ""
+    @AppStorage("shuji.ai.baseURL") private var aiBaseURL = ""
+    private let purchases = Purchases.shared
 
     private var habit: Habit? { store.state.habit }
 
@@ -21,6 +26,7 @@ struct SettingsView: View {
                     travelSection
                     rhythmSection
                     reminderSection
+                    fullSection
                     dataSection
                     Card {
                         RowButton(text: "什麼時候不適合用這個 app") { showUnfit = true }
@@ -45,6 +51,8 @@ struct SettingsView: View {
         .sheet(isPresented: $showExport) { ExportSheet() }
         .sheet(isPresented: $showRestore) { RestoreSheet() }
         .sheet(isPresented: $showUnfit) { UnfitSheet() }
+        .sheet(isPresented: $showObstacle) { ObstacleSheet() }
+        .sheet(isPresented: $showPaywall) { PaywallSheet() }
         .confirmationDialog("全部清除？", isPresented: $confirmWipe, titleVisibility: .visible) {
             Button("清除全部，不可復原", role: .destructive) { store.wipe() }
             Button("取消", role: .cancel) {}
@@ -84,6 +92,10 @@ struct SettingsView: View {
                             value: habit?.backup ?? "", limit: 60, enabled: habit != nil, focus: $focus, tag: .backup) { v in
                     store.updateHabit { $0.backup = v }
                     return true
+                }
+                if habit != nil && AIClient.shared.isAvailable {
+                    RowSep()
+                    RowButton(text: "幫我想不順的時候怎麼辦", color: Theme.accent) { showObstacle = true }
                 }
             }
             if showNegWarning {
@@ -226,6 +238,19 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: 完整版
+
+    private var fullSection: some View {
+        Group {
+            SectionTitle("完整版")
+            Card {
+                RowButton(text: purchases.isFull ? "完整版已解鎖" : "看看完整版",
+                          value: purchases.isFull ? nil : purchases.product?.displayPrice) { showPaywall = true }
+            }
+            Foot("一次買斷：週回顧建議、季稽核、小工具。其他功能一直免費。")
+        }
+    }
+
     // MARK: 資料
 
     private var dataSection: some View {
@@ -258,9 +283,29 @@ struct SettingsView: View {
                 RowButton(text: "載入示範資料（會蓋掉目前的）", chevron: false, color: Theme.accent) { store.loadDemo() }
                 RowSep()
                 RowButton(text: "全部清除", chevron: false, color: Theme.danger) { confirmWipe = true }
+                RowSep()
+                Toggle("假裝買了完整版", isOn: Binding(get: { purchases.debugFull }, set: { purchases.debugFull = $0 }))
+                    .padding(.horizontal, Theme.rowInset)
+                    .frame(minHeight: Theme.rowHeight)
+                RowSep()
+                debugField("AI 伺服器網址（空白用 Info.plist 的）", text: $aiBaseURL)
+                RowSep()
+                debugField("開發用通行碼（模擬器沒有 App Attest）", text: $devToken)
             }
             Foot("原型專用。正式版沒有這一區，也沒有全部清除。")
         }
+    }
+
+    private func debugField(_ label: String, text: Binding<String>) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label).font(.footnote).foregroundStyle(Theme.fg2)
+            TextField("", text: text)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+                .font(.system(size: 14, design: .monospaced))
+        }
+        .padding(.horizontal, Theme.rowInset)
+        .padding(.vertical, 10)
     }
     #endif
 }
