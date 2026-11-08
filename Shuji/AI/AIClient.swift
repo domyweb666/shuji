@@ -87,12 +87,7 @@ final class AIClient {
 
     func run<I: Encodable, O: Decodable>(_ task: AITask, input: I, habitId: String? = nil, as type: O.Type) async throws -> Outcome<O> {
         guard let base = baseURL else { throw Failure(message: Self.fallbackMessage) }
-        struct Envelope<X: Encodable>: Encodable {
-            var ts: Int
-            var habit_id: String?
-            var input: X
-        }
-        let body = try JSONEncoder().encode(Envelope(ts: Int(Date().timeIntervalSince1970), habit_id: habitId, input: input))
+        let body = try JSONEncoder().encode(AIEnvelope(ts: Int(Date().timeIntervalSince1970), habit_id: habitId, input: input))
         let url = base.appendingPathComponent("v1/task/\(task.rawValue)")
 
         var lastError: Error = Failure(message: Self.fallbackMessage)
@@ -129,13 +124,11 @@ final class AIClient {
     }
 
     private func decode<O: Decodable>(_ data: Data, as type: O.Type) throws -> Outcome<O> {
-        struct Probe: Decodable { var result: UnfitProbe; var referral: String? }
-        struct Full<X: Decodable>: Decodable { var result: X }
-        let probe = try JSONDecoder().decode(Probe.self, from: data)
+        let probe = try JSONDecoder().decode(AIProbe.self, from: data)
         if probe.result.type == "unfit" {
             return .unfit(category: probe.result.category, referral: probe.referral ?? Phrases.referralFallback)
         }
-        return .result(try JSONDecoder().decode(Full<O>.self, from: data).result)
+        return .result(try JSONDecoder().decode(AIResultBody<O>.self, from: data).result)
     }
 
     // MARK: App Attest
@@ -212,4 +205,21 @@ final class AIClient {
         defaults.set(true, forKey: Keys.registered)
         return keyId
     }
+}
+
+
+// 泛型函式裡不能宣告巢狀型別，放在檔案層級
+private struct AIEnvelope<X: Encodable>: Encodable {
+    var ts: Int
+    var habit_id: String?
+    var input: X
+}
+
+private struct AIProbe: Decodable {
+    var result: UnfitProbe
+    var referral: String?
+}
+
+private struct AIResultBody<X: Decodable>: Decodable {
+    var result: X
 }
