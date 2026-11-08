@@ -1,0 +1,22 @@
+# 薯記 AI 中繼伺服器
+# 部署步驟見 server/README.md
+name = "shuji-ai"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+# TEAMID 換成你的 Team ID（developer.apple.com → Membership details）
+APP_ID = "TEAMID.org.domyweb.shuji"
+# TestFlight、App Store 是 production；Xcode 直接裝到手機是 development
+ATTEST_ENVS = "production,development"
+GLOBAL_DAILY_CAP = "5000"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "shuji-ai"
+# wrangler d1 create shuji-ai 之後把 id 貼過來
+database_id = "00000000-0000-0000-0000-000000000000"
+
+[observability]
+enabled = true
