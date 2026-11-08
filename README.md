@@ -18,7 +18,9 @@ Shuji/                  原生 app 程式
 ShujiTests/             單元測試，標準答案是用 Node 跑原型的 JS 算出來的
 docs/功能增刪建議.md     原生版之後要補、要砍的東西
 docs/習慣-app-0*.md     階段一到三的設計文件（核心動作、機制表、UX 規格、AI 方案）
-ai/                     AI 功能交接、五份知識包、六個任務的提示詞與輸出格式（v1.5 以後才用）
+ai/                     AI 功能交接、五份知識包、六個任務的提示詞與輸出格式（伺服器部署時打包進去）
+server/                 AI 中繼伺服器（Cloudflare Workers）：保管金鑰、App Attest、次數上限、輸出檢查，部署步驟在 server/README.md
+Shuji/AI/               app 端的 AI：用戶端、六個任務的畫面、一次買斷
 .github/workflows/      GitHub Actions：在 macOS 上建置、跑測試、打包未簽名 IPA
 ```
 
