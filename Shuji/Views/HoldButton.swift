@@ -2,6 +2,7 @@ import SwiftUI
 
 /// 按住一秒半，外圈跑滿就記一節。放開就縮回去。
 /// 這是整個 app 唯一的核心動作，刻意要「按住」而不是「點一下」。
+/// 外觀照 Domy 的核心大鈕：待機是亮色底＋深字，按著變產品色實心，外圈跟著跑進度。
 struct HoldButton: View {
     var hint: String
     var onComplete: () -> Void
@@ -11,38 +12,45 @@ struct HoldButton: View {
     @State private var releaseTime: Date? = nil
     @State private var releaseProgress: CGFloat = 0
     @State private var resetTask: Task<Void, Never>? = nil
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private static let duration: TimeInterval = 1.5
     private static let resetDuration: TimeInterval = 0.25
     private var duration: TimeInterval { HoldButton.duration }
     private var resetDuration: TimeInterval { HoldButton.resetDuration }
+    /// 進度圈比靜止外圈粗一倍，按著的時候看得出在跑
+    private var progressWidth: CGFloat { Sz.heroRingWidth * 2 }
 
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: Sp.s3) {
             ZStack {
                 Circle()
-                    .stroke(Theme.accentSoft, lineWidth: 6)
-                    .padding(3)
+                    .strokeBorder(pressing ? Theme.accent.opacity(0.25) : Theme.soft, lineWidth: Sz.heroRingWidth)
                 TimelineView(.animation(paused: startTime == nil && releaseTime == nil)) { timeline in
                     Circle()
                         .trim(from: 0, to: progress(at: timeline.date))
-                        .stroke(Theme.accent, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                        .stroke(Theme.accent, style: StrokeStyle(lineWidth: progressWidth, lineCap: .round))
                         .rotationEffect(.degrees(-90))
-                        .padding(3)
+                        .padding(progressWidth / 2)
                 }
                 Circle()
-                    .fill(Theme.accent)
-                    .padding(12)
+                    .fill(pressing ? Theme.accent : Theme.bright)
+                    .frame(width: Sz.heroButton, height: Sz.heroButton)
+                    .domyShadow(DomyTokens.Elevation.level2)
                     .overlay {
-                        Text("按住")
-                            .font(.system(size: 22, weight: .bold))
-                            .tracking(2)
-                            .foregroundStyle(.white)
+                        VStack(spacing: Sp.s1) {
+                            Image(systemName: pressing ? "hand.tap.fill" : "hand.tap")
+                                .font(Ty.title2.font)
+                            Text("按住")
+                                .domyType(Ty.title2)
+                                .tracking(2)
+                        }
+                        .foregroundStyle(pressing ? Theme.onAccent : Theme.onBright)
                     }
-                    .scaleEffect(pressing ? 0.94 : 1)
-                    .animation(.easeOut(duration: 0.15), value: pressing)
+                    .scaleEffect(pressing && !reduceMotion ? DomyTokens.Motion.pressScale : 1)
+                    .animation(.easeOut(duration: DomyTokens.Motion.pressDuration), value: pressing)
             }
-            .frame(width: 140, height: 140)
+            .frame(width: Sz.heroRing, height: Sz.heroRing)
             .contentShape(Circle())
             .gesture(
                 LongPressGesture(minimumDuration: duration, maximumDistance: 40)
@@ -71,10 +79,10 @@ struct HoldButton: View {
             .accessibilityAction { complete() }
 
             Text(hint)
-                .font(.subheadline)
+                .domyType(Ty.subheadline)
                 .foregroundStyle(Theme.fg2)
                 .multilineTextAlignment(.center)
-                .frame(minHeight: 20)
+                .frame(minHeight: Sp.s5)
         }
     }
 

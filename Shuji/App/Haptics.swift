@@ -5,6 +5,12 @@ enum Haptic {
     private static let light = UIImpactFeedbackGenerator(style: .light)
     private static let rigid = UIImpactFeedbackGenerator(style: .rigid)
     private static let notify = UINotificationFeedbackGenerator()
+    private static let selection = UISelectionFeedbackGenerator()
+
+    /// 主要按鈕、換分頁（Domy 規格：輕輕一下）
+    static func select() {
+        selection.selectionChanged()
+    }
 
     /// 按下去
     static func press() {
