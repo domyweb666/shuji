@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": [
+      "node",
+      "@cloudflare/workers-types"
+    ],
+    "lib": [
+      "es2023",
+      "dom"
+    ]
+  },
+  "include": [
+    "src",
+    "test",
+    "eval"
+  ]
+}

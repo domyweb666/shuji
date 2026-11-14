@@ -538,3 +538,93 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(s.state, AppState())
     }
 }
+
+// MARK: - AI 任務的輸入
+
+final class AIInputTests: XCTestCase {
+    func testWeeklyInputFromDemo() throws {
+        let d = AppState.demo(today: T)
+        let w = try XCTUnwrap(d.weeklyInput(today: T))
+        XCTAssertEqual(w.planted_days, 45)
+        XCTAssertEqual(w.last14.count, 14)
+        XCTAssertEqual(w.last14_weekdays.count, 14)
+        // 昨天往回 14 天：10/24（週六）到 11/6（週五），只有 10/31 漏
+        XCTAssertEqual(w.last14_weekdays.first, 6)
+        XCTAssertEqual(w.last14_weekdays.last, 5)
+        XCTAssertEqual(w.last14.filter { $0 == "miss" }.count, 1)
+        XCTAssertEqual(w.last14[7], "miss", "10/31 是第 8 天")
+        XCTAssertEqual(w.leaves.map(\.reason), ["出遠門"])
+        XCTAssertEqual(w.weeks.count, 7)
+        XCTAssertFalse(w.travel)
+        XCTAssertEqual(w.floor, "打開檔案寫一句")
+    }
+
+    func testWeeklyInputUsesTravelFloor() throws {
+        var d = AppState.demo(today: T)
+        d.travel = true
+        XCTAssertEqual(try XCTUnwrap(d.weeklyInput(today: T)).floor, "在手機上寫三行")
+    }
+
+    func testGapAndDiagnoseInput() throws {
+        var d = AppState.demo(today: T)
+        XCTAssertEqual(d.gapDays(today: T), 1)
+        XCTAssertEqual(d.gapDays(today: T.adding(18)), 19)
+        d.logs = [:]
+        XCTAssertEqual(d.gapDays(today: T), 45, "沒記過就從種下去那天算")
+        let input = try XCTUnwrap(d.diagnoseInput(today: T, q1: "有時候沒有", q2: "不會", q3: "想睡"))
+        XCTAssertEqual(input.answers.q3_rival, "想睡")
+        XCTAssertEqual(input.trigger, "起床喝完第一杯水")
+    }
+
+    func testAuditInputFromDemo() throws {
+        let d = AppState.demo(today: T)
+        let a = try XCTUnwrap(d.auditInput(today: T, satisfied: "寫了很多", contextChange: ""))
+        XCTAssertEqual(a.quarter.done_rate, 37.0 / 45.0, accuracy: 0.0001)
+        XCTAssertEqual(a.quarter.leaves, 1)
+        XCTAssertEqual(a.quarter.returns, 5)
+        XCTAssertEqual(a.quarter.weekly_avg.count, 7)
+        XCTAssertEqual(a.why, "把複雜的事想清楚、寫下來")
+        XCTAssertEqual(a.user.satisfied, "寫了很多")
+    }
+
+    func testWhenAIEntriesShowUp() {
+        var d = AppState.demo(today: T)
+        XCTAssertFalse(d.obstaclePromptReady(today: T), "已經寫了不順的時候")
+        d.habit?.backup = ""
+        XCTAssertTrue(d.obstaclePromptReady(today: T))
+        XCTAssertFalse(d.auditReady(today: T), "種了 45 天，還不到一季")
+        XCTAssertTrue(d.auditReady(today: T.adding(39)))
+        XCTAssertTrue(d.weeklyAdviceReady(today: T))
+        d.weekly = []
+        XCTAssertFalse(d.weeklyAdviceReady(today: T), "沒做過開始四問")
+        var fresh = AppState()
+        fresh.habit = Habit(floor: "a", trigger: "b", planted: T.adding(-3))
+        XCTAssertFalse(fresh.obstaclePromptReady(today: T), "種下去不到 7 天")
+    }
+
+    func testHabitFieldApply() {
+        var h = Habit(floor: "a", trigger: "b", planted: T)
+        HabitField.obstacle.apply("如果下雨，就在家門口運球", to: &h)
+        XCTAssertEqual(h.backup, "如果下雨，就在家門口運球", "障礙版跟備用開關在原生版是同一格")
+        HabitField.travelFloor.apply("在手機上寫三行", to: &h)
+        XCTAssertEqual(h.travelFloor, "在手機上寫三行")
+        HabitField.trigger.apply("刷完牙", to: &h)
+        XCTAssertEqual(h.trigger, "刷完牙")
+    }
+
+    func testWidgetSnapshotCarriesFullFlag() {
+        let d = AppState.demo(today: T)
+        XCTAssertEqual(WidgetBridge.snapshot(state: d, today: T).full, false)
+        XCTAssertEqual(WidgetBridge.snapshot(state: d, today: T, full: true).full, true)
+    }
+
+    func testOutputsDecodeFromServerShape() throws {
+        let json = #"{"type":"ok","layer":4,"field":"obstacle","suggestion":"先坐三個呼吸再去躺","why":"w","closing":"c","category":null,"message":null}"#
+        let o = try JSONDecoder().decode(DiagnoseOutput.self, from: Data(json.utf8))
+        XCTAssertEqual(o.field, .obstacle)
+        let p = #"{"type":"ok","obstacles":[{"if":"早上要趕出門","then":"在捷運上寫三行"}],"backup":null,"travel":{"portable":true,"floor":"在手機上寫三行","alt":""},"note":"","category":null,"message":null}"#
+        let ob = try JSONDecoder().decode(ObstacleOutput.self, from: Data(p.utf8))
+        XCTAssertEqual(ob.obstacles.first?.if, "早上要趕出門")
+        XCTAssertNil(ob.backup)
+    }
+}

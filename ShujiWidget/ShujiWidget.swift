@@ -52,7 +52,39 @@ struct ShujiWidgetView: View {
 
     private var statusIsDone: Bool { status == .done }
 
+    private var locked: Bool { snap.map { $0.full != true && $0.status != .empty } ?? false }
+
     var body: some View {
+        if locked {
+            lockedView
+        } else {
+            mainView
+        }
+    }
+
+    @ViewBuilder
+    private var lockedView: some View {
+        switch family {
+        case .accessoryInline:
+            Text("薯記 · 完整版才有小工具")
+        case .accessoryRectangular:
+            Text("小工具是薯記完整版的功能")
+                .font(.caption)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        default:
+            VStack(alignment: .leading, spacing: 6) {
+                Text("薯記").font(.caption).foregroundStyle(.secondary)
+                Text("小工具是完整版的功能。打開薯記，設定頁可以看看。")
+                    .font(.subheadline)
+                    .minimumScaleFactor(0.8)
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
+    }
+
+    @ViewBuilder
+    private var mainView: some View {
         switch family {
         case .accessoryInline:
             Text("薯記 · " + statusText)

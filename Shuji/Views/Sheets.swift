@@ -3,7 +3,7 @@ import UIKit
 import UniformTypeIdentifiers
 
 /// 底部彈出卡共用的外框
-private struct SheetFrame<Content: View>: View {
+struct SheetFrame<Content: View>: View {
     @ViewBuilder var content: Content
 
     var body: some View {
@@ -21,13 +21,13 @@ private struct SheetFrame<Content: View>: View {
     }
 }
 
-private struct SheetTitle: View {
+struct SheetTitle: View {
     var text: String
     init(_ text: String) { self.text = text }
     var body: some View { Text(text).font(.title2.weight(.bold)).padding(.horizontal, 2) }
 }
 
-private struct SheetNote: View {
+struct SheetNote: View {
     var text: String
     init(_ text: String) { self.text = text }
     var body: some View {
@@ -148,6 +148,8 @@ struct ReviewSheet: View {
 // MARK: 讓開始更容易（從設定頁搬過來，卡住的時候才看）
 
 struct TipsSheet: View {
+    @Environment(Store.self) private var store
+
     var body: some View {
         SheetFrame {
             SheetTitle("讓開始更容易")
@@ -157,6 +159,9 @@ struct TipsSheet: View {
                     if i > 0 { RowSep() }
                     RowLabel(text: tip)
                 }
+            }
+            if store.state.habit != nil && AIClient.shared.isAvailable {
+                RivalHelper().padding(.top, 8)
             }
         }
     }

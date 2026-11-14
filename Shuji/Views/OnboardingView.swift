@@ -9,6 +9,10 @@ struct OnboardingView: View {
     @State private var showUnfit = false
     @State private var showRestore = false
     @State private var loaded = false
+    /// 種下去助手給的開關候選，第 2 步用來取代預設的範例
+    @State private var aiTriggers: [String] = []
+    /// 種下去助手判斷不適合（轉介），改了最小一步才放行
+    @State private var blocked = false
     @FocusState private var focus: Field?
 
     enum Field { case floor, trigger }
@@ -34,6 +38,7 @@ struct OnboardingView: View {
         }
         .sheet(isPresented: $showUnfit) { UnfitSheet() }
         .sheet(isPresented: $showRestore) { RestoreSheet() }
+        .onChange(of: floor) { _, _ in blocked = false }
     }
 
     // MARK: 第 1 步
@@ -61,6 +66,9 @@ struct OnboardingView: View {
                     .padding(EdgeInsets(top: 18, leading: 18, bottom: 20, trailing: 18))
                 }
                 warnings(floor: floorValue, trigger: "")
+                if AIClient.shared.isAvailable {
+                    PlantHelper(goal: floorValue, floor: $floor, aiTriggers: $aiTriggers, blocked: $blocked)
+                }
                 PrimaryButton(title: "下一步") { goNext() }
                     .disabled(!canGoNext)
                     .opacity(canGoNext ? 1 : 0.35)
@@ -73,7 +81,7 @@ struct OnboardingView: View {
         }
     }
 
-    private var canGoNext: Bool { !floorValue.isEmpty && !Wording.isNegative(floorValue) }
+    private var canGoNext: Bool { !floorValue.isEmpty && !Wording.isNegative(floorValue) && !blocked }
 
     private func goNext() {
         step = 2
@@ -92,7 +100,7 @@ struct OnboardingView: View {
                         Text("「\(floorValue)」要接在每天哪個瞬間後面？").font(.footnote).foregroundStyle(Theme.fg2)
                         bigInput("起床喝完第一杯水", text: $trigger, limit: 30, field: .trigger)
                             .onSubmit { if !triggerValue.isEmpty { plant() } }
-                        ChipFlow(items: Phrases.triggerExamples) { trigger = $0 }
+                        ChipFlow(items: aiTriggers.isEmpty ? Phrases.triggerExamples : aiTriggers, accent: !aiTriggers.isEmpty) { trigger = $0 }
                             .padding(.top, 10)
                         Text("一個瞬間，不是一段時間。「早上有空時」不算，「刷完牙」算。")
                             .font(.footnote).foregroundStyle(Theme.fg2).padding(.top, 12)

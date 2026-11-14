@@ -6,6 +6,10 @@ struct FieldView: View {
     @State private var queueText = ""
     @State private var showReview = false
     @State private var picked: PotatoPick? = nil
+    @State private var showWeekAdvice = false
+    @State private var showAudit = false
+    @State private var showPaywall = false
+    private let purchases = Purchases.shared
 
     struct PotatoPick: Identifiable {
         let index: Int
@@ -22,6 +26,9 @@ struct FieldView: View {
                     statsCard
                     reviewSection
                     grownSection
+                    if AIClient.shared.isAvailable && store.state.auditReady(today: t) {
+                        auditSection
+                    }
                 } else {
                     BigTitle(title: "田", sub: "還沒種東西")
                 }
@@ -35,6 +42,9 @@ struct FieldView: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .sheet(isPresented: $showReview) { ReviewSheet() }
+        .sheet(isPresented: $showWeekAdvice) { WeekAdviceSheet() }
+        .sheet(isPresented: $showAudit) { AuditSheet() }
+        .sheet(isPresented: $showPaywall) { PaywallSheet() }
         .sheet(item: $picked) { pick in
             if store.state.basket.indices.contains(pick.index) {
                 PotatoSheet(potato: store.state.basket[pick.index])
@@ -72,7 +82,25 @@ struct FieldView: View {
                         .padding(EdgeInsets(top: 14, leading: 12, bottom: 8, trailing: 12))
                 }
                 RowButton(text: "做這週的開始四問", color: Theme.accent) { showReview = true }
+                if AIClient.shared.isAvailable && store.state.weeklyAdviceReady(today: t) {
+                    RowSep()
+                    RowButton(text: "這週看什麼", value: purchases.isFull ? nil : "完整版", color: Theme.accent) {
+                        if purchases.isFull { showWeekAdvice = true } else { showPaywall = true }
+                    }
+                }
             }
+        }
+    }
+
+    private var auditSection: some View {
+        Group {
+            SectionTitle("季稽核")
+            Card {
+                RowButton(text: "做這一季的稽核", value: purchases.isFull ? nil : "完整版", color: Theme.accent) {
+                    if purchases.isFull { showAudit = true } else { showPaywall = true }
+                }
+            }
+            Foot("種滿一季了。看看這個習慣要維持、加量、換情境，還是退場。")
         }
     }
 

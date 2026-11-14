@@ -1,0 +1,31 @@
+{
+  "name": "shuji-ai",
+  "private": true,
+  "type": "module",
+  "description": "薯記的 AI 中繼伺服器（Cloudflare Workers）：保管金鑰、驗 App Attest、擋次數、組提示、驗輸出",
+  "scripts": {
+    "packs": "node scripts/gen-packs.mjs",
+    "pretest": "node scripts/gen-packs.mjs",
+    "test": "vitest run",
+    "pretypecheck": "node scripts/gen-packs.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
+    "predev": "node scripts/gen-packs.mjs",
+    "dev": "wrangler dev",
+    "predeploy": "node scripts/gen-packs.mjs",
+    "deploy": "wrangler deploy",
+    "eval": "node scripts/gen-packs.mjs && tsx eval/run.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.6.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261108.1",
+    "@types/node": "^26.6.6",
+    "cbor-x": "^1.6.9",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0",
+    "wrangler": "^4.158.0"
+  }
+}
