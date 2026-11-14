@@ -16,7 +16,7 @@ GLOBAL_DAILY_CAP = "5000"
 binding = "DB"
 database_name = "shuji-ai"
 # wrangler d1 create shuji-ai 之後把 id 貼過來
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "ba96fabe-fef8-4481-b659-89d968b65551"
 
 [observability]
 enabled = true
