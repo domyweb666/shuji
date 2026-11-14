@@ -37,6 +37,10 @@ function oid(s: string): Uint8Array {
   }
   return tlv(0x06, Uint8Array.from(out));
 }
+// 假憑證從十年前開始有效：測試會把「現在」釘在固定日期（app.test.ts 的 NOW），
+// 開始日期跟著真實時鐘走的話，過了那天測試就會說憑證還沒生效。
+const VALID_BACK = 3650 * 86400e3;
+
 function utctime(d: Date): Uint8Array {
   const p = (n: number) => String(n).padStart(2, '0');
   const s = `${p(d.getUTCFullYear() % 100)}${p(d.getUTCMonth() + 1)}${p(d.getUTCDate())}${p(d.getUTCHours())}${p(d.getUTCMinutes())}${p(d.getUTCSeconds())}Z`;
@@ -71,7 +75,7 @@ function issue(opts: {
     int(Math.floor(Math.random() * 100) + 1),
     alg,
     name(opts.issuer?.cn ?? opts.cn),
-    seq(utctime(opts.notBefore ?? new Date(Date.now() - 86400e3)), utctime(opts.notAfter ?? new Date(Date.now() + 365 * 86400e3))),
+    seq(utctime(opts.notBefore ?? new Date(Date.now() - VALID_BACK)), utctime(opts.notAfter ?? new Date(Date.now() + 365 * 86400e3))),
     name(opts.cn),
     spki,
   ];
@@ -134,7 +138,7 @@ export class FakeApple {
           int(7),
           seq(oid(SHA256)),
           name(issuer.cn),
-          seq(utctime(new Date(Date.now() - 86400e3)), utctime(new Date(Date.now() + 30 * 86400e3))),
+          seq(utctime(new Date(Date.now() - VALID_BACK)), utctime(new Date(Date.now() + 30 * 86400e3))),
           name('fake leaf'),
           spki,
           explicit(3, seq(ext)),
