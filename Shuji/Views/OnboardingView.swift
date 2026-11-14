@@ -21,16 +21,9 @@ struct OnboardingView: View {
     private var triggerValue: String { trigger.trimmingCharacters(in: .whitespacesAndNewlines) }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
-                if step == 1 { stepOne } else { stepTwo }
-            }
-            .padding(.horizontal, 16)
-            .frame(maxWidth: 560)
-            .padding(.top, 44)
-            .padding(.bottom, 40)
+        Group {
+            if step == 1 { stepOne } else { stepTwo }
         }
-        .scrollDismissesKeyboard(.interactively)
         .onAppear {
             guard !loaded else { return }
             loaded = true
@@ -44,39 +37,29 @@ struct OnboardingView: View {
     // MARK: 第 1 步
 
     private var stepOne: some View {
-        Group {
-            BigTitle(title: "種一個習慣", sub: "一次只種一個，長好了再種下一個。")
-            VStack(alignment: .leading, spacing: 14) {
-                stepLine(1)
-                Card {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("每天想多做的事，最小的那一步是？").font(.footnote).foregroundStyle(Theme.fg2)
-                        bigInput("打開檔案寫一句", text: $floor, limit: 40, field: .floor)
-                            .onSubmit { if canGoNext { goNext() } }
-                        if !store.state.queue.isEmpty {
-                            Text("排隊中").font(.footnote).foregroundStyle(Theme.fg2).padding(.top, 12)
-                            ChipFlow(items: store.state.queue, accent: true) { floor = $0 }
-                            Text("或從這些開始").font(.footnote).foregroundStyle(Theme.fg2).padding(.top, 12)
-                        }
-                        ChipFlow(items: Phrases.floorExamples) { floor = $0 }
-                            .padding(.top, store.state.queue.isEmpty ? 10 : 0)
-                        Text("小到最糟的一天也做得到，兩分鐘內做完。").font(.footnote).foregroundStyle(Theme.fg2).padding(.top, 12)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(EdgeInsets(top: 18, leading: 18, bottom: 20, trailing: 18))
+        DomyScreen(title: "種一個習慣", sub: "一次只種一個，長好了再種下一個。") {
+            StepBar(step: 1, total: 2)
+            VStack(alignment: .leading, spacing: Sp.s3) {
+                fieldLabel("每天想多做的事，最小的那一步是？")
+                bigInput("打開檔案寫一句", text: $floor, limit: 40, field: .floor)
+                    .onSubmit { if canGoNext { goNext() } }
+                Foot("小到最糟的一天也做得到，兩分鐘內做完。")
+                if !store.state.queue.isEmpty {
+                    Eyebrow("排隊中").padding(.top, Sp.s2)
+                    ChipFlow(items: store.state.queue, accent: true, selected: floorValue) { floor = $0 }
+                    Eyebrow("或從這些開始").padding(.top, Sp.s2)
+                } else {
+                    Eyebrow("從這些開始").padding(.top, Sp.s2)
                 }
-                warnings(floor: floorValue, trigger: "")
-                if AIClient.shared.isAvailable {
-                    PlantHelper(goal: floorValue, floor: $floor, aiTriggers: $aiTriggers, blocked: $blocked)
-                }
-                PrimaryButton(title: "下一步") { goNext() }
-                    .disabled(!canGoNext)
-                    .opacity(canGoNext ? 1 : 0.35)
-                HStack {
-                    Spacer()
-                    LinkButton(title: "從備份還原", quiet: true) { showRestore = true }
-                    Spacer()
-                }
+                ChipFlow(items: Phrases.floorExamples, selected: floorValue) { floor = $0 }
+            }
+            warnings(floor: floorValue, trigger: "")
+            if AIClient.shared.isAvailable {
+                PlantHelper(goal: floorValue, floor: $floor, aiTriggers: $aiTriggers, blocked: $blocked)
+            }
+            VStack(spacing: Sp.s2) {
+                DomyButton("下一步", disabled: !canGoNext) { goNext() }
+                DomyButton("從備份還原", variant: .quiet, size: .compact) { showRestore = true }
             }
         }
     }
@@ -91,35 +74,24 @@ struct OnboardingView: View {
     // MARK: 第 2 步
 
     private var stepTwo: some View {
-        Group {
-            BigTitle(title: "掛在哪裡", sub: "找一個每天一定會發生的瞬間。")
-            VStack(alignment: .leading, spacing: 14) {
-                stepLine(2)
-                Card {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("「\(floorValue)」要接在每天哪個瞬間後面？").font(.footnote).foregroundStyle(Theme.fg2)
-                        bigInput("起床喝完第一杯水", text: $trigger, limit: 30, field: .trigger)
-                            .onSubmit { if !triggerValue.isEmpty { plant() } }
-                        ChipFlow(items: aiTriggers.isEmpty ? Phrases.triggerExamples : aiTriggers, accent: !aiTriggers.isEmpty) { trigger = $0 }
-                            .padding(.top, 10)
-                        Text("一個瞬間，不是一段時間。「早上有空時」不算，「刷完牙」算。")
-                            .font(.footnote).foregroundStyle(Theme.fg2).padding(.top, 12)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(EdgeInsets(top: 18, leading: 18, bottom: 20, trailing: 18))
-                }
-                SwitchCard(trigger: triggerValue.isEmpty ? "＿＿" : triggerValue, floor: floorValue)
-                if Wording.isFood(triggerValue) && !Wording.isFood(floorValue) {
-                    warnings(floor: "", trigger: triggerValue)
-                }
-                PrimaryButton(title: "種下去") { plant() }
-                    .disabled(triggerValue.isEmpty)
-                    .opacity(triggerValue.isEmpty ? 0.35 : 1)
-                HStack {
-                    Spacer()
-                    LinkButton(title: "‹ 改最小一步", quiet: true) { step = 1 }
-                    Spacer()
-                }
+        DomyScreen(title: "掛在哪裡", sub: "找一個每天一定會發生的瞬間。") {
+            StepBar(step: 2, total: 2)
+            VStack(alignment: .leading, spacing: Sp.s3) {
+                fieldLabel("「\(floorValue)」要接在每天哪個瞬間後面？")
+                bigInput("起床喝完第一杯水", text: $trigger, limit: 30, field: .trigger)
+                    .onSubmit { if !triggerValue.isEmpty { plant() } }
+                Foot("一個瞬間，不是一段時間。「早上有空時」不算，「刷完牙」算。")
+                ChipFlow(items: aiTriggers.isEmpty ? Phrases.triggerExamples : aiTriggers,
+                         accent: !aiTriggers.isEmpty, selected: triggerValue) { trigger = $0 }
+                    .padding(.top, Sp.s2)
+            }
+            SwitchCard(trigger: triggerValue.isEmpty ? "＿＿" : triggerValue, floor: floorValue)
+            if Wording.isFood(triggerValue) && !Wording.isFood(floorValue) {
+                warnings(floor: "", trigger: triggerValue)
+            }
+            VStack(spacing: Sp.s2) {
+                DomyButton("種下去", disabled: triggerValue.isEmpty) { plant() }
+                DomyButton("‹ 改最小一步", variant: .quiet, size: .compact) { step = 1 }
             }
         }
     }
@@ -132,25 +104,24 @@ struct OnboardingView: View {
 
     // MARK: 零件
 
-    private func stepLine(_ n: Int) -> some View {
-        Text("第 \(n) 步，共 2 步")
-            .font(.footnote)
-            .foregroundStyle(Theme.fg2)
-            .padding(.leading, 2)
-            .padding(.bottom, -6)
+    private func fieldLabel(_ text: String) -> some View {
+        Text(text)
+            .domyType(Ty.headline)
+            .foregroundStyle(Theme.fg)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, Sp.s1)
     }
 
     private func bigInput(_ placeholder: String, text: Binding<String>, limit: Int, field: Field) -> some View {
         TextField(placeholder, text: text)
-            .font(.system(size: 20))
-            .padding(14)
-            .background(Theme.fill, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             .focused($focus, equals: field)
             .submitLabel(.done)
             .autocorrectionDisabled()
             .onChange(of: text.wrappedValue) { _, v in
                 if v.count > limit { text.wrappedValue = String(v.prefix(limit)) }
             }
+            .font(Ty.title3.font.weight(.regular)) // 比一般輸入框大一級，越過 domyField 的字級
+            .domyField(focused: focus == field)
     }
 
     /// 同原型 warnFor：否定句、太長、飲食體重
@@ -164,15 +135,34 @@ struct OnboardingView: View {
                 if neg { Text(Wording.negativeWarning) }
                 else if long { Text(Wording.tooLongWarning) }
                 if food {
-                    HStack(spacing: 6) {
+                    VStack(alignment: .leading, spacing: 0) {
                         Text(Wording.foodWarning)
-                        Button("看說明") { showUnfit = true }
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(Theme.accent)
+                        DomyButton("看說明", variant: .plain, size: .compact) { showUnfit = true }
                     }
-                    .padding(.top, (neg || long) ? 10 : 0)
                 }
             }
         }
+    }
+}
+
+/// 第幾步：兩段細條＋一行字
+struct StepBar: View {
+    var step: Int
+    var total: Int
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Sp.s2) {
+            HStack(spacing: Sp.s1) {
+                ForEach(1...total, id: \.self) { i in
+                    Capsule()
+                        .fill(i <= step ? Theme.accent : Theme.surfaceMuted)
+                        .frame(height: Sp.s1)
+                }
+            }
+            Text("第 \(step) 步，共 \(total) 步")
+                .domyType(Ty.footnote)
+                .foregroundStyle(Theme.fg2)
+        }
+        .accessibilityElement(children: .combine)
     }
 }

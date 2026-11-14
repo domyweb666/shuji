@@ -96,8 +96,10 @@ struct AIConsentSheet: View {
                 RowLabel(text: "Anthropic 依它的隱私政策處理這段文字")
             }
             SheetNote("不想送也沒關係，每一格都可以自己填，app 照常能用。")
-            PrimaryButton(title: "好，送出去") { agree() }
-            PrimaryButton(title: "不用了，我自己填", ghost: true) { decline() }
+            VStack(spacing: Sp.s2) {
+                DomyButton("好，送出去") { agree() }
+                DomyButton("不用了，我自己填", variant: .secondary) { decline() }
+            }
         }
     }
 }
@@ -127,12 +129,12 @@ struct AIStatus<O: Decodable>: View {
     var body: some View {
         switch call.phase {
         case .loading:
-            HStack(spacing: 10) {
-                ProgressView()
-                Text("想一下⋯").foregroundStyle(Theme.fg2)
+            HStack(spacing: Sp.s3) {
+                ProgressView().tint(Theme.accent)
+                Text("想一下⋯").domyType(Ty.subheadline).foregroundStyle(Theme.fg2)
             }
-            .font(.subheadline)
-            .padding(.horizontal, 4)
+            .padding(.horizontal, Sp.s1)
+            .frame(minHeight: Sz.touch)
         case .failed(let message):
             WarnBox { Text(message) }
         case .unfit(let referral):
@@ -149,11 +151,29 @@ struct ReferralCard: View {
 
     var body: some View {
         Card {
-            Text(text)
-                .lineSpacing(4)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(EdgeInsets(top: 16, leading: 18, bottom: 16, trailing: 18))
+            CardBody {
+                Text(text)
+                    .domyType(Ty.body)
+                    .foregroundStyle(Theme.fg)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}
+
+/// AI 給的一段話（摘要、建議），放在白卡裡
+struct AIText: View {
+    var text: String
+
+    var body: some View {
+        Card {
+            CardBody {
+                Text(text)
+                    .domyType(Ty.body)
+                    .foregroundStyle(Theme.fg)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 }
@@ -168,41 +188,61 @@ struct SuggestionCard: View {
 
     var body: some View {
         Card {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(caption ?? field.label).font(.footnote).foregroundStyle(Theme.fg2)
-                Text(text).lineSpacing(4).fixedSize(horizontal: false, vertical: true)
+            CardBody(spacing: Sp.s3) {
+                Eyebrow(caption ?? field.label)
+                Text(text)
+                    .domyType(Ty.body)
+                    .foregroundStyle(Theme.fg)
+                    .fixedSize(horizontal: false, vertical: true)
                 HStack {
                     Spacer()
-                    PillButton(title: applied ? "放好了" : "放進「\(field.label)」", primary: !applied) {
+                    DomyButton(applied ? "放好了" : "放進「\(field.label)」",
+                               variant: applied ? .secondary : .primary, size: .compact, disabled: applied) {
                         guard !applied else { return }
                         let value = String(text.prefix(60))
                         store.updateHabit { field.apply(value, to: &$0) }
                         applied = true
                         store.show("改好了。")
                     }
-                    .disabled(applied)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(EdgeInsets(top: 14, leading: 18, bottom: 14, trailing: 18))
         }
     }
 }
 
-/// 多行輸入框，樣式跟首次設定的大輸入框一樣
+/// 多行輸入框，Domy 輸入框樣式
 struct AIInput: View {
     var placeholder: String
     @Binding var text: String
     var limit: Int = 200
+    @FocusState private var focused: Bool
 
     var body: some View {
         TextField(placeholder, text: $text, axis: .vertical)
             .lineLimit(2...6)
-            .padding(12)
-            .background(Theme.fill, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .focused($focused)
             .onChange(of: text) { _, v in
                 if v.count > limit { text = String(v.prefix(limit)) }
             }
+            .domyField(focused: focused)
+    }
+}
+
+/// 一題：粗一點的題目＋輸入
+struct AIQuestion<Content: View>: View {
+    var title: String
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Sp.s2) {
+            Text(title)
+                .domyType(Ty.subheadline)
+                .fontWeight(.semibold)
+                .foregroundStyle(Theme.fg)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, Sp.s1)
+            content
+        }
     }
 }
 
@@ -219,27 +259,26 @@ struct PlantHelper: View {
     @State private var call = AICall<PlantOutput>()
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: Sp.s3) {
             if !call.isLoading {
-                LinkButton(title: call.output == nil ? "幫我拆小一點 ›" : "再想一次 ›", quiet: call.output != nil) {
+                DomyButton(call.output == nil ? "幫我拆小一點" : "再想一次",
+                           variant: call.output == nil ? .plain : .quiet, size: .compact,
+                           disabled: goal.isEmpty) {
                     call.run(.plant, PlantInput(goal: goal, queue: store.state.queue))
                 }
-                .disabled(goal.isEmpty)
-                .opacity(goal.isEmpty ? 0.35 : 1)
             }
             AIStatus(call: call)
             if let o = call.output {
                 if o.type == "ok" {
                     Card {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("最小一步，挑一個").font(.footnote).foregroundStyle(Theme.fg2)
-                            ChipFlow(items: o.floors, accent: true) { floor = $0 }
+                        CardBody(spacing: Sp.s3) {
+                            Eyebrow("最小一步，挑一個")
+                            ChipFlow(items: o.floors, accent: true, selected: trimmed(floor)) { floor = $0 }
                             if !o.note.isEmpty {
-                                Text(o.note).font(.footnote).foregroundStyle(Theme.fg2).padding(.top, 4)
+                                Text(o.note).domyType(Ty.footnote).foregroundStyle(Theme.fg2)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(EdgeInsets(top: 14, leading: 18, bottom: 16, trailing: 18))
                     }
                     Foot("開關的候選放在下一步。")
                 } else if let m = o.message, !m.isEmpty {
@@ -272,15 +311,13 @@ struct ObstacleSheet: View {
         SheetFrame {
             SheetTitle("不順的時候")
             SheetNote("過去兩週，這件事最常怎麼被打斷？挑最常見的一兩個寫就好。沒被打斷過也可以空著。")
+            AIInput(placeholder: "早上有時候要趕出門，週末常常睡到中午", text: $interruptions, limit: 300)
             Card {
-                VStack(alignment: .leading, spacing: 12) {
-                    AIInput(placeholder: "早上有時候要趕出門，週末常常睡到中午", text: $interruptions, limit: 300)
-                    Toggle("最近會出遠門", isOn: $travels)
-                }
-                .padding(EdgeInsets(top: 14, leading: 18, bottom: 14, trailing: 18))
+                DomyToggleRow(label: "最近會出遠門", isOn: $travels)
             }
             if !call.isLoading {
-                PrimaryButton(title: call.output == nil ? "幫我想" : "再想一次") { run() }
+                DomyButton(call.output == nil ? "幫我想" : "再想一次",
+                           variant: call.output == nil ? .primary : .secondary) { run() }
             }
             AIStatus(call: call)
             if let o = call.output { results(o) }
@@ -323,28 +360,19 @@ struct RivalHelper: View {
     private static let feels = ["有想要的感覺", "回過神已經在做", "焦慮、無聊或累", "跟某個人或場合有關"]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: Sp.s4) {
             SectionTitle("開關那一刻的對手")
-            Card {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("開關出現的那一刻，你通常手上拿著什麼、或正在做什麼？").font(.footnote).foregroundStyle(Theme.fg2)
-                    AIInput(placeholder: "手機，會先看一下訊息，常常就滑掉半小時", text: $rival)
-                    Text("那時候比較像").font(.footnote).foregroundStyle(Theme.fg2).padding(.top, 4)
-                    ChipFlow(items: Self.feels, accent: false) { feel = $0 }
-                    if !feel.isEmpty {
-                        Text("選了：\(feel)").font(.footnote).foregroundStyle(Theme.accent)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(EdgeInsets(top: 14, leading: 18, bottom: 14, trailing: 18))
+            AIQuestion(title: "開關出現的那一刻，你通常手上拿著什麼、或正在做什麼？") {
+                AIInput(placeholder: "手機，會先看一下訊息，常常就滑掉半小時", text: $rival)
+            }
+            AIQuestion(title: "那時候比較像") {
+                ChipFlow(items: Self.feels, accent: false, selected: feel) { feel = $0 }
             }
             if !call.isLoading {
-                PrimaryButton(title: "幫我看看") {
+                DomyButton("幫我看看", disabled: trimmed(rival).isEmpty) {
                     guard let h = store.state.habit else { return }
                     call.run(.rival, RivalInput(trigger: h.trigger, floor: h.floor, rival: trimmed(rival), feel: feel))
                 }
-                .disabled(trimmed(rival).isEmpty)
-                .opacity(trimmed(rival).isEmpty ? 0.35 : 1)
             }
             AIStatus(call: call)
             if let o = call.output {
@@ -362,13 +390,16 @@ struct RivalHelper: View {
     }
 
     private func labeled(_ title: String, _ text: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(.footnote).foregroundStyle(Theme.fg2)
-            Text(text).lineSpacing(4).fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: Sp.s1) {
+            Eyebrow(title)
+            Text(text)
+                .domyType(Ty.body)
+                .foregroundStyle(Theme.fg)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, Theme.rowInset)
-        .padding(.vertical, 12)
+        .padding(.horizontal, Sp.s4)
+        .padding(.vertical, Sp.s3)
     }
 }
 
@@ -390,24 +421,22 @@ struct DiagnoseSheet: View {
             question("最小一步太大嗎？", chips: ["不會", "累的日子做不到", "太大了"], text: $q2)
             question("旁邊有更近的東西搶走了嗎？", chips: ["沒有", "手機", "想睡、很累"], text: $q3)
             if !call.isLoading && call.output == nil {
-                PrimaryButton(title: "幫我看哪裡要改") { run() }
-                    .disabled(filled == 0)
-                    .opacity(filled == 0 ? 0.35 : 1)
+                DomyButton("幫我看哪裡要改", disabled: filled == 0) { run() }
             }
             AIStatus(call: call)
             if let o = call.output {
                 if o.layer == 0 || o.field == nil {
-                    Card {
-                        Text(o.suggestion).lineSpacing(4)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(EdgeInsets(top: 14, leading: 18, bottom: 14, trailing: 18))
-                    }
+                    AIText(text: o.suggestion)
                 } else if let f = o.field {
                     SuggestionCard(text: o.suggestion, field: f)
                     if !o.why.isEmpty { Foot(o.why) }
                 }
-                Text(o.closing).padding(.horizontal, 2)
-                PrimaryButton(title: "好") { dismiss() }
+                Text(o.closing)
+                    .domyType(Ty.body)
+                    .foregroundStyle(Theme.fg)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, Sp.s1)
+                DomyButton("好") { dismiss() }
             }
         }
         .aiConsent(call)
@@ -421,14 +450,9 @@ struct DiagnoseSheet: View {
     }
 
     private func question(_ title: String, chips: [String], text: Binding<String>) -> some View {
-        Card {
-            VStack(alignment: .leading, spacing: 10) {
-                Text(title)
-                ChipFlow(items: chips, accent: false) { text.wrappedValue = $0 }
-                AIInput(placeholder: "自己寫也可以", text: text)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(EdgeInsets(top: 14, leading: 18, bottom: 14, trailing: 18))
+        AIQuestion(title: title) {
+            ChipFlow(items: chips, accent: false, selected: trimmed(text.wrappedValue)) { text.wrappedValue = $0 }
+            AIInput(placeholder: "自己寫也可以", text: text)
         }
     }
 }
@@ -445,11 +469,7 @@ struct WeekAdviceSheet: View {
             SheetNote("讀這兩週的紀錄和開始四問的線，一週只提一個要修的地方。")
             AIStatus(call: call)
             if let o = call.output {
-                Card {
-                    Text(o.summary).lineSpacing(4)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(EdgeInsets(top: 14, leading: 18, bottom: 14, trailing: 18))
-                }
+                AIText(text: o.summary)
                 if let fix = o.fix, o.verdict == "fix" {
                     if let f = fix.field {
                         SuggestionCard(text: fix.suggestion, field: f)
@@ -460,7 +480,7 @@ struct WeekAdviceSheet: View {
                 if !o.note.isEmpty { Foot(o.note) }
             }
             if case .failed = call.phase {
-                PrimaryButton(title: "再試一次", ghost: true) { run() }
+                DomyButton("再試一次", variant: .secondary) { run() }
             }
         }
         .aiConsent(call)
@@ -488,35 +508,35 @@ struct AuditSheet: View {
             if let why = store.state.habit?.why, !why.isEmpty {
                 Card { RowLabel(text: "你說這是為了", mini: why) }
             }
-            Card {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("這一季它帶來了什麼？滿意嗎？").font(.footnote).foregroundStyle(Theme.fg2)
-                    AIInput(placeholder: "寫了很多，但大多是零散筆記，沒有一篇發出去", text: $satisfied, limit: 300)
-                    Text("下一季開關、地點、作息會變嗎？").font(.footnote).foregroundStyle(Theme.fg2).padding(.top, 4)
-                    AIInput(placeholder: "下一季會去外地住兩個月", text: $change, limit: 300)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(EdgeInsets(top: 14, leading: 18, bottom: 14, trailing: 18))
+            AIQuestion(title: "這一季它帶來了什麼？滿意嗎？") {
+                AIInput(placeholder: "寫了很多，但大多是零散筆記，沒有一篇發出去", text: $satisfied, limit: 300)
+            }
+            AIQuestion(title: "下一季開關、地點、作息會變嗎？") {
+                AIInput(placeholder: "下一季會去外地住兩個月", text: $change, limit: 300)
             }
             if !call.isLoading {
-                PrimaryButton(title: call.output == nil ? "做稽核" : "再做一次") {
+                DomyButton(call.output == nil ? "做稽核" : "再做一次",
+                           variant: call.output == nil ? .primary : .secondary,
+                           disabled: trimmed(satisfied).isEmpty) {
                     guard let input = store.state.auditInput(today: store.today, satisfied: trimmed(satisfied), contextChange: trimmed(change)) else { return }
                     call.run(.audit, input)
                 }
-                .disabled(trimmed(satisfied).isEmpty)
-                .opacity(trimmed(satisfied).isEmpty ? 0.35 : 1)
             }
             AIStatus(call: call)
             if let o = call.output {
                 Card {
                     RowLabel(text: "這一季走", value: o.pathLabel)
                     RowSep()
-                    Text(o.change).lineSpacing(4)
+                    Text(o.change)
+                        .domyType(Ty.body)
+                        .foregroundStyle(Theme.fg)
+                        .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, Theme.rowInset).padding(.vertical, 12)
+                        .padding(.horizontal, Sp.s4)
+                        .padding(.vertical, Sp.s3)
                 }
                 Foot(o.why)
-                if !o.warn.isEmpty { Foot(o.warn) }
+                if !o.warn.isEmpty { WarnBox { Text(o.warn) } }
             }
         }
         .aiConsent(call)
@@ -530,30 +550,58 @@ struct PaywallSheet: View {
 
     var body: some View {
         SheetFrame {
-            SheetTitle("薯記完整版")
+            VStack(spacing: Sp.s3) {
+                PotatoView(width: 96) // domy-ignore: 插畫尺寸
+                SheetTitle("薯記完整版")
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, Sp.s4)
+            .background(Theme.tint, in: RoundedRectangle(cornerRadius: Rd.xl, style: .continuous))
             SheetNote("一次買斷，不訂閱。按住記一節、種下去助手、卡住時的三問，這些一直免費。")
             Card {
-                RowLabel(text: "週回顧建議", mini: "做完開始四問，看這週要修哪一個地方")
+                feature("calendar", "週回顧建議", "做完開始四問，看這週要修哪一個地方")
                 RowSep()
-                RowLabel(text: "季稽核", mini: "一季一次，選維持、加量、換情境或退場")
+                feature("leaf", "季稽核", "一季一次，選維持、加量、換情境或退場")
                 RowSep()
-                RowLabel(text: "小工具", mini: "桌面和鎖定畫面看得到開關句、今天記了沒")
+                feature("rectangle.on.rectangle", "小工具", "桌面和鎖定畫面看得到開關句、今天記了沒")
             }
             if purchases.isFull {
-                Foot("這台裝置已經是完整版了。")
+                DomyInfoStrip(text: "這台裝置已經是完整版了。")
             } else {
-                PrimaryButton(title: buyTitle) {
-                    Task { await purchases.buy() }
+                VStack(spacing: Sp.s2) {
+                    DomyButton(buyTitle, disabled: purchases.busy) {
+                        Task { await purchases.buy() }
+                    }
+                    DomyButton("恢復購買", variant: .quiet, size: .compact) {
+                        Task { await purchases.restore() }
+                    }
                 }
-                .disabled(purchases.busy)
-                LinkButton(title: "恢復購買", quiet: true) {
-                    Task { await purchases.restore() }
-                }
-                .frame(maxWidth: .infinity)
             }
             if let m = purchases.message { Foot(m) }
         }
         .task { await purchases.loadProduct() }
+    }
+
+    private func feature(_ icon: String, _ title: String, _ mini: String) -> some View {
+        HStack(alignment: .top, spacing: Sp.s3) {
+            Image(systemName: icon)
+                .font(Ty.callout.font)
+                .foregroundStyle(Theme.strong)
+                .frame(width: Sp.s8, height: Sp.s8)
+                .background(Theme.soft, in: Circle())
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: Sp.s1 / 2) {
+                Text(title).domyType(Ty.body).foregroundStyle(Theme.fg)
+                Text(mini)
+                    .domyType(Ty.footnote)
+                    .foregroundStyle(Theme.fg2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, Sp.s4)
+        .padding(.vertical, Sp.s3)
+        .accessibilityElement(children: .combine)
     }
 
     private var buyTitle: String {

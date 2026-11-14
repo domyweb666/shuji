@@ -27,6 +27,17 @@ jobs:
       - name: Worker 打包檢查（不部署）
         run: npx wrangler deploy --dry-run --outdir .wrangler/dry
 
+  ui-tokens:
+    name: 畫面只用 Domy 代號
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node tools/check-ui-tokens.mjs
+
   build-and-test:
     runs-on: macos-latest
     timeout-minutes: 45

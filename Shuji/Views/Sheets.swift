@@ -2,36 +2,49 @@ import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 
-/// 底部彈出卡共用的外框
+/// 底部彈出卡共用的外框：畫布色、左右 20、區塊之間 16
 struct SheetFrame<Content: View>: View {
     @ViewBuilder var content: Content
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) { content }
-                .padding(.horizontal, 16)
-                .padding(.top, 24)
-                .padding(.bottom, 24)
-                .frame(maxWidth: 560)
+            VStack(alignment: .leading, spacing: Sp.s4) { content }
+                .padding(.horizontal, Sz.screenMargin)
+                .padding(.top, Sp.s6)
+                .padding(.bottom, Sp.s8)
+                .frame(maxWidth: Theme.contentMaxWidth)
+                .frame(maxWidth: .infinity)
         }
         .scrollDismissesKeyboard(.interactively)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
-        .presentationBackground(Theme.bg)
+        .presentationCornerRadius(Rd.xxl)
+        .presentationBackground(Theme.canvas)
+        .tint(Theme.accent)
     }
 }
 
 struct SheetTitle: View {
     var text: String
     init(_ text: String) { self.text = text }
-    var body: some View { Text(text).font(.title2.weight(.bold)).padding(.horizontal, 2) }
+    var body: some View {
+        Text(text)
+            .domyType(Ty.title2)
+            .foregroundStyle(Theme.fg)
+            .padding(.horizontal, Sp.s1)
+            .accessibilityAddTraits(.isHeader)
+    }
 }
 
 struct SheetNote: View {
     var text: String
     init(_ text: String) { self.text = text }
     var body: some View {
-        Text(text).font(.subheadline).foregroundStyle(Theme.fg2).lineSpacing(4).padding(.horizontal, 2)
+        Text(text)
+            .domyType(Ty.subheadline)
+            .foregroundStyle(Theme.fg2)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, Sp.s1)
     }
 }
 
@@ -72,32 +85,31 @@ struct MoreSheet: View {
                     }
                 }
                 if log != nil {
-                    RowButton(text: "撤銷今天", chevron: false, color: Theme.danger) {
+                    RowButton(text: "撤銷今天", chevron: false, tone: .danger) {
                         store.undoToday()
                         dismiss()
                     }
                 }
             }
             if leaving {
-                Card {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("請假的原因，一行就好").font(.footnote).foregroundStyle(Theme.fg2)
-                        TextField("出遠門、發燒…", text: $reason)
-                            .focused($reasonFocused)
-                            .submitLabel(.done)
-                            .onChange(of: reason) { _, v in if v.count > 40 { reason = String(v.prefix(40)) } }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, Theme.rowInset)
-                    .padding(.vertical, 12)
+                VStack(alignment: .leading, spacing: Sp.s2) {
+                    Text("請假的原因，一行就好")
+                        .domyType(Ty.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Theme.fg)
+                        .padding(.horizontal, Sp.s1)
+                    TextField("出遠門、發燒…", text: $reason)
+                        .focused($reasonFocused)
+                        .submitLabel(.done)
+                        .onChange(of: reason) { _, v in if v.count > 40 { reason = String(v.prefix(40)) } }
+                        .domyField(focused: reasonFocused)
+                    if let lastReason { Foot("上次請假：\(lastReason)") }
                 }
-                if let lastReason { SheetNote("上次請假：\(lastReason)") }
-                if sameReason { SheetNote("這個原因第二次了，可能是開關要換。") }
-                PrimaryButton(title: "請假") {
+                if sameReason { WarnBox { Text("這個原因第二次了，可能是開關要換。") } }
+                DomyButton("請假") {
                     store.leaveToday(reason: reason)
                     dismiss()
                 }
-                .padding(.top, 4)
             }
             SheetNote("補記只能補昨天，而且是補紀錄，不是補做。")
         }
@@ -120,27 +132,32 @@ struct ReviewSheet: View {
             let questions = Phrases.reviewQuestions(floor: store.state.habit?.floor ?? "")
             ForEach(0..<4, id: \.self) { i in
                 Card {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text(questions[i]).font(.system(size: 16)).lineSpacing(4)
-                        Picker(questions[i], selection: $scores[i]) {
-                            ForEach(1...7, id: \.self) { n in
-                                Text("\(n)").tag(n)
-                            }
+                    CardBody(spacing: Sp.s3) {
+                        Text("\(i + 1)／4")
+                            .domyType(Ty.caption)
+                            .foregroundStyle(Theme.strong)
+                        Text(questions[i])
+                            .domyType(Ty.body)
+                            .foregroundStyle(Theme.fg)
+                            .fixedSize(horizontal: false, vertical: true)
+                        ScalePicker(title: questions[i], selection: $scores[i])
+                            .accessibilityIdentifier("review-q\(i + 1)")
+                        HStack {
+                            Text("完全不像")
+                            Spacer()
+                            Text("完全就是")
                         }
-                        .pickerStyle(.segmented)
-                        .accessibilityIdentifier("review-q\(i + 1)")
+                        .domyType(Ty.caption)
+                        .foregroundStyle(Theme.fg2)
+                        .accessibilityHidden(true)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(EdgeInsets(top: 14, leading: 18, bottom: 14, trailing: 18))
                 }
             }
-            PrimaryButton(title: allPicked ? "記下這週" : "四題都點一下才能記") {
+            DomyButton(allPicked ? "記下這週" : "四題都點一下才能記", disabled: !allPicked) {
                 guard allPicked else { return }
                 store.recordReview(scores: scores.map(Double.init))
                 dismiss()
             }
-            .disabled(!allPicked)
-            .opacity(allPicked ? 1 : 0.35)
         }
     }
 }
@@ -157,11 +174,24 @@ struct TipsSheet: View {
             Card {
                 ForEach(Array(Phrases.tips.enumerated()), id: \.offset) { i, tip in
                     if i > 0 { RowSep() }
-                    RowLabel(text: tip)
+                    HStack(alignment: .top, spacing: Sp.s3) {
+                        Text("\(i + 1)")
+                            .domyType(Ty.callout)
+                            .foregroundStyle(Theme.strong)
+                            .frame(width: Sp.s6, height: Sp.s6)
+                            .background(Theme.soft, in: Circle())
+                        Text(tip)
+                            .domyType(Ty.body)
+                            .foregroundStyle(Theme.fg)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, Sp.s4)
+                    .padding(.vertical, Sp.s3)
                 }
             }
             if store.state.habit != nil && AIClient.shared.isAvailable {
-                RivalHelper().padding(.top, 8)
+                RivalHelper().padding(.top, Sp.s2)
             }
         }
     }
@@ -195,14 +225,18 @@ struct UnfitSheet: View {
     }
 
     private func hotline(_ name: String, number: String) -> some View {
-        HStack(spacing: 12) {
-            Text(name)
+        HStack(spacing: Sp.s3) {
+            Text(name).domyType(Ty.body).foregroundStyle(Theme.fg)
             Spacer()
-            Text(number).foregroundStyle(Theme.fg2).monospacedDigit().textSelection(.enabled)
+            Text(number)
+                .domyType(Ty.headline)
+                .foregroundStyle(Theme.strong)
+                .monospacedDigit()
+                .textSelection(.enabled)
         }
-        .padding(.horizontal, Theme.rowInset)
-        .padding(.vertical, 12)
-        .frame(minHeight: Theme.rowHeight)
+        .padding(.horizontal, Sp.s4)
+        .padding(.vertical, Sp.s3)
+        .frame(minHeight: Sz.row)
     }
 }
 
@@ -220,14 +254,15 @@ struct ExportSheet: View {
             if let fileURL {
                 ShareLink(item: fileURL, preview: SharePreview("薯記備份", image: Image(systemName: "leaf"))) {
                     Text("分享備份檔")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(.white)
+                        .domyType(Ty.headline)
+                        .foregroundStyle(Theme.onAccent)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 50)
+                        .frame(height: Sz.button)
                         .background(Theme.accent, in: Capsule())
                 }
+                .buttonStyle(DomyPressStyle())
             }
-            PrimaryButton(title: "複製成文字", ghost: true) {
+            DomyButton("複製成文字", variant: .secondary) {
                 UIPasteboard.general.string = json
                 store.show("複製好了。")
             }
@@ -254,24 +289,30 @@ struct RestoreSheet: View {
     @State private var text = ""
     @State private var failed = false
     @State private var picking = false
+    @FocusState private var editing: Bool
 
     var body: some View {
         SheetFrame {
             SheetTitle("從備份還原")
             SheetNote("貼上之前匯出的那段文字，或選一個備份檔。目前的資料會被取代。")
             TextEditor(text: $text)
-                .font(.system(size: 13, design: .monospaced))
+                .font(.system(Ty.footnote.textStyle, design: .monospaced))
                 .scrollContentBackground(.hidden)
-                .frame(minHeight: 120)
-                .padding(8)
-                .background(Theme.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .focused($editing)
+                .frame(minHeight: 120) // domy-ignore: 貼上整段 JSON 的高度
                 .autocorrectionDisabled()
-            PrimaryButton(title: "選備份檔", ghost: true) { picking = true }
+                .domyField(focused: editing, error: failed)
             if failed {
-                Text("這段讀不出來，確認是完整複製的那一整段。")
-                    .font(.subheadline).foregroundStyle(Theme.danger).padding(.horizontal, 2)
+                HStack(alignment: .top, spacing: Sp.s2) {
+                    Image(systemName: "exclamationmark.circle").accessibilityHidden(true)
+                    Text("這段讀不出來，確認是完整複製的那一整段。")
+                }
+                .domyType(Ty.footnote)
+                .foregroundStyle(Theme.danger)
+                .padding(.horizontal, Sp.s1)
             }
-            PrimaryButton(title: "還原") {
+            DomyButton("選備份檔", variant: .secondary) { picking = true }
+            DomyButton("還原") {
                 if store.importJSON(text) {
                     dismiss()
                 } else {
@@ -298,9 +339,12 @@ struct PotatoSheet: View {
 
     var body: some View {
         SheetFrame {
-            HStack { Spacer(); PotatoView(width: 120); Spacer() }
+            HStack { Spacer(); PotatoView(width: 120); Spacer() } // domy-ignore: 插畫尺寸
+                .padding(.vertical, Sp.s2)
+                .background(Theme.tint, in: RoundedRectangle(cornerRadius: Rd.xl, style: .continuous))
             Text(potato.floor)
-                .font(.title2.weight(.bold))
+                .domyType(Ty.title2)
+                .foregroundStyle(Theme.fg)
                 .frame(maxWidth: .infinity)
                 .multilineTextAlignment(.center)
             Card {

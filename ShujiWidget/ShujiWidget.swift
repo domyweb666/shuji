@@ -1,6 +1,11 @@
 import SwiftUI
+
 import UIKit
 import WidgetKit
+
+/// 小工具跟 app 用同一套 Domy 代號（Shared/DomyTokens.swift），產品色梅紫
+private let brand = DomyTheme.plum
+private typealias Ty = DomyTokens.TypeScale
 
 /// 桌面與鎖定畫面的小工具：開關句＋今天記了沒。
 /// 沒有按鈕。原型說「開關要在生活裡，不在手機裡」，小工具是被動看到，跟這句不衝突；加按鈕就衝突了。
@@ -69,13 +74,14 @@ struct ShujiWidgetView: View {
             Text("薯記 · 完整版才有小工具")
         case .accessoryRectangular:
             Text("小工具是薯記完整版的功能")
-                .font(.caption)
+                .font(Ty.caption.font)
                 .frame(maxWidth: .infinity, alignment: .leading)
         default:
-            VStack(alignment: .leading, spacing: 6) {
-                Text("薯記").font(.caption).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: DomyTokens.Space.s2) {
+                Text("薯記").font(Ty.caption.font).foregroundStyle(DomyTokens.Neutral.textSecondary)
                 Text("小工具是完整版的功能。打開薯記，設定頁可以看看。")
-                    .font(.subheadline)
+                    .font(Ty.subheadline.font)
+                    .foregroundStyle(DomyTokens.Neutral.textPrimary)
                     .minimumScaleFactor(0.8)
                 Spacer(minLength: 0)
             }
@@ -89,39 +95,41 @@ struct ShujiWidgetView: View {
         case .accessoryInline:
             Text("薯記 · " + statusText)
         case .accessoryRectangular:
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: DomyTokens.Space.s1 / 2) {
                 if let s = snap, status != .empty {
                     Text("如果\(s.trigger)，我就\(s.floor)。")
-                        .font(.headline)
+                        .font(Ty.headline.font)
                         .lineLimit(2)
                 }
                 Text(statusText)
-                    .font(.caption)
+                    .font(Ty.caption.font)
                     .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         default:
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: DomyTokens.Space.s2) {
                 Text("開關")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(Ty.caption.font)
+                    .foregroundStyle(brand.strong)
                 if let s = snap, status != .empty {
                     (Text("如果") + Text(s.trigger).bold() + Text("，我就") + Text(s.floor).bold() + Text("。"))
-                        .font(family == .systemSmall ? .subheadline : .title3)
+                        .font(family == .systemSmall ? Ty.subheadline.font : Ty.title3.font.weight(.regular))
+                        .foregroundStyle(DomyTokens.Neutral.textPrimary)
                         .lineLimit(family == .systemSmall ? 4 : 3)
                         .minimumScaleFactor(0.8)
                 } else {
                     Text("打開薯記，種一個習慣。")
-                        .font(.subheadline)
+                        .font(Ty.subheadline.font)
+                        .foregroundStyle(DomyTokens.Neutral.textPrimary)
                 }
                 Spacer(minLength: 0)
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(statusIsDone ? Color.purple : Color.secondary.opacity(0.35))
-                        .frame(width: 8, height: 8)
+                HStack(spacing: DomyTokens.Space.s1) {
+                    Image(systemName: statusIsDone ? "checkmark.circle.fill" : "circle")
+                        .font(Ty.caption.font)
+                        .foregroundStyle(statusIsDone ? brand.accent : DomyTokens.Neutral.textTertiary)
                     Text(statusText)
-                        .font(.caption.weight(statusIsDone ? .semibold : .regular))
-                        .foregroundStyle(statusIsDone ? Color.primary : Color.secondary)
+                        .font(Ty.caption.font.weight(statusIsDone ? .semibold : .regular))
+                        .foregroundStyle(statusIsDone ? brand.strong : DomyTokens.Neutral.textSecondary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                 }
@@ -137,7 +145,7 @@ struct ShujiWidget: Widget {
         StaticConfiguration(kind: "ShujiWidget", provider: ShujiProvider()) { entry in
             ShujiWidgetView(entry: entry)
                 .containerBackground(for: .widget) {
-                    Color(uiColor: .secondarySystemGroupedBackground)
+                    DomyTokens.Neutral.surface
                 }
         }
         .configurationDisplayName("薯記")
