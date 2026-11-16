@@ -17,6 +17,17 @@ describe('parseCliResult', () => {
     expect(r.parsed).toEqual(t3);
   });
 
+  it('可以是 null 的欄位被省略時補 null', () => {
+    const { category, message, ...rest } = t3;
+    const r = parseCliResult(3, JSON.stringify({ result: JSON.stringify(rest) }));
+    expect(r.parsed).toEqual(t3);
+  });
+
+  it('不能是 null 的欄位被省略時不補', () => {
+    const { block, ...rest } = t3;
+    expect(parseCliResult(3, JSON.stringify({ result: JSON.stringify(rest) })).parsed).toBeNull();
+  });
+
   it('欄位不合 schema 回 null，不丟例外', () => {
     const r = parseCliResult(3, JSON.stringify({ structured_output: { ...t3, rival_type: 'other' } }));
     expect(r.parsed).toBeNull();

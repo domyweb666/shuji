@@ -2,7 +2,8 @@
 // 只給 eval 和本機測試用。Cloudflare Workers 不能啟動外部程式，正式路徑一律走 src/model.ts 的 anthropicCaller。
 //
 // 跟正式版的差別：沒有提示快取、沒有 Sonnet 的伺服器端備援、沒有 max_tokens 上限；
-// 系統提示、輸出 schema、模型、effort 都跟正式版同一份來源。
+// 輸出格式不是 API 強制的，而是在系統提示最後多加一段格式要求，再用同一份 schema 驗。
+// 系統提示的其他部分、輸出 schema、模型、effort 都跟正式版同一份來源。
 import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -46,6 +47,22 @@ interface CliResult {
   usage?: { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number };
 }
 
+// CLI 的 --json-schema 在換掉系統提示、關掉工具之後不會生效（2.1.81 實測，模型直接回文字），
+// 所以格式改用提示要求，回來再用同一份 zod schema 驗。
+function formatNote(task: TaskId): string {
+  return `輸出格式：只輸出一個 JSON 物件，不要用程式碼區塊包起來，前後不要有任何其他文字。必須符合這份 JSON Schema，每個欄位都要出現：\n${JSON.stringify(z.toJSONSchema(OUTPUTS[task]))}`;
+}
+
+/** 正式版的結構化輸出保證每個欄位都在；CLI 沒有這層保證，模型常把「沒有」的欄位整個省略。可以是 null 的最上層欄位缺了就補 null，其他照原樣交給 schema 驗。 */
+function fillNulls(task: TaskId, value: unknown): unknown {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return value;
+  const out: Record<string, unknown> = { ...(value as Record<string, unknown>) };
+  for (const [key, field] of Object.entries(OUTPUTS[task].shape as Record<string, z.ZodType>)) {
+    if (!(key in out) && field.safeParse(null).success) out[key] = null;
+  }
+  return out;
+}
+
 /** 從 CLI 的 JSON 結果取出任務輸出。純函式，測試用得到。 */
 export function parseCliResult<T extends TaskId>(task: T, stdout: string): ModelResult<z.infer<(typeof OUTPUTS)[T]>> {
   const text = stdout.trim();
@@ -70,7 +87,7 @@ export function parseCliResult<T extends TaskId>(task: T, stdout: string): Model
       candidate = null;
     }
   }
-  const parsed = candidate === null ? null : OUTPUTS[task].safeParse(candidate);
+  const parsed = candidate === null ? null : OUTPUTS[task].safeParse(fillNulls(task, candidate));
   const u = res.usage ?? {};
   return {
     parsed: (parsed && parsed.success ? parsed.data : null) as any,
@@ -94,7 +111,7 @@ export function cliCaller(): ModelCaller {
     let f = promptFiles.get(task);
     if (!f) {
       f = join(work, `system-${task}.txt`);
-      writeFileSync(f, systemBlocks(task).map((b) => b.text).join('\n\n'), 'utf8');
+      writeFileSync(f, [...systemBlocks(task).map((b) => b.text), formatNote(task)].join('\n\n'), 'utf8');
       promptFiles.set(task, f);
     }
     return f;
@@ -114,7 +131,6 @@ export function cliCaller(): ModelCaller {
       '--no-session-persistence',
       '--system-prompt-file', promptFile(task),
       '--output-format', 'json',
-      '--json-schema', JSON.stringify(z.toJSONSchema(OUTPUTS[task])),
     ];
     return new Promise((resolve, reject) => {
       const child = spawn(cmd, args, { cwd: work, env, windowsHide: true });
@@ -132,6 +148,7 @@ export function cliCaller(): ModelCaller {
       });
       child.on('close', (code) => {
         clearTimeout(timer);
+        if (process.env.SHUJI_CLI_DEBUG === '1') console.error(`\n[cli 任務 ${task}] ${out.slice(0, 3000)}`);
         if (!out.trim()) return reject(new Error(`CLI 沒有輸出（結束碼 ${code}）：${err.slice(0, 300)}`));
         try {
           resolve(parseCliResult(task, out));
