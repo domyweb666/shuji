@@ -13,7 +13,8 @@
     "dev": "wrangler dev",
     "predeploy": "node scripts/gen-packs.mjs",
     "deploy": "wrangler deploy",
-    "eval": "node scripts/gen-packs.mjs && tsx eval/run.ts"
+    "eval": "node scripts/gen-packs.mjs && tsx eval/run.ts",
+    "eval:cli": "node scripts/gen-packs.mjs && tsx eval/run.ts --cli"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.6.0",

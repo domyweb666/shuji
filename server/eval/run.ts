@@ -1,22 +1,31 @@
 // 真打模型，跑 ai/提示詞與輸出格式.md 最後那張測試清單。會花錢（Haiku 很便宜，季稽核用 Sonnet 比較貴）。
 // 用法：npm run eval            全部
 //       npm run eval -- 1 4     只跑任務 1、4
+//       npm run eval:cli        不用金鑰，走這台的 claude CLI（Claude 訂閱）；後面一樣可以接任務編號
 // 金鑰：環境變數 ANTHROPIC_API_KEY，或 E:\習慣地瓜\簽章\anthropic-api-key.txt（repo 外面，不進 git）
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { anthropicCaller, type ModelResult } from '../src/model';
+import { anthropicCaller, type ModelCaller, type ModelResult } from '../src/model';
+import { cliCaller } from './cliCaller';
 import { review, bannedHits, NEGATION, DIAGNOSE_CLOSING } from '../src/checks';
 import { TASKS, type TaskId } from '../src/tasks';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const KEY_FILE = process.env.SHUJI_KEY_FILE ?? join(HERE, '..', '..', '..', '簽章', 'anthropic-api-key.txt');
-const apiKey = process.env.ANTHROPIC_API_KEY ?? (existsSync(KEY_FILE) ? readFileSync(KEY_FILE, 'utf8').trim() : '');
-if (!apiKey) {
-  console.error(`找不到金鑰：設 ANTHROPIC_API_KEY 或放在 ${KEY_FILE}`);
-  process.exit(2);
+// --cli（或 npm run eval:cli）：不用金鑰，改叫這台的 claude CLI，用 Claude 訂閱的登入。只給測試用。
+const USE_CLI = process.argv.includes('--cli') || process.env.SHUJI_EVAL_CLI === '1';
+let call: ModelCaller;
+if (USE_CLI) {
+  call = cliCaller();
+} else {
+  const KEY_FILE = process.env.SHUJI_KEY_FILE ?? join(HERE, '..', '..', '..', '簽章', 'anthropic-api-key.txt');
+  const apiKey = process.env.ANTHROPIC_API_KEY ?? (existsSync(KEY_FILE) ? readFileSync(KEY_FILE, 'utf8').trim() : '');
+  if (!apiKey) {
+    console.error(`找不到金鑰：設 ANTHROPIC_API_KEY 或放在 ${KEY_FILE}。沒有金鑰可以改跑 npm run eval:cli`);
+    process.exit(2);
+  }
+  call = anthropicCaller(apiKey);
 }
-const call = anthropicCaller(apiKey);
 const only = process.argv.slice(2).map(Number).filter(Boolean);
 const want = (t: number) => only.length === 0 || only.includes(t);
 
@@ -179,8 +188,8 @@ const PRICE: Record<string, { in: number; out: number; cacheRead: number; cacheW
 };
 
 const jobs = cases.filter((c) => want(c.task)).flatMap((c) => Array.from({ length: c.runs }, (_, k) => () => runCase(c, k + 1)));
-console.log(`跑 ${jobs.length} 次呼叫…`);
-const rows = await pool(jobs, 4);
+console.log(`跑 ${jobs.length} 次呼叫${USE_CLI ? '（走 claude CLI）' : ''}…`);
+const rows = await pool(jobs, USE_CLI ? 3 : 4);
 
 let cost = 0;
 for (const r of rows) {
@@ -194,7 +203,7 @@ for (const r of rows) byCase.set(r.name, [...(byCase.get(r.name) ?? []), r]);
 
 const allText = rows.flatMap((r) => JSON.stringify(r.raw ?? '')).join('\n');
 const lines: string[] = [];
-lines.push(`# 模型測試報告`, '', `${new Date().toISOString()}｜${rows.length} 次呼叫｜約 US$${cost.toFixed(4)}`, '');
+lines.push(`# 模型測試報告`, '', `${new Date().toISOString()}｜${rows.length} 次呼叫｜${USE_CLI ? '走 claude CLI（訂閱額度，沒有快取，秒數含啟動時間）' : `約 US$${cost.toFixed(4)}`}`, '');
 lines.push('| 任務 | 案例 | 過 | 平均秒數 | 問題 |', '|---|---|---|---|---|');
 for (const [name, rs] of byCase) {
   const pass = rs.filter((r) => r.ok).length;
