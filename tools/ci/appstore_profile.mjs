@@ -95,7 +95,15 @@ try {
   }
   console.log(`已建立並安裝描述檔 ${profileName}（${uuid}），到期日 ${expirationDate}`);
 } catch (error) {
-  if (error.status === 401 || error.status === 403) {
+  if (error.status === 401) {
+    // 2026-11-16 踩到：401 是「認不出這把金鑰」，跟權限無關。三個 secret 有一個對不上就會這樣。
+    fail(
+      "App Store Connect 認不出這把 API 金鑰（401）。金鑰檔、ASC_KEY_ID、ASC_ISSUER_ID 三個要是同一組：" +
+        "Key ID 要跟 .p8 檔名 AuthKey_ 後面那段一樣，Issuer ID 是 App Store Connect API 頁面最上面那串。" +
+        "金鑰被撤銷也會回 401。",
+    );
+  }
+  if (error.status === 403) {
     fail(
       `App Store Connect 拒絕了這把 API 金鑰（${error.status}）。` +
         "金鑰的權限要是 App Manager 或 Admin，才能建立描述檔。" +
