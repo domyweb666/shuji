@@ -15,7 +15,14 @@ case "${ASC_KEY_P8_BASE64:-}" in
     ;;
   -----BEGIN*)
     FORM="原文"
-    printf '%s\n' "$ASC_KEY_P8_BASE64" > "$OUT"
+    # 2026-11-16 踩到：在 PowerShell 或網頁上貼 .p8 原文，換行會被吃掉（253 bytes、有標頭、openssl 卻不認）。
+    # 所以不管換行還在不在，都把標頭、標尾、空白拿掉，內容每 64 字重新折行。
+    BODY="$(printf '%s' "$ASC_KEY_P8_BASE64" | sed -e 's/-----BEGIN PRIVATE KEY-----//' -e 's/-----END PRIVATE KEY-----//' | tr -d ' \t\r\n')"
+    {
+      echo "-----BEGIN PRIVATE KEY-----"
+      printf '%s\n' "$BODY" | fold -w 64
+      echo "-----END PRIVATE KEY-----"
+    } > "$OUT"
     ;;
   *)
     FORM="base64"
