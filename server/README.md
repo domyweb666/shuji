@@ -54,6 +54,14 @@ app 不直接打 Claude。金鑰放在 app 裡一定會被拆出來，所以中�
 
    最後一行會印出網址，長得像 `https://shuji-ai.你的名字.workers.dev`。
 
+   在 Windows 上，如果資料夾路徑有中文（像 `E:\習慣地瓜\shuji`），`wrangler deploy` 會印完版本號就直接結束，沒有錯誤訊息，也沒有部署。先做一個純英文路徑的捷徑資料夾，從那邊跑：
+
+   ```bash
+   cmd /c mklink /J C:\shuji-link E:\習慣地瓜\shuji
+   ```
+
+   再到 `C:\shuji-link\server` 跑 `npx wrangler deploy`。`wrangler d1`、`wrangler secret` 不受影響，原路徑就能跑。
+
 7. 把網址填進 `Shuji/Info.plist` 的 `ShujiAIBaseURL`，app 的 AI 按鈕才會出現。
 
 8. 到 Anthropic Console 的 Limits 設一個每月花費上限，萬一出事有天花板。

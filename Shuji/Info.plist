@@ -7,6 +7,6 @@
 	<key>UIFileSharingEnabled</key>
 	<true/>
 	<key>ShujiAIBaseURL</key>
-	<string></string>
+	<string>https://shuji-ai.charlie-f7f.workers.dev</string>
 </dict>
 </plist>
