@@ -1,0 +1,145 @@
+// 測試用：不走 API 金鑰，改叫這台電腦上的 claude CLI（用 Claude 訂閱的登入）。
+// 只給 eval 和本機測試用。Cloudflare Workers 不能啟動外部程式，正式路徑一律走 src/model.ts 的 anthropicCaller。
+//
+// 跟正式版的差別：沒有提示快取、沒有 Sonnet 的伺服器端備援、沒有 max_tokens 上限；
+// 系統提示、輸出 schema、模型、effort 都跟正式版同一份來源。
+import { spawn } from 'node:child_process';
+import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { delimiter, join } from 'node:path';
+import * as z from 'zod/v4';
+import { systemBlocks, type ModelCaller, type ModelResult } from '../src/model';
+import { OUTPUTS, TASKS, type TaskId } from '../src/tasks';
+
+const TIMEOUT_MS = 180_000;
+
+/** 找出要執行的程式。Windows 的 claude 是 npm 的 .cmd 包裝，中文參數經過 cmd 會壞，所以直接用 node 跑 cli.js。 */
+function resolveCli(): { cmd: string; pre: string[] } {
+  const override = process.env.SHUJI_CLAUDE_CLI;
+  if (override) return override.endsWith('.js') ? { cmd: process.execPath, pre: [override] } : { cmd: override, pre: [] };
+  if (process.platform === 'win32') {
+    for (const dir of (process.env.PATH ?? '').split(delimiter)) {
+      if (!dir || !existsSync(join(dir, 'claude.cmd'))) continue;
+      const js = join(dir, 'node_modules', '@anthropic-ai', 'claude-code', 'cli.js');
+      if (existsSync(js)) return { cmd: process.execPath, pre: [js] };
+    }
+    throw new Error('找不到 claude CLI 的 cli.js。用 SHUJI_CLAUDE_CLI 指定路徑。');
+  }
+  return { cmd: 'claude', pre: [] };
+}
+
+/** 不把外層的 Claude／Anthropic 環境變數帶進去：在 Claude Code 裡跑 eval 時，繼承來的設定會蓋掉 CLI 自己的登入；也避免不小心用到 API 金鑰計費。 */
+function cleanEnv(): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {};
+  for (const [k, v] of Object.entries(process.env)) {
+    if (/^(CLAUDE|ANTHROPIC)/i.test(k)) continue;
+    env[k] = v;
+  }
+  return env;
+}
+
+interface CliResult {
+  is_error?: boolean;
+  result?: string;
+  structured_output?: unknown;
+  stop_reason?: string | null;
+  usage?: { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number };
+}
+
+/** 從 CLI 的 JSON 結果取出任務輸出。純函式，測試用得到。 */
+export function parseCliResult<T extends TaskId>(task: T, stdout: string): ModelResult<z.infer<(typeof OUTPUTS)[T]>> {
+  const text = stdout.trim();
+  let res: CliResult;
+  try {
+    res = JSON.parse(text) as CliResult;
+  } catch {
+    throw new Error(`CLI 回的不是 JSON：${text.slice(0, 200)}`);
+  }
+  if (res.is_error) {
+    const msg = String(res.result ?? '');
+    if (/authenticat|OAuth|login/i.test(msg)) throw new Error('claude CLI 的登入過期了。在終端機跑 claude，輸入 /login 重新登入後再試。');
+    throw new Error(`CLI 回報錯誤：${msg.slice(0, 300)}`);
+  }
+  let candidate: unknown = res.structured_output;
+  if (candidate === undefined || candidate === null) {
+    // 舊版 CLI 沒有 structured_output 欄位，JSON 會在 result 字串裡（可能包在 ```json 區塊）
+    const raw = String(res.result ?? '').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+    try {
+      candidate = JSON.parse(raw);
+    } catch {
+      candidate = null;
+    }
+  }
+  const parsed = candidate === null ? null : OUTPUTS[task].safeParse(candidate);
+  const u = res.usage ?? {};
+  return {
+    parsed: (parsed && parsed.success ? parsed.data : null) as any,
+    stopReason: parsed && !parsed.success ? 'schema_mismatch' : (res.stop_reason ?? null),
+    usage: {
+      input: u.input_tokens ?? 0,
+      output: u.output_tokens ?? 0,
+      cacheRead: u.cache_read_input_tokens ?? 0,
+      cacheWrite: u.cache_creation_input_tokens ?? 0,
+    },
+  };
+}
+
+export function cliCaller(): ModelCaller {
+  const { cmd, pre } = resolveCli();
+  const env = cleanEnv();
+  // 空資料夾當工作目錄，CLI 才不會讀到任何專案的 CLAUDE.md
+  const work = mkdtempSync(join(tmpdir(), 'shuji-eval-'));
+  const promptFiles = new Map<TaskId, string>();
+  const promptFile = (task: TaskId) => {
+    let f = promptFiles.get(task);
+    if (!f) {
+      f = join(work, `system-${task}.txt`);
+      writeFileSync(f, systemBlocks(task).map((b) => b.text).join('\n\n'), 'utf8');
+      promptFiles.set(task, f);
+    }
+    return f;
+  };
+
+  return (task, input) => {
+    const spec = TASKS[task];
+    const args = [
+      ...pre,
+      '-p',
+      '--model', spec.model,
+      '--effort', spec.effort,
+      '--tools', '',
+      '--setting-sources', '',
+      '--strict-mcp-config',
+      '--disable-slash-commands',
+      '--no-session-persistence',
+      '--system-prompt-file', promptFile(task),
+      '--output-format', 'json',
+      '--json-schema', JSON.stringify(z.toJSONSchema(OUTPUTS[task])),
+    ];
+    return new Promise((resolve, reject) => {
+      const child = spawn(cmd, args, { cwd: work, env, windowsHide: true });
+      let out = '';
+      let err = '';
+      const timer = setTimeout(() => {
+        child.kill();
+        reject(new Error(`CLI 超過 ${TIMEOUT_MS / 1000} 秒沒回應`));
+      }, TIMEOUT_MS);
+      child.stdout.setEncoding('utf8').on('data', (d) => (out += d));
+      child.stderr.setEncoding('utf8').on('data', (d) => (err += d));
+      child.on('error', (e) => {
+        clearTimeout(timer);
+        reject(new Error(`啟動 claude CLI 失敗：${e.message}`));
+      });
+      child.on('close', (code) => {
+        clearTimeout(timer);
+        if (!out.trim()) return reject(new Error(`CLI 沒有輸出（結束碼 ${code}）：${err.slice(0, 300)}`));
+        try {
+          resolve(parseCliResult(task, out));
+        } catch (e) {
+          reject(e as Error);
+        }
+      });
+      child.stdin.end(JSON.stringify(input), 'utf8');
+    });
+  };
+}
