@@ -10,7 +10,7 @@ OUT="${1:?要給輸出路徑}"
 
 case "${ASC_KEY_P8_BASE64:-}" in
   "")
-    echo "::error::沒有 ASC_KEY_P8_BASE64 這個 secret。請照 docs/TestFlight.md 第一步放。"
+    echo "::error::沒有 ASC_KEY_P8_BASE64 這個 secret。兩個名稱都收：ASC_KEY_P8_BASE64 或 ASC_PRIVATE_KEY。請照 docs/TestFlight.md 第一步放。"
     exit 1
     ;;
   -----BEGIN*)

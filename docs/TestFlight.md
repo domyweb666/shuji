@@ -19,7 +19,7 @@ Team ID 和 Key ID 不是秘密，已經設好了：
 
 剩下四個要你來。
 
-API 金鑰檔，直接把檔案內容送進去：
+API 金鑰檔，直接把檔案內容送進去（這個 Secret 叫 `ASC_PRIVATE_KEY` 也可以，流程兩個名稱都收）：
 
 ```bash
 gh secret set ASC_KEY_P8_BASE64 -R domyweb666/shuji < "E:/人篸修煉/AuthKey_F3286X6SY3.p8"
