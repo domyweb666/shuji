@@ -94,6 +94,14 @@ npm test
 npm run eval
 ```
 
+還沒有金鑰的時候，可以改走這台電腦上的 `claude` CLI，用 Claude 訂閱的登入，不另外收費：
+
+```bash
+npm run eval:cli
+```
+
+後面一樣可以接任務編號，例如 `npm run eval:cli -- 1 4`。系統提示、輸出格式、模型都跟正式版同一份來源，所以能看出提示詞和輸出檢查對不對。它量不到的是成本和速度：CLI 沒有快取，每次呼叫還要多幾秒啟動時間。出現「登入過期」就在終端機跑 `claude`，輸入 `/login` 重新登入。這條路只給測試用，Cloudflare 上的伺服器一律走金鑰。
+
 金鑰讀環境變數 `ANTHROPIC_API_KEY`，或 repo 外面的 `E:\習慣地瓜\簽章\anthropic-api-key.txt`。報告寫在 `eval/out/latest.md`。
 
 ## 回應格式

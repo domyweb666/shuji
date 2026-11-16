@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BANNED_PATTERNS, DIAGNOSE_CLOSING, DIAGNOSE_NOTHING, bannedHits, referralFor, review } from '../src/checks';
+import { BANNED_PATTERNS, DIAGNOSE_CLOSING, DIAGNOSE_NOTHING, bannedHits, NEGATION, referralFor, review } from '../src/checks';
 import { BANNED_LINES, INSTRUCTIONS, PACKS } from '../src/generated/packs';
 import { systemBlocks } from '../src/model';
 import { OUTPUTS } from '../src/tasks';
@@ -41,6 +41,25 @@ describe('禁用詞', () => {
   });
   it('正常的句子不誤殺', () => {
     for (const s of ['換上球鞋出門', '如果起床喝完第一杯水，我就打開檔案寫一句。', '先坐三個呼吸再去躺', '開關和環境留著，只拆記錄', '一次只裝一個']) {
+      expect(bannedHits(s), s).toEqual([]);
+    }
+  });
+  it('否定句的「別」只算勸阻，「別的」「別人」「特別」不算', () => {
+    for (const s of ['別滑手機', '先別躺下', '不看手機']) expect(NEGATION.test(s), s).toBe(true);
+    for (const s of ['先把蒲團放到地上，再做別的事。', '跟別人一起走', '特別的那一天', '分別放兩處']) expect(NEGATION.test(s), s).toBe(false);
+  });
+  it('「一定會」保證成效照擋', () => {
+    for (const s of ['這樣做一定會成功', '照著做一定會養成', '一定會變好', '你一定會改變', '一定會有效', '一定會。']) {
+      expect(bannedHits(s).length, s).toBeGreaterThan(0);
+    }
+  });
+  it('「一定會」描述開關時放行（實跑被誤擋的兩句）', () => {
+    for (const s of [
+      '開關沒有穩定出現，所以要換到躺下之前一定會發生的生活動作。',
+      '開關選住處一定會經過的事，例如起床喝完第一杯水的那個位置。',
+      '挑一個每天一定會出現的動作',
+      '每天一定會做的事',
+    ]) {
       expect(bannedHits(s), s).toEqual([]);
     }
   });
