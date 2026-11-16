@@ -1,0 +1,180 @@
+# 上 TestFlight：還原憑證 → 向 Apple 申請上架用描述檔 → 手動簽章 archive → 直傳 App Store Connect
+# 做法照 Ginseng-Cultivation（人蔘修煉）已經跑通的那一套搬過來，設定步驟在 docs/TestFlight.md。
+# 只能手動按（Actions → 上 TestFlight → Run workflow），不會因為 push 就上傳。
+# secrets 只進環境變數、不 echo；最後不管成敗都刪鑰匙圈與金鑰。
+name: 上 TestFlight
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: testflight
+  cancel-in-progress: false
+
+env:
+  BUNDLE_ID: org.domyweb.shuji
+  # 描述檔的名字要跟 project.pbxproj 兩個 target 的 Release 設定裡
+  # PROVISIONING_PROFILE_SPECIFIER 寫的一字不差
+  PROFILE_NAME: Shuji CI App Store
+  WIDGET_BUNDLE_ID: org.domyweb.shuji.widget
+  WIDGET_PROFILE_NAME: Shuji Widget CI App Store
+
+jobs:
+  upload:
+    name: 建置並上傳 TestFlight
+    # Apple 現在只收用 iOS 26 SDK（Xcode 26）編的 app，舊版 Xcode 編的會在上傳驗證被退
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      BUILD_NUMBER: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 檢查六個 Secrets 都設了
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_DIST_P12_BASE64: ${{ secrets.APPLE_DIST_P12_BASE64 }}
+          APPLE_DIST_P12_PASSWORD: ${{ secrets.APPLE_DIST_P12_PASSWORD }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+        run: |
+          MISSING=""
+          for NAME in APPLE_TEAM_ID APPLE_DIST_P12_BASE64 APPLE_DIST_P12_PASSWORD ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8_BASE64; do
+            if [ -z "${!NAME}" ]; then MISSING="$MISSING $NAME"; fi
+          done
+          if [ -n "$MISSING" ]; then
+            echo "::error::還沒設的 Secrets：$MISSING。照 docs/TestFlight.md 第一步設好再跑。"
+            exit 1
+          fi
+          echo "六個 Secrets 都在"
+
+      # runner.temp 在 job 層級的 env 不能用，所以用一個 step 寫進 GITHUB_ENV
+      - name: 設暫存路徑
+        run: |
+          {
+            echo "KEYCHAIN_PATH=$RUNNER_TEMP/shuji-ci.keychain-db"
+            echo "AUTH_KEY_PATH=$RUNNER_TEMP/AuthKey.p8"
+            echo "ARCHIVE_PATH=$RUNNER_TEMP/Shuji.xcarchive"
+            echo "EXPORT_PATH=$RUNNER_TEMP/export"
+          } >> "$GITHUB_ENV"
+
+      - name: 選 Xcode 26
+        run: |
+          XCODE_APP="$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)"
+          sudo xcode-select -s "$XCODE_APP"
+          xcodebuild -version
+
+      - name: 還原發佈憑證到暫時鑰匙圈
+        env:
+          APPLE_DIST_P12_BASE64: ${{ secrets.APPLE_DIST_P12_BASE64 }}
+          APPLE_DIST_P12_PASSWORD: ${{ secrets.APPLE_DIST_P12_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 24)"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          # .p12 裡如果已經帶著 Apple 的中繼憑證，後面再匯一次會回
+          # 「The specified item already exists in the keychain」而整步變紅。
+          # 所以「已經在裡面」當成過，其他錯誤照樣紅；最後用 find-identity 把關。
+          import_into_keychain() {
+            local label="$1"
+            shift
+            echo "匯入：$label"
+            if ! security import "$@" 2> "$RUNNER_TEMP/import.err"; then
+              if grep -q "already exists" "$RUNNER_TEMP/import.err"; then
+                echo "  已經在鑰匙圈裡，略過"
+              else
+                cat "$RUNNER_TEMP/import.err" >&2
+                return 1
+              fi
+            fi
+          }
+          P12_PATH="$RUNNER_TEMP/dist.p12"
+          printf '%s' "$APPLE_DIST_P12_BASE64" | base64 --decode > "$P12_PATH"
+          import_into_keychain "發佈憑證 .p12" "$P12_PATH" -P "$APPLE_DIST_P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          rm -f "$P12_PATH"
+          # Apple 的中繼憑證（簽章鏈要完整，codesign 才認得發佈憑證）
+          curl -sSfL -o "$RUNNER_TEMP/wwdr-g3.cer" https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer
+          curl -sSfL -o "$RUNNER_TEMP/wwdr-g4.cer" https://www.apple.com/certificateauthority/AppleWWDRCAG4.cer
+          import_into_keychain "Apple 中繼憑證 G3" "$RUNNER_TEMP/wwdr-g3.cer" -k "$KEYCHAIN_PATH" -A
+          import_into_keychain "Apple 中繼憑證 G4" "$RUNNER_TEMP/wwdr-g4.cer" -k "$KEYCHAIN_PATH" -A
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" > /dev/null
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
+          IDENTITIES="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH")"
+          echo "$IDENTITIES"
+          if ! grep -q "Apple Distribution" <<< "$IDENTITIES"; then
+            echo "::error::鑰匙圈裡沒有可用的 Apple Distribution 簽章身分（.p12 或它的密碼不對）"
+            exit 1
+          fi
+
+      - name: 還原 App Store Connect API 金鑰
+        env:
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+        run: |
+          set -euo pipefail
+          bash tools/ci/restore_asc_key.sh "$AUTH_KEY_PATH"
+
+      # 簽章全程手動：自己向 Apple 申請上架用描述檔，用鑰匙圈裡那張 Apple Distribution 憑證簽。
+      # 不走自動簽章的兩個原因（都在人蔘修煉踩過）：
+      #   1. 匯出走自動簽章時 Xcode 會要雲端簽章，App Manager 等級的 API 金鑰沒有權限。
+      #   2. archive 走自動簽章時，這台用完就丟的機器每跑一次都向 Apple 要一張新的開發憑證，
+      #      累積到帳號上限後整步變紅，而且同帳號的其他 iOS 專案也會一起中。
+      - name: 向 Apple 申請上架用描述檔（主程式與小工具各一張）
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          CERT_SERIAL="$(security find-certificate -c "Apple Distribution" -p "$KEYCHAIN_PATH" | openssl x509 -noout -serial | cut -d= -f2)"
+          export CERT_SERIAL
+          ASC_KEY_P8_PATH="$AUTH_KEY_PATH" node tools/ci/appstore_profile.mjs
+          ASC_KEY_P8_PATH="$AUTH_KEY_PATH" BUNDLE_ID="$WIDGET_BUNDLE_ID" PROFILE_NAME="$WIDGET_PROFILE_NAME" \
+            node tools/ci/appstore_profile.mjs
+
+      - name: archive（手動簽章，用上一步的描述檔）
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          xcodebuild archive \
+            -project Shuji.xcodeproj \
+            -scheme Shuji \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -archivePath "$ARCHIVE_PATH" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CURRENT_PROJECT_VERSION="$BUILD_NUMBER"
+
+      - name: 上傳 App Store Connect
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          sed -e "s/TEAM_ID_PLACEHOLDER/$APPLE_TEAM_ID/" \
+            -e "s/WIDGET_ID_PLACEHOLDER/$WIDGET_BUNDLE_ID/" \
+            -e "s/WIDGET_PROFILE_PLACEHOLDER/$WIDGET_PROFILE_NAME/" \
+            -e "s/BUNDLE_ID_PLACEHOLDER/$BUNDLE_ID/" \
+            -e "s/PROFILE_NAME_PLACEHOLDER/$PROFILE_NAME/" \
+            tools/ci/ExportOptions.plist > "$RUNNER_TEMP/ExportOptions.plist"
+          xcodebuild -exportArchive \
+            -archivePath "$ARCHIVE_PATH" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$EXPORT_PATH" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$AUTH_KEY_PATH" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+          echo "已上傳，建置編號 $BUILD_NUMBER。Apple 處理要幾分鐘到半小時，好了會出現在 App Store Connect 的 TestFlight 頁。"
+
+      - name: 刪鑰匙圈與金鑰（不管成敗）
+        if: always()
+        run: |
+          security delete-keychain "$KEYCHAIN_PATH" || true
+          rm -f "$AUTH_KEY_PATH" "$RUNNER_TEMP/dist.p12"
