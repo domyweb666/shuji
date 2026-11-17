@@ -221,3 +221,76 @@ describe('時間窗（台灣時間）', () => {
     expect(windowKey('quarter', new Date('2026-11-08T06:00:00Z')).expiresAt).toBe(Date.parse('2026-12-31T16:00:00Z'));
   });
 });
+
+describe('對話引導（任務 7）', () => {
+  const ask = { type: 'ask', say: '', question: '最糟的一天做得到哪一個？', options: ['換上球鞋', '換上球鞋', ' 走到巷口 '], plans: [{ trigger: 'x', floor: 'y' }], difficulty: 'hard', weeks_min: 9, weeks_max: 19, reason: 'r', category: null, message: null };
+  const propose = { type: 'propose', say: '照你選的排。', question: '多的', options: ['多的'], plans: [{ trigger: '如果起床喝完水，', floor: '我就換上球鞋站到門口。' }, { trigger: '刷完牙', floor: '換上球鞋' }], difficulty: 'hard', weeks_min: 9, weeks_max: 19, reason: '要換衣服出門。', category: null, message: null };
+  const turn = (a: string) => ({ q: '你想養成什麼習慣？', a });
+
+  it('問一題：選項去重去空白，用不到的欄位清空；模型收到還能問幾題', async () => {
+    const s = setup([ask]);
+    const { send } = await registeredDevice(s);
+    const j: any = await (await send(7, { turns: [turn('每天運動')] })).json();
+    expect(j.result.options).toEqual(['換上球鞋', '走到巷口']);
+    expect(j.result.plans).toEqual([]);
+    expect(j.result.weeks_max).toBe(0);
+    expect((s.calls[0] as any).questions_left).toBe(4);
+    expect((s.calls[0] as any).queue).toEqual([]);
+  });
+
+  it('提案：開關句的「如果、我就」和句尾標點拿掉', async () => {
+    const s = setup([propose]);
+    const { send } = await registeredDevice(s);
+    const j: any = await (await send(7, { turns: [turn('每天運動'), { q: 'q', a: 'a' }] })).json();
+    expect(j.result.plans[0]).toEqual({ trigger: '起床喝完水', floor: '換上球鞋站到門口' });
+    expect(j.result.options).toEqual([]);
+    expect([j.result.weeks_min, j.result.weeks_max]).toEqual([9, 19]);
+  });
+
+  it('週數不合理就照難度給預設範圍', async () => {
+    const s = setup([{ ...propose, difficulty: 'easy', weeks_min: 0, weeks_max: 99 }]);
+    const { send } = await registeredDevice(s);
+    const j: any = await (await send(7, { turns: [turn('多喝水')] })).json();
+    expect([j.result.weeks_min, j.result.weeks_max]).toEqual([4, 8]);
+  });
+
+  it('題數用完還在問 → 重問；第二次提案就回', async () => {
+    const s = setup([ask, propose]);
+    const { send } = await registeredDevice(s);
+    const turns = [turn('每天運動'), ...Array(4).fill({ q: 'q', a: 'a' })];
+    const j: any = await (await send(7, { turns })).json();
+    expect(j.result.type).toBe('propose');
+    expect(s.calls.length).toBe(2);
+    expect((s.calls[0] as any).questions_left).toBe(0);
+  });
+
+  it('最小一步有否定詞、帶了量、提到幾天養成都擋下', async () => {
+    for (const bad of [
+      { ...propose, plans: [{ trigger: '刷完牙', floor: '不滑手機' }] },
+      { ...propose, plans: [{ trigger: '刷完牙', floor: '跑步 30 分鐘' }] },
+      { ...propose, reason: '大約 66 天養成' },
+      { ...propose, plans: [] },
+    ]) {
+      const s = setup([bad]);
+      const { send } = await registeredDevice(s);
+      expect((await send(7, { turns: [turn('每天運動')] })).status).toBe(502);
+    }
+  });
+
+  it('一天 40 次；問答超過 10 筆不收', async () => {
+    const s = setup([ask]);
+    const { send } = await registeredDevice(s);
+    expect((await send(7, { turns: Array(11).fill({ q: 'q', a: 'a' }) })).status).toBe(400);
+    expect((await send(7, { turns: [] })).status).toBe(400);
+    for (let i = 0; i < 40; i++) expect((await send(7, { turns: [turn('a')] })).status).toBe(200);
+    expect((await send(7, { turns: [turn('a')] })).status).toBe(429);
+  });
+
+  it('對話中途出現不適合的訊號，一樣附轉介文字', async () => {
+    const s = setup([{ ...ask, type: 'unfit', category: 'addiction' }]);
+    const { send } = await registeredDevice(s);
+    const j: any = await (await send(7, { turns: [turn('每天寫日記'), { q: 'q', a: '其實想戒酒' }] })).json();
+    expect(j.result.type).toBe('unfit');
+    expect(j.referral).toContain('安心專線 1925');
+  });
+});
