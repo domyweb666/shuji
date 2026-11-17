@@ -8,7 +8,7 @@ import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
-const targets = ['Shuji/Views', 'Shuji/Design', 'Shuji/AI/AIViews.swift', 'ShujiWidget/ShujiWidget.swift'];
+const targets = ['Shuji/Views', 'Shuji/Design', 'Shuji/AI/AIViews.swift', 'Shuji/AI/GuideView.swift', 'ShujiWidget/ShujiWidget.swift'];
 const skipFiles = new Set(['VineView.swift']);
 
 const rules = [
