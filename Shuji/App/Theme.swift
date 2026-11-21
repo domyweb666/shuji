@@ -9,6 +9,28 @@ typealias Ty = DomyTokens.TypeScale
 typealias Sz = DomyTokens.Size
 typealias Rd = DomyTokens.Radius
 
+/// 動作代號表：畫面的動畫曲線只從這裡取，不各寫各的。
+/// 用系統內建的彈簧（跟手、可以中途打斷）。按下縮多少、變多淡照舊用 DomyTokens.Motion。
+///
+/// | 情境 | 動畫 | 震動 |
+/// |---|---|---|
+/// | 按壓可點元件 | press | 無 |
+/// | 切換選項、換分頁 | change／transition | Haptic.select |
+/// | 新增、數字變化 | change | 無 |
+/// | 移除、撤銷、清除 | change | Haptic.remove |
+/// | 記一節 | 大鈕自己的進度圈 | Haptic.thunk |
+/// | 種下去、挖地瓜、回來開花 | transition | Haptic.bloom |
+/// | 出錯 | 不位移 | Haptic.error，外加一句怎麼辦 |
+/// | 換頁、浮層進出、狀態換場 | transition | 無 |
+enum Feel {
+    /// 按下、放開
+    static let press = Animation.snappy
+    /// 清單增刪、數字換值、列的出現消失
+    static let change = Animation.snappy
+    /// 換頁、提示條進出、今天的狀態換場
+    static let transition = Animation.smooth
+}
+
 enum Theme {
     /// 薯記的產品色：梅紫
     static let brand = DomyTheme.plum

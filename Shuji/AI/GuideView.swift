@@ -264,6 +264,7 @@ struct GuideView: View {
         guard !p.plans.isEmpty else { return }
         let plan = p.plans[min(picked, p.plans.count - 1)]
         typing = false
+        Haptic.bloom()
         store.plant(floor: String(plan.floor.prefix(40)), trigger: String(plan.trigger.prefix(30)))
     }
 }

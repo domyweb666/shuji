@@ -46,7 +46,10 @@ struct SettingsView: View {
         .sheet(isPresented: $showObstacle) { ObstacleSheet() }
         .sheet(isPresented: $showPaywall) { PaywallSheet() }
         .confirmationDialog("全部清除？", isPresented: $confirmWipe, titleVisibility: .visible) {
-            Button("清除全部，不可復原", role: .destructive) { store.wipe() }
+            Button("清除全部，不可復原", role: .destructive) {
+                Haptic.remove()
+                store.wipe()
+            }
             Button("取消", role: .cancel) {}
         } message: {
             Text("藤、竹籃、排隊、設定都會刪掉。先匯出備份比較穩。")
