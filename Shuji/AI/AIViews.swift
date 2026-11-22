@@ -19,6 +19,8 @@ final class AICall<O: Decodable> {
 
     var phase: Phase = .idle
     var needsConsent = false
+    /// 每次呼叫有了結果（成功、不適合、失敗）就加一。對話引導靠它知道「新的一輪回來了」
+    var seq = 0
     @ObservationIgnored private var pending: (() async -> Void)?
 
     var isLoading: Bool {
@@ -75,6 +77,7 @@ final class AICall<O: Decodable> {
         } catch {
             phase = .failed(AIClient.fallbackMessage)
         }
+        seq += 1
     }
 }
 
