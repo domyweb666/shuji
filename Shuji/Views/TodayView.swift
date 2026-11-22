@@ -53,6 +53,8 @@ struct TodayView: View {
                         header
                         stateBody
                     }
+                    // 按滿、請假、撤銷：大鈕和狀態章淡入淡出換場，不要瞬間跳
+                    .animation(Feel.transition, value: store.state.log(on: t)?.t)
                     .padding(.horizontal, Sz.screenMargin)
                     .padding(.top, Sp.s2)
                     .frame(maxWidth: Theme.contentMaxWidth)
@@ -206,7 +208,7 @@ struct TodayView: View {
 
     private func goSettings(_ target: SettingsTarget?) {
         store.settingsTarget = target
-        withAnimation(.easeInOut(duration: DomyTokens.Motion.transition)) { store.page = 2 }
+        withAnimation(Feel.transition) { store.page = 2 }
     }
 }
 

@@ -44,7 +44,7 @@ struct WeekSheet: View {
 
     private func goField() {
         dismiss()
-        withAnimation(.easeInOut(duration: DomyTokens.Motion.transition)) { store.page = 0 }
+        withAnimation(Feel.transition) { store.page = 0 }
     }
 }
 
@@ -317,7 +317,7 @@ struct FindingCard: View {
         store.pendingVia = .week
         store.settingsTarget = target
         close()
-        withAnimation(.easeInOut(duration: DomyTokens.Motion.transition)) { store.page = 2 }
+        withAnimation(Feel.transition) { store.page = 2 }
     }
 }
 

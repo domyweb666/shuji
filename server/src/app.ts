@@ -8,7 +8,7 @@ import { INPUTS, TASKS, isTaskId, type TaskId, type Window } from './tasks';
 //
 // POST /v1/attest/challenge   → { challenge }                         發一次性挑戰（五分鐘）
 // POST /v1/attest/register    { keyId, attestation, challenge }        驗 App Attest，存公鑰
-// POST /v1/task/{1-6}         { ts, habit_id?, input }                 header 帶 x-shuji-key、x-shuji-assertion
+// POST /v1/task/{1-7}         { ts, habit_id?, input }                 header 帶 x-shuji-key、x-shuji-assertion
 //                                                                      （assertion 簽的是整個 body 的原始位元組）
 // 回應一律 JSON：{ ok: true, task, result, referral? } 或 { ok: false, error, message }
 
@@ -207,7 +207,7 @@ export function createApp(deps: Deps) {
         log({ ev: 'model_empty', task: id, attempt, stop: r.stopReason, usage: r.usage });
         continue;
       }
-      const checked = review(id, r.parsed as any);
+      const checked = review(id, r.parsed as any, parsed.data);
       log({ ev: 'model_ok', task: id, attempt, pass: checked.ok, problems: checked.problems, usage: r.usage });
       if (!checked.ok) {
         problems = checked.problems;

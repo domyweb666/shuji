@@ -43,8 +43,8 @@ struct RootView: View {
             }
         }
         .tint(Theme.accent)
-        .animation(.easeOut(duration: DomyTokens.Motion.transition), value: store.toast)
-        .animation(.easeInOut(duration: DomyTokens.Motion.transition), value: store.state.habit == nil)
+        .animation(Feel.transition, value: store.toast)
+        .animation(Feel.transition, value: store.state.habit == nil)
         .onReceive(RootView.minute) { _ in store.refreshToday() }
     }
 }

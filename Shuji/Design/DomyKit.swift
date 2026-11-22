@@ -40,7 +40,7 @@ struct DomyPressStyle: ButtonStyle {
         configuration.label
             .scaleEffect(down && !reduceMotion ? DomyTokens.Motion.pressScale : 1)
             .opacity(down && reduceMotion ? DomyTokens.Motion.pressedOpacity : 1)
-            .animation(.easeOut(duration: DomyTokens.Motion.pressDuration), value: down)
+            .animation(Feel.press, value: down)
     }
 }
 
@@ -49,6 +49,7 @@ struct DomyRowPressStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .background(configuration.isPressed ? Theme.surfaceMuted : Color.clear)
+            .animation(Feel.press, value: configuration.isPressed)
     }
 }
 
@@ -91,12 +92,7 @@ struct DomyButton: View {
     }
 
     var body: some View {
-        Button {
-            if variant == .primary { Haptic.select() }
-            action()
-        } label: {
-            label
-        }
+        Button(action: action) { label }
         .buttonStyle(DomyPressStyle())
         .disabled(disabled)
         .accessibilityLabel(title)
@@ -212,6 +208,8 @@ struct DomyHeader<Trailing: View>: View {
                         .domyType(Ty.subheadline)
                         .foregroundStyle(Theme.fg2)
                         .fixedSize(horizontal: false, vertical: true)
+                        .contentTransition(.numericText())
+                        .animation(Feel.change, value: sub)
                 }
             }
             Spacer(minLength: 0)
@@ -344,6 +342,8 @@ struct DomyStatGrid: View {
                 .monospacedDigit()
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
+                .contentTransition(.numericText())
+                .animation(Feel.change, value: it.value)
             Text(it.label).domyType(Ty.subheadline).foregroundStyle(Theme.fg2)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -421,7 +421,7 @@ struct DomyTabBar: View {
                 Button {
                     guard !on else { return }
                     Haptic.select()
-                    withAnimation(.easeInOut(duration: DomyTokens.Motion.transition)) { selection = i }
+                    withAnimation(Feel.transition) { selection = i }
                 } label: {
                     VStack(spacing: Sp.s1 / 2) {
                         Image(systemName: on ? item.icon + ".fill" : item.icon)

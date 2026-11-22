@@ -1,11 +1,14 @@
 import * as z from 'zod/v4';
 import { PACKS, INSTRUCTIONS } from './generated/packs';
 
-// 六個任務的規格，照 ai/提示詞與輸出格式.md 與 ai/AI交接.md。
+// 七個任務的規格，照 ai/提示詞與輸出格式.md 與 ai/AI交接.md。
 // 輸出 schema 裡「有時候沒有」的欄位一律用 null，不用省略：結構化輸出要每個欄位都在。
 
-export type TaskId = 1 | 2 | 3 | 4 | 5 | 6;
-export const TASK_IDS: TaskId[] = [1, 2, 3, 4, 5, 6];
+export type TaskId = 1 | 2 | 3 | 4 | 5 | 6 | 7;
+export const TASK_IDS: TaskId[] = [1, 2, 3, 4, 5, 6, 7];
+
+/** 對話引導：第一筆是目標，之後最多再問幾題。問完一定要提案 */
+export const GUIDE_MAX_QUESTIONS = 4;
 
 const short = (n = 60) => z.string().trim().min(1).max(n);
 const shortOrEmpty = (n = 200) => z.string().trim().max(n);
@@ -74,6 +77,13 @@ export const INPUTS = {
       context_change: shortOrEmpty(300),
     }),
   }),
+  // 對話引導：app 每一輪把整段問答送來，伺服器不存對話。questions_left 由伺服器算，不信 app 送的
+  7: z
+    .object({
+      turns: z.array(z.object({ q: shortOrEmpty(200), a: short(100) })).min(1).max(10),
+      queue: z.array(short(40)).max(10).default([]),
+    })
+    .transform((v) => ({ ...v, questions_left: Math.max(0, GUIDE_MAX_QUESTIONS + 1 - v.turns.length) })),
 } as const;
 
 // ---------- 輸出（給模型的結構化輸出 schema） ----------
@@ -128,6 +138,18 @@ export const OUTPUTS = {
     warn: z.string(),
     ...unfitFields,
   }),
+  7: z.object({
+    type: z.enum(['ask', 'propose', 'unfit']),
+    say: z.string(),
+    question: z.string(),
+    options: z.array(z.string()),
+    plans: z.array(z.object({ trigger: z.string(), floor: z.string() })),
+    difficulty: z.enum(['easy', 'medium', 'hard']).nullable(),
+    weeks_min: z.number(),
+    weeks_max: z.number(),
+    reason: z.string(),
+    ...unfitFields,
+  }),
 } as const;
 
 export type TaskInput<T extends TaskId> = z.infer<(typeof INPUTS)[T]>;
@@ -155,6 +177,7 @@ export const TASKS: Record<TaskId, TaskSpec> = {
   3: { id: 3, name: '對手偵測', model: 'claude-haiku-5-5', effort: 'low', maxTokens: 4096, pack: 'obstacle', paid: false, quota: { limit: 3, window: 'day' } },
   4: { id: 4, name: '三問診斷', model: 'claude-haiku-5-5', effort: 'low', maxTokens: 4096, pack: 'diagnose', paid: false, quota: { limit: 2, window: 'week' } },
   5: { id: 5, name: '週回顧建議', model: 'claude-haiku-5-5', effort: 'low', maxTokens: 4096, pack: 'diagnose', paid: true, quota: { limit: 3, window: 'habit' } },
+  7: { id: 7, name: '對話引導', model: 'claude-haiku-5-5', effort: 'low', maxTokens: 4096, pack: 'build', paid: false, quota: { limit: 40, window: 'day' } },
   6: { id: 6, name: '季稽核', model: 'claude-sonnet-5-5', effort: 'medium', maxTokens: 8192, pack: 'audit', paid: true, quota: { limit: 2, window: 'quarter' } },
 };
 

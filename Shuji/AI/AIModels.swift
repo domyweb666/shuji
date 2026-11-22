@@ -1,6 +1,6 @@
 import Foundation
 
-// 六個 AI 任務的輸入與輸出，欄位名跟 server/src/tasks.ts 一字不差（snake_case）。
+// 七個 AI 任務的輸入與輸出，欄位名跟 server/src/tasks.ts 一字不差（snake_case）。
 // 輸出裡「有時候沒有」的欄位伺服器一律給 null，這裡用 Optional 接。
 
 enum AITask: Int {
@@ -10,6 +10,7 @@ enum AITask: Int {
     case diagnose = 4   // 三問診斷（免費）
     case weekly = 5     // 週回顧建議（完整版）
     case audit = 6      // 季稽核（完整版）
+    case guide = 7      // 對話引導：首次設定用問答的方式拆出開關句（免費）
 
     var paid: Bool { self == .weekly || self == .audit }
 }
@@ -91,7 +92,42 @@ struct AuditInput: Encodable {
     var user: User
 }
 
+/// 對話引導：每一輪把到目前為止的問答整份送出去，伺服器不存對話
+struct GuideTurn: Codable, Equatable {
+    var q: String
+    var a: String
+}
+
+struct GuideInput: Encodable {
+    var turns: [GuideTurn]
+    var queue: [String]
+}
+
 // MARK: 輸出
+
+struct GuideOutput: Decodable, Equatable {
+    struct Plan: Decodable, Equatable {
+        var trigger: String
+        var floor: String
+    }
+    var type: String          // ask | propose | unfit
+    var say: String
+    var question: String
+    var options: [String]
+    var plans: [Plan]
+    var difficulty: String?   // easy | medium | hard
+    var weeks_min: Int
+    var weeks_max: Int
+    var reason: String
+
+    var difficultyLabel: String {
+        switch difficulty {
+        case "easy": return "好上手"
+        case "hard": return "比較吃力"
+        default: return "中等"
+        }
+    }
+}
 
 struct PlantOutput: Decodable {
     var type: String          // ok | needs_rewrite | too_rare | unfit

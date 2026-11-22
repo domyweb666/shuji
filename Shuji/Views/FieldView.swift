@@ -57,7 +57,9 @@ struct FieldView: View {
             signalRow(ok: sg.s2, title: "壓力週還照做", mini: pressureMini)
             if store.state.pressure != true {
                 pillRow {
-                    DomyButton("有，照做了", size: .compact) { store.setPressure(true) }
+                    DomyButton("有，照做了", size: .compact) {
+                        withAnimation(Feel.change) { store.setPressure(true) }
+                    }
                     DomyButton("還沒遇到／那週掉了", variant: .secondary, size: .compact) { store.setPressure(false) }
                 }
             }
@@ -65,7 +67,9 @@ struct FieldView: View {
             signalRow(ok: sg.s3, title: "不記也照做", mini: letgoMini)
             if store.state.letgo == nil && !sg.s3 {
                 pillRow {
-                    DomyButton("開始放手測試", variant: .secondary, size: .compact) { store.startLetGo() }
+                    DomyButton("開始放手測試", variant: .secondary, size: .compact) {
+                        withAnimation(Feel.change) { store.startLetGo() }
+                    }
                 }
             }
             if sg.flatLow {
@@ -83,7 +87,10 @@ struct FieldView: View {
             }
             if sg.passCount >= 2 {
                 RowSep()
-                DomyButton("挖地瓜") { store.dig() }
+                DomyButton("挖地瓜") {
+                    Haptic.bloom()
+                    store.dig()
+                }
                     .padding(Sp.s4)
             }
         }
@@ -273,17 +280,23 @@ struct FieldView: View {
     private var queueSection: some View {
         DomySection(title: "排隊",
                     footer: "一次種一個。兩個都還在長的時候，會搶同一份注意力。這一個長好、挖出來之後，排第一的會出現在種下一個的畫面。") {
-            ForEach(Array(store.state.queue.enumerated()), id: \.offset) { i, q in
+            ForEach(queueRows) { row in
+                let i = row.index
+                let q = row.text
                 HStack(spacing: Sp.s3) {
                     Text("\(i + 1)")
                         .domyType(Ty.footnote)
                         .monospacedDigit()
                         .foregroundStyle(Theme.fg2)
                         .frame(width: Sp.s5)
+                        .contentTransition(.numericText(value: Double(i)))
                     Text(q).domyType(Ty.body).foregroundStyle(Theme.fg)
                     Spacer(minLength: 0)
-                    DomyButton("移除", variant: .quiet, size: .compact) { store.removeQueue(at: i) }
-                        .accessibilityLabel("移除 \(q)")
+                    DomyButton("移除", variant: .quiet, size: .compact) {
+                        Haptic.remove()
+                        withAnimation(Feel.change) { store.removeQueue(at: i) }
+                    }
+                    .accessibilityLabel("移除 \(q)")
                 }
                 .padding(.leading, Sp.s4)
                 .padding(.trailing, Sp.s2)
@@ -304,8 +317,25 @@ struct FieldView: View {
     }
 
     private func addQueue() {
-        store.addQueue(queueText)
+        withAnimation(Feel.change) { store.addQueue(queueText) }
         queueText = ""
+    }
+
+    struct QueueRow: Identifiable {
+        let id: String
+        let index: Int
+        let text: String
+    }
+
+    /// 每一列要有自己的身分，移掉中間那一列時才是那一列淡出、下面的往上補。
+    /// 同樣的字可以排兩次，所以身分是「字＋第幾次出現」。
+    private var queueRows: [QueueRow] {
+        var seen: [String: Int] = [:]
+        return store.state.queue.enumerated().map { i, q in
+            let n = seen[q, default: 0]
+            seen[q] = n + 1
+            return QueueRow(id: "\(q)#\(n)", index: i, text: q)
+        }
     }
 
     // MARK: 竹籃（Q12）
@@ -345,7 +375,7 @@ struct FieldView: View {
 
     private func goSettings(_ target: SettingsTarget) {
         store.settingsTarget = target
-        withAnimation(.easeInOut(duration: DomyTokens.Motion.transition)) { store.page = 2 }
+        withAnimation(Feel.transition) { store.page = 2 }
     }
 }
 

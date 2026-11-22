@@ -46,6 +46,10 @@ const GAP_DAYS = /[0-9０-９一二三四五六七八九十兩]+\s*天/;
 
 export const DIAGNOSE_CLOSING = '不是你的問題，是設計有洞，改好了就從這一節接上。';
 export const DIAGNOSE_NOTHING = '設計看起來沒問題，可能只是那陣子生活變了。從這一節接上就好。';
+/** 對話引導估的週數：模型沒給或給得不合理時，照難度用這張表 */
+export const GUIDE_WEEKS: Record<'easy' | 'medium' | 'hard', [number, number]> = { easy: [4, 8], medium: [8, 12], hard: [10, 20] };
+const QUANTITY = /[0-9０-９]+\s*(分鐘|次|字|頁|下|公里|小時)/;
+
 export const AUDIT_WARNS = ['開關和環境留著，只拆記錄', '加量和加新習慣不要同一季', '有些結果要好幾季才看得到'];
 
 export interface CheckResult<T> {
@@ -56,7 +60,7 @@ export interface CheckResult<T> {
 
 /** 物件裡所有給人看的字串（type、category、field 這類代碼除外） */
 function visibleStrings(v: unknown, key = ''): string[] {
-  const codeKeys = new Set(['type', 'category', 'field', 'rival_type', 'verdict', 'path']);
+  const codeKeys = new Set(['type', 'category', 'field', 'rival_type', 'verdict', 'path', 'difficulty']);
   if (typeof v === 'string') return codeKeys.has(key) ? [] : [v];
   if (Array.isArray(v)) return v.flatMap((x) => visibleStrings(x, key));
   if (v && typeof v === 'object') return Object.entries(v).flatMap(([k, x]) => visibleStrings(x, k));
@@ -79,8 +83,10 @@ const negated = (s: string) => NEGATION.test(s);
  * - 任務 4 的 closing 換成固定句；layer 0 時換成固定建議
  * - 任務 6 的 warn 不在三句之內就清空
  * - 非 ok 的時候把候選陣列清空
+ * - 任務 7 的選項去重、週數夾在合理範圍；ask 與 propose 各自用不到的欄位清空
+ * input 只有任務 7 用：題數用完還在問就算不合規
  */
-export function review<T extends TaskId>(task: T, raw: TaskOutput<T>): CheckResult<TaskOutput<T>> {
+export function review<T extends TaskId>(task: T, raw: TaskOutput<T>, input?: unknown): CheckResult<TaskOutput<T>> {
   const problems: string[] = [];
   const out = structuredClone(raw) as any;
 
@@ -135,6 +141,43 @@ export function review<T extends TaskId>(task: T, raw: TaskOutput<T>): CheckResu
     case 6: {
       if (out.warn && !AUDIT_WARNS.includes(out.warn.replace(/[。.]$/, ''))) out.warn = '';
       if (/再加一個習慣|加一個新習慣|同時養/.test(out.change)) problems.push('季稽核建議加習慣');
+      break;
+    }
+    case 7: {
+      out.say = out.say.trim();
+      if (out.type === 'ask') {
+        out.question = out.question.trim();
+        out.options = [...new Set(out.options.map((s: string) => s.trim()).filter(Boolean))].slice(0, 4);
+        if (!out.question) problems.push('ask 沒有問題');
+        if (out.options.length < 2) problems.push('ask 的選項不到兩個');
+        out.options.forEach((o: string) => o.length > 24 && problems.push(`選項太長：${o}`));
+        if ((input as { questions_left?: number } | undefined)?.questions_left === 0) problems.push('題數用完了還在問');
+        out.plans = [];
+        out.difficulty = null;
+        out.weeks_min = 0;
+        out.weeks_max = 0;
+        out.reason = '';
+      } else {
+        out.plans = out.plans
+          .map((p: { trigger: string; floor: string }) => ({ trigger: p.trigger.trim().replace(/^如果/, '').replace(/[，,。]$/, ''), floor: p.floor.trim().replace(/^我就/, '').replace(/[。.]$/, '') }))
+          .filter((p: { trigger: string; floor: string }) => p.trigger && p.floor)
+          .slice(0, 3);
+        if (out.plans.length === 0) problems.push('propose 沒有方案');
+        for (const p of out.plans as { trigger: string; floor: string }[]) {
+          if (negated(p.floor)) problems.push(`最小一步有否定詞：${p.floor}`);
+          if (QUANTITY.test(p.floor)) problems.push(`最小一步帶了量：${p.floor}`);
+          if (p.trigger.length > 30 || p.floor.length > 40) problems.push(`方案太長：${p.trigger}／${p.floor}`);
+        }
+        const level: 'easy' | 'medium' | 'hard' = out.difficulty ?? 'medium';
+        out.difficulty = level;
+        let lo = Math.round(out.weeks_min);
+        let hi = Math.round(out.weeks_max);
+        if (!(lo >= 3 && hi > lo && hi <= 30)) [lo, hi] = GUIDE_WEEKS[level];
+        out.weeks_min = lo;
+        out.weeks_max = hi;
+        out.question = '';
+        out.options = [];
+      }
       break;
     }
   }

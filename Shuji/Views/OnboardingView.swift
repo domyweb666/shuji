@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// 首次設定，兩步：最小一步、掛在哪個瞬間後面。
+/// 首次設定。AI 接得上就先走問答（GuideView），隨時可以改成自己填；
+/// 自己填是原本的兩步：最小一步、掛在哪個瞬間後面。
 struct OnboardingView: View {
     @Environment(Store.self) private var store
     @State private var step = 1
@@ -13,6 +14,8 @@ struct OnboardingView: View {
     @State private var aiTriggers: [String] = []
     /// 種下去助手判斷不適合（轉介），改了最小一步才放行
     @State private var blocked = false
+    /// 不走問答，自己填兩格
+    @State private var manual = false
     @FocusState private var focus: Field?
 
     enum Field { case floor, trigger }
@@ -22,7 +25,14 @@ struct OnboardingView: View {
 
     var body: some View {
         Group {
-            if step == 1 { stepOne } else { stepTwo }
+            if AIClient.shared.isAvailable && !manual {
+                GuideView(onManual: { f, t in
+                    if !f.isEmpty { floor = f }
+                    if !t.isEmpty { trigger = t }
+                    step = f.isEmpty ? 1 : 2
+                    manual = true
+                }, onRestore: { showRestore = true })
+            } else if step == 1 { stepOne } else { stepTwo }
         }
         .onAppear {
             guard !loaded else { return }
@@ -59,6 +69,9 @@ struct OnboardingView: View {
             }
             VStack(spacing: Sp.s2) {
                 DomyButton("下一步", disabled: !canGoNext) { goNext() }
+                if AIClient.shared.isAvailable {
+                    DomyButton("‹ 回到問答", variant: .quiet, size: .compact) { manual = false }
+                }
                 DomyButton("從備份還原", variant: .quiet, size: .compact) { showRestore = true }
             }
         }
@@ -99,6 +112,7 @@ struct OnboardingView: View {
     private func plant() {
         guard !floorValue.isEmpty, !triggerValue.isEmpty else { return }
         focus = nil
+        Haptic.bloom()
         store.plant(floor: floorValue, trigger: triggerValue)
     }
 
