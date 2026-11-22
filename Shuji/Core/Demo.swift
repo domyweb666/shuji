@@ -2,8 +2,9 @@ import Foundation
 
 extension AppState {
     /// 原型「載入示範資料」：種了 45 天，漏 7 天、請假 1 天、七週開始四問、排隊兩個、竹籃一顆。
+    /// 先照原型的形狀（v1）組，再用同一套轉換變成 v2，所以跟原型匯出的備份讀進來一模一樣。
     static func demo(today t: DayKey, settings: Settings = Settings(), dayOffset: Int = 0) -> AppState {
-        var s = AppState()
+        var s = LegacyState()
         s.settings = settings
         s.dayOffset = dayOffset
         let start = t.adding(-45)
@@ -32,6 +33,6 @@ extension AppState {
         s.queue = ["坐上蒲團按計時器", "換上球鞋拿球出門"]
         s.basket = [Potato(floor: "刷完牙做一下伸展", trigger: "刷完牙", nodes: 71, ret: 9, days: 84,
                            planted: start.adding(-90), dug: start.adding(-6))]
-        return s
+        return s.migrated(today: t)
     }
 }

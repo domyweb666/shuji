@@ -18,7 +18,8 @@ Shuji/                  原生 app 程式
 ShujiTests/             單元測試，標準答案是用 Node 跑原型的 JS 算出來的
 docs/功能增刪建議.md     原生版之後要補、要砍的東西
 docs/習慣-app-0*.md     階段一到三的設計文件（核心動作、機制表、UX 規格、AI 方案）
-ai/                     AI 功能交接、五份知識包、六個任務的提示詞與輸出格式（伺服器部署時打包進去）
+.analytics/             分析頁的設計文件（審查、閘門、問題清單到驗證計畫）
+ai/                     AI 功能交接、五份知識包、七個任務的提示詞與輸出格式（伺服器部署時打包進去）
 server/                 AI 中繼伺服器（Cloudflare Workers）：保管金鑰、App Attest、次數上限、輸出檢查，部署步驟在 server/README.md
 Shuji/AI/               app 端的 AI：用戶端、六個任務的畫面、一次買斷
 .github/workflows/      GitHub Actions：在 macOS 上建置、跑測試、打包未簽名 IPA
@@ -53,9 +54,16 @@ C. **GitHub Actions 自備憑證簽章。** 把 p12 跟 provisioning profile 放
 ## 資料
 
 - 存在手機裡的 `Application Support/Shuji/state.json`，會跟著 iPhone 的 iCloud 備份走。
-- 格式跟原型 `index.html` 存在 localStorage 的 JSON 一模一樣。原型「匯出備份」複製出來的那段文字，貼進 app 的「設定 → 從備份還原」就能接著用；反過來也可以。
-- 挖地瓜那一刻會自動寫一份備份到 app 的 Documents，在「檔案」app 裡「我的 iPhone → 薯記」找得到。
+- 結構是 v2（`.analytics/04-資料結構.md`）：每一節、請假、開始四問、壓力週、放手、旅行中都是一筆一筆、帶編號、世界標準時間與時區的紀錄；撤銷是標記；挖地瓜不清紀錄；改開關句留改版。
+- 原型 `index.html` 與 v1 的備份，貼進或選進「設定 → 從備份還原」會自動轉成 v2。**原型讀不了 v2 的備份**（原生版已經取代原型，不再雙向）。
+- 挖地瓜那一刻、從備份還原之前，都會自動寫一份備份到 app 的 Documents，在「檔案」app 裡「我的 iPhone → 薯記」找得到。
 - 凌晨四點換日，跟原型一樣。
+
+## 分析頁
+
+田、「這週的田」、今天頁那幾行、小工具的數字，照分析頁 Agent 的設計線做，文件在 `.analytics/`：問題清單、紀錄規格、資料結構、指標字典、三層結構、字串表、觸發表、驗證計畫。
+字串全部在 `Shuji/Core/AnalyticsCopy.swift` 與 `Shared/GlanceCopy.swift`，用編號取字；禁用詞、三種狀態、邊界情況都有測試（`ShujiTests/AnalyticsTests.swift`）。
+驗證 C 的數字：`node tools/analytics-c-report.mjs <匯出的備份檔>`。
 
 ## 原生版跟原型不同的地方
 

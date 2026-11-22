@@ -205,7 +205,7 @@ struct SuggestionCard: View {
                                variant: applied ? .secondary : .primary, size: .compact, disabled: applied) {
                         guard !applied else { return }
                         let value = String(text.prefix(60))
-                        store.updateHabit { field.apply(value, to: &$0) }
+                        store.updateHabit(via: .ai) { field.apply(value, to: &$0) }
                         applied = true
                         store.show("改好了。")
                     }
@@ -462,41 +462,7 @@ struct DiagnoseSheet: View {
     }
 }
 
-// MARK: 任務 5 週回顧建議（完整版）
-
-struct WeekAdviceSheet: View {
-    @Environment(Store.self) private var store
-    @State private var call = AICall<WeeklyOutput>()
-
-    var body: some View {
-        SheetFrame {
-            SheetTitle("這週看什麼")
-            SheetNote("讀這兩週的紀錄和開始四問的線，一週只提一個要修的地方。")
-            AIStatus(call: call)
-            if let o = call.output {
-                AIText(text: o.summary)
-                if let fix = o.fix, o.verdict == "fix" {
-                    if let f = fix.field {
-                        SuggestionCard(text: fix.suggestion, field: f)
-                    } else {
-                        Foot(fix.suggestion)
-                    }
-                }
-                if !o.note.isEmpty { Foot(o.note) }
-            }
-            if case .failed = call.phase {
-                DomyButton("再試一次", variant: .secondary) { run() }
-            }
-        }
-        .aiConsent(call)
-        .task { if case .idle = call.phase { run() } }
-    }
-
-    private func run() {
-        guard let input = store.state.weeklyInput(today: store.today) else { return }
-        call.run(.weekly, input, habitId: store.state.habit?.planted.string)
-    }
-}
+// 任務 5「這週看什麼」拿掉了：週回顧改由程式照字串表寫「這週的田」（.analytics/00 閘門 0）。
 
 // MARK: 任務 6 季稽核（完整版）
 
@@ -562,10 +528,8 @@ struct PaywallSheet: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, Sp.s4)
             .background(Theme.tint, in: RoundedRectangle(cornerRadius: Rd.xl, style: .continuous))
-            SheetNote("一次買斷，不訂閱。按住記一節、種下去助手、卡住時的三問，這些一直免費。")
+            SheetNote("一次買斷，不訂閱。按住記一節、這週的田、種下去助手、卡住時的三問，這些一直免費。")
             Card {
-                feature("calendar", "週回顧建議", "做完開始四問，看這週要修哪一個地方")
-                RowSep()
                 feature("leaf", "季稽核", "一季一次，選維持、加量、換情境或退場")
                 RowSep()
                 feature("rectangle.on.rectangle", "小工具", "桌面和鎖定畫面看得到開關句、今天記了沒")

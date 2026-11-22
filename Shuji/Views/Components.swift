@@ -385,3 +385,41 @@ struct ToastView: View {
             .allowsHitTesting(false)
     }
 }
+
+/// 0 到 14 天＋「記不清楚」，一排可換行的圓鈕。沒有預設值，點了才算數（判斷題不預選）。
+/// selection：nil 還沒選、-1 記不清楚、其他是天數
+struct DayCountPicker: View {
+    @Binding var selection: Int?
+    var unsure: String
+
+    var body: some View {
+        FlowLayout(spacing: Sp.s2) {
+            ForEach(0...14, id: \.self) { n in
+                pill("\(n)", on: selection == n) { selection = n }
+                    .accessibilityLabel("\(n) 天")
+            }
+            pill(unsure, on: selection == -1) { selection = -1 }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .contain)
+    }
+
+    private func pill(_ text: String, on: Bool, action: @escaping () -> Void) -> some View {
+        Button {
+            Haptic.select()
+            action()
+        } label: {
+            Text(text)
+                .domyType(Ty.callout)
+                .monospacedDigit()
+                .foregroundStyle(on ? Theme.onAccent : Theme.fg)
+                .padding(.horizontal, Sp.s3)
+                .frame(minWidth: Sz.touch, minHeight: Sz.buttonCompact)
+                .background(on ? Theme.accent : Theme.surfaceMuted, in: Capsule())
+                .frame(minHeight: Sz.touch)
+                .contentShape(Capsule())
+        }
+        .buttonStyle(DomyPressStyle())
+        .accessibilityAddTraits(on ? [.isSelected] : [])
+    }
+}

@@ -43,15 +43,16 @@ struct ShujiWidgetView: View {
     private var snap: WidgetSnapshot? { entry.snap }
     private var status: WidgetSnapshot.Status { snap?.display(today: entry.today) ?? .empty }
 
+    /// 字串在 Shared/GlanceCopy.swift（.analytics/07 G-2 到 G-7）。還沒記時寫「已長 N 節」，不寫「第 N 節」
     private var statusText: String {
         let n = snap?.nodes ?? 0
         switch status {
-        case .empty: return "還沒種東西"
-        case .dug: return "挖出來了，種下一個"
-        case .letgo: return "放手測試中，不用記"
-        case .done: return "今天記了 · 第 \(n) 節"
-        case .leave: return "今天請假"
-        case .none: return "今天還沒記 · 第 \(n) 節"
+        case .empty: return GlanceCopy.t(.widgetEmpty)
+        case .dug: return GlanceCopy.t(.widgetDug)
+        case .letgo: return GlanceCopy.t(.widgetLetGo)
+        case .done: return GlanceCopy.t(.widgetDone, ["n": "\(n)"])
+        case .leave: return GlanceCopy.t(.widgetLeave)
+        case .none: return GlanceCopy.widgetNone(nodes: n)
         }
     }
 
