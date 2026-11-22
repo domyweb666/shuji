@@ -20,11 +20,7 @@ extension AppState {
         return plantedDays(today: t) >= 7 && h.backup.isEmpty
     }
 
-    /// 週回顧建議：這週（七天內）做過開始四問、種了兩週以上、不在放手測試中
-    func weeklyAdviceReady(today t: DayKey) -> Bool {
-        guard habit != nil, letgo == nil, let last = weekly.last else { return false }
-        return plantedDays(today: t) >= 14 && DayKey.days(from: last.date, to: t) <= 7
-    }
+    // 任務 5「這週看什麼」已拿掉（.analytics/00 閘門 0）：週回顧改由程式照字串表寫「這週的田」。
 
     /// 季稽核：種了一季（12 週）以上
     func auditReady(today t: DayKey) -> Bool {
@@ -38,31 +34,6 @@ extension AppState {
                              gap_days: gapDays(today: t))
     }
 
-    /// 昨天往回 14 天（今天還沒過完，不算）
-    func weeklyInput(today t: DayKey) -> WeeklyInput? {
-        guard let h = habit else { return nil }
-        let days = (1...14).reversed().map { t.adding(-$0) }
-        let last14: [String] = days.map { k in
-            guard let l = log(on: k) else { return "miss" }
-            return l.t == .done ? "done" : "leave"
-        }
-        let since = t.adding(-60)
-        let leaves: [WeeklyInput.Leave] = logs
-            .filter { $0.value.t == .leave }
-            .compactMap { key, log in
-                guard let k = DayKey(key), k >= since, k < t else { return nil }
-                return WeeklyInput.Leave(date: key, reason: log.reason ?? "")
-            }
-            .sorted { $0.date < $1.date }
-        return WeeklyInput(trigger: h.trigger, floor: activeFloor,
-                           planted_days: plantedDays(today: t),
-                           weeks: weekly.suffix(8).map { .init(date: $0.date.string, avg: $0.avg) },
-                           last14: last14,
-                           last14_weekdays: days.map(\.weekday),
-                           leaves: Array(leaves.suffix(20)),
-                           travel: travel)
-    }
-
     /// 最近一季（91 天，種下去不到一季就從種下去那天）的數字
     func auditInput(today t: DayKey, satisfied: String, contextChange: String) -> AuditInput? {
         guard let h = habit else { return nil }
@@ -74,7 +45,8 @@ extension AppState {
             guard log.t == .leave, let k = DayKey(key) else { return false }
             return inWindow(k)
         }.count
-        let returns = done.filter { isReturn($0) }.count
+        let l = ledger(today: t)
+        let returns = done.filter { l.isReturn($0) }.count
         return AuditInput(floor: h.floor, trigger: h.trigger, why: h.why, status: "growing",
                           quarter: .init(done_rate: min(1, Double(done.count) / Double(span)),
                                          weekly_avg: weekly.suffix(13).map(\.avg),

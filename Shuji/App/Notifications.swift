@@ -3,7 +3,7 @@ import UserNotifications
 
 /// 收工檢查：原型寫「原生版才有」的那個開關。
 /// 一天最多一則，而且只在「那天還沒記」的情況下才排；記了就排明天。
-/// 放手測試中、剛挖完、還沒種，都不排。
+/// 放手測試中、剛挖完、還沒種，都不排。連漏 3 天以上也先不排，記了下一節再恢復（.analytics/08 安靜規則 6）。
 enum CheckNotification {
     static let identifier = "shuji.check"
 
@@ -25,7 +25,7 @@ enum CheckNotification {
     static func reschedule(state: AppState, today t: DayKey, now: Date = Date()) {
         let center = UNUserNotificationCenter.current()
         center.removePendingNotificationRequests(withIdentifiers: [identifier])
-        guard state.settings.check, state.habit != nil, state.letgo == nil, state.justDug == nil else { return }
+        guard state.checkShouldSchedule(today: t) else { return }
 
         let hour = state.settings.checkHour
         let minute = state.settings.checkMinute

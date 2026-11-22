@@ -70,18 +70,7 @@ struct DiagnoseInput: Encodable {
     var gap_days: Int
 }
 
-struct WeeklyInput: Encodable {
-    struct Week: Encodable { var date: String; var avg: Double }
-    struct Leave: Encodable { var date: String; var reason: String }
-    var trigger: String
-    var floor: String
-    var planted_days: Int
-    var weeks: [Week]
-    var last14: [String]
-    var last14_weekdays: [Int]
-    var leaves: [Leave]
-    var travel: Bool
-}
+// 任務 5 週回顧建議的輸入輸出拿掉了：週回顧改由程式寫（.analytics/00）。伺服器的任務 5 留著不動。
 
 struct AuditInput: Encodable {
     struct Quarter: Encodable {
@@ -148,15 +137,6 @@ struct DiagnoseOutput: Decodable {
     var suggestion: String
     var why: String
     var closing: String
-}
-
-struct WeeklyOutput: Decodable {
-    struct Fix: Decodable { var field: HabitField?; var suggestion: String }
-    var type: String
-    var verdict: String       // fine | fix
-    var summary: String
-    var fix: Fix?
-    var note: String
 }
 
 struct AuditOutput: Decodable {

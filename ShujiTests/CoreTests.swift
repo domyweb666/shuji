@@ -17,6 +17,44 @@ private func localDate(_ y: Int, _ m: Int, _ d: Int, _ h: Int, _ min: Int) -> Da
     return Calendar.current.date(from: c)!
 }
 
+
+// 測試用：v2 的紀錄只能加、不能直接改字典，這幾個小工具讓舊測試照原本的意思寫
+extension AppState {
+    /// 拿掉某一天目前習慣的紀錄（模擬那天沒記）
+    mutating func drop(_ day: String) {
+        guard let id = habit?.id else { return }
+        records.removeAll { $0.habit == id && $0.day.string == day }
+    }
+
+    /// 放一筆某天的紀錄（同一天原本的先拿掉）
+    mutating func put(_ day: String, _ log: DayLog, tz: String? = nil) {
+        guard let id = habit?.id, let k = DayKey(day) else { return }
+        drop(day)
+        records.append(DayRecord(id: "test-\(day)", habit: id, kind: log.t, day: k, at: nil, tz: tz,
+                                 source: .hold, reason: log.reason))
+    }
+
+    /// 只留這幾天的紀錄
+    mutating func keepOnly(_ days: [String: DayLog]) {
+        guard let id = habit?.id else { return }
+        records.removeAll { $0.habit == id }
+        for (d, l) in days { put(d, l) }
+    }
+
+    /// 換掉目前習慣的開始四問
+    mutating func setWeekly(_ w: [WeeklyReview]) {
+        guard let id = habit?.id else { return }
+        reviews.removeAll { $0.habit == id }
+        reviews.append(contentsOf: w.map { var r = $0; r.habit = id; return r })
+    }
+
+    mutating func mark(_ kind: Mark.Kind, _ day: DayKey, prior: Int? = nil, recalled: Int? = nil, pass: Bool? = nil) {
+        let habitID: String? = (kind == .travelOn || kind == .travelOff) ? nil : habit?.id
+        marks.append(Mark(id: "test-mark-\(marks.count)", habit: habitID, kind: kind, day: day, at: nil, tz: nil,
+                          prior: prior, recalled: recalled, pass: pass))
+    }
+}
+
 // MARK: - 日期
 
 final class DayKeyTests: XCTestCase {
@@ -94,7 +132,7 @@ final class LogicTests: XCTestCase {
     func testReturnsMatchPrototype() {
         let d = demo
         let ds = d.doneKeys
-        let returns = ds.filter { d.isReturn($0, doneKeys: ds) }.map(\.string)
+        let returns = ds.filter { d.isReturn($0) }.map(\.string)
         XCTAssertEqual(returns, ["2026-09-30", "2026-10-07", "2026-10-16", "2026-10-24", "2026-11-01"])
         // 請假隔天不算回來（請假有紀錄）
         XCTAssertFalse(d.isReturn(DayKey("2026-10-11")!))
@@ -106,8 +144,8 @@ final class LogicTests: XCTestCase {
         var d = demo
         XCTAssertEqual(d.lastDone?.string, "2026-11-06")
         XCTAssertEqual(d.consecutiveMissed(today: T), 0)
-        d.logs["2026-11-06"] = nil
-        d.logs["2026-11-05"] = nil
+        d.drop("2026-11-06")
+        d.drop("2026-11-05")
         XCTAssertEqual(d.consecutiveMissed(today: T), 2)
         XCTAssertEqual(d.lastDone?.string, "2026-11-04")
     }
@@ -120,21 +158,21 @@ final class LogicTests: XCTestCase {
         }
         var d = demo
         d.settings.reviewDay = 6
-        d.weekly = []
+        d.setWeekly([])
         XCTAssertTrue(d.needReview(today: T))
-        d.weekly = [WeeklyReview(date: T.adding(-6), scores: [4, 4, 4, 4])]
+        d.setWeekly([WeeklyReview(date: T.adding(-6), scores: [4, 4, 4, 4])])
         XCTAssertTrue(d.needReview(today: T))
-        d.weekly = [WeeklyReview(date: T.adding(-5), scores: [4, 4, 4, 4])]
+        d.setWeekly([WeeklyReview(date: T.adding(-5), scores: [4, 4, 4, 4])])
         XCTAssertFalse(d.needReview(today: T))
         d.settings.reviewDay = 5
-        d.weekly = []
+        d.setWeekly([])
         XCTAssertFalse(d.needReview(today: T), "今天星期六，回顧日是星期五")
     }
 
     func testReviewPendingStaysThreeDays() {
         var d = demo
         d.settings.reviewDay = 6   // 2026-11-07 是星期六
-        d.weekly = []
+        d.setWeekly([])
         XCTAssertEqual(d.lastReviewDay(today: T), T)
         XCTAssertTrue(d.reviewPending(today: T))
         XCTAssertTrue(d.reviewPending(today: T.adding(1)))
@@ -143,14 +181,14 @@ final class LogicTests: XCTestCase {
         XCTAssertEqual(d.lastReviewDay(today: T.adding(4)), T)
         XCTAssertEqual(d.lastReviewDay(today: T.adding(7)), T.adding(7))
 
-        d.weekly = [WeeklyReview(date: T.adding(-6), scores: [4, 4, 4, 4])]
+        d.setWeekly([WeeklyReview(date: T.adding(-6), scores: [4, 4, 4, 4])])
         XCTAssertTrue(d.reviewPending(today: T), "回顧日當天的判斷跟 needReview 相同")
         XCTAssertEqual(d.reviewPending(today: T), d.needReview(today: T))
-        d.weekly = [WeeklyReview(date: T.adding(-5), scores: [4, 4, 4, 4])]
+        d.setWeekly([WeeklyReview(date: T.adding(-5), scores: [4, 4, 4, 4])])
         XCTAssertFalse(d.reviewPending(today: T))
         XCTAssertEqual(d.reviewPending(today: T), d.needReview(today: T))
 
-        d.weekly = [WeeklyReview(date: T.adding(1), scores: [4, 4, 4, 4])]
+        d.setWeekly([WeeklyReview(date: T.adding(1), scores: [4, 4, 4, 4])])
         XCTAssertFalse(d.reviewPending(today: T.adding(2)), "回顧日隔天做了，之後就不再提")
 
         d.habit = nil
@@ -173,21 +211,21 @@ final class LogicTests: XCTestCase {
     }
 
     func testSignals() {
-        let sg = demo.signals()
+        let sg = demo.signals(today: T)
         XCTAssertEqual(sg, AppState.Signals(s1: true, flatLow: false, s2: false, s3: false, n: 7))
         XCTAssertEqual(sg.passCount, 1)
 
         var d = demo
-        d.pressure = true
-        XCTAssertEqual(d.signals().passCount, 2)
+        d.mark(.pressureYes, T)
+        XCTAssertEqual(d.signals(today: T).passCount, 2)
 
-        d.weekly = (0..<6).map { WeeklyReview(date: T.adding(-42 + $0 * 7), scores: [2, 2, 2, 2]) }
-        let low = d.signals()
+        d.setWeekly((0..<6).map { WeeklyReview(date: T.adding(-42 + $0 * 7), scores: [2, 2, 2, 2]) })
+        let low = d.signals(today: T)
         XCTAssertTrue(low.s1)
         XCTAssertTrue(low.flatLow)
 
-        d.weekly = (0..<5).map { WeeklyReview(date: T.adding(-35 + $0 * 7), scores: [5, 5, 5, 5]) }
-        XCTAssertFalse(d.signals().s1, "不到六週不算走平")
+        d.setWeekly((0..<5).map { WeeklyReview(date: T.adding(-35 + $0 * 7), scores: [5, 5, 5, 5]) })
+        XCTAssertFalse(d.signals(today: T).s1, "不到六週不算走平")
     }
 
     func testLetGoPriorAndRule() {
@@ -196,31 +234,36 @@ final class LogicTests: XCTestCase {
 
     func testMissedExcludesFinishedLetGoWindow() {
         var d = demo
-        d.logs["2026-11-01"] = nil
-        d.logs["2026-11-02"] = nil
+        d.drop("2026-11-01")
+        d.drop("2026-11-02")
         XCTAssertEqual(d.stats(today: T).missed, 9)
-        d.letgoResult = LetGoResult(days: 12, prior: 13, pass: true, start: DayKey("2026-11-01")!, end: DayKey("2026-11-07")!)
-        XCTAssertEqual(d.stats(today: T).missed, 7, "放手那幾天不算漏掉")
-        d.letgoResult = LetGoResult(days: 12, prior: 13, pass: true, start: DayKey("2026-10-31")!, end: DayKey("2026-11-07")!)
-        XCTAssertEqual(d.stats(today: T).missed, 6, "10/31 本來就漏掉，被放手窗口蓋住也不算")
+        var a = d
+        a.mark(.letgoStart, DayKey("2026-11-01")!, prior: 13)
+        a.mark(.letgoEnd, DayKey("2026-11-07")!, prior: 13, recalled: 12, pass: true)
+        XCTAssertEqual(a.stats(today: T).missed, 7, "放手那幾天不算漏掉")
+        var b = d
+        b.mark(.letgoStart, DayKey("2026-10-31")!, prior: 13)
+        b.mark(.letgoEnd, DayKey("2026-11-07")!, prior: 13, recalled: 12, pass: true)
+        XCTAssertEqual(b.stats(today: T).missed, 6, "10/31 本來就漏掉，被放手窗口蓋住也不算")
     }
 
     func testLongAbsence() {
         var d = demo
-        d.logs = ["2026-10-01": .done]
+        d.keepOnly(["2026-10-01": .done])
         XCTAssertTrue(d.longAbsence(today: T))
-        d.letgoResult = LetGoResult(days: 10, prior: 10, pass: true, start: DayKey("2026-10-20")!, end: DayKey("2026-11-03")!)
+        d.mark(.letgoStart, DayKey("2026-10-20")!, prior: 10)
+        d.mark(.letgoEnd, DayKey("2026-11-03")!, prior: 10, recalled: 10, pass: true)
         XCTAssertFalse(d.longAbsence(today: T), "放手測試剛結束，不算停了一陣子")
-        d.logs[T.string] = .done
+        d.put(T.string, .done)
         XCTAssertFalse(d.longAbsence(today: T))
-        d.logs = [:]
+        d.keepOnly([:])
         XCTAssertFalse(d.longAbsence(today: T), "一節都沒有的時候不算停")
     }
 
     func testActiveFloor() {
         var d = demo
         XCTAssertEqual(d.activeFloor, "打開檔案寫一句")
-        d.travel = true
+        d.mark(.travelOn, T)
         XCTAssertEqual(d.activeFloor, "在手機上寫三行")
         d.habit?.travelFloor = ""
         XCTAssertEqual(d.activeFloor, "打開檔案寫一句")
@@ -285,17 +328,28 @@ final class CodableTests: XCTestCase {
         XCTAssertEqual(a, b)
     }
 
-    func testEncodedShapeLooksLikePrototype() throws {
+    func testEncodedShapeIsV2() throws {
         let data = try JSONEncoder().encode(AppState.demo(today: T))
         let obj = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
-        for key in ["v", "habit", "logs", "weekly", "basket", "queue", "settings", "dayOffset"] {
+        XCTAssertEqual(obj["v"] as? Int, 2)
+        for key in ["habit", "records", "reviews", "marks", "basket", "queue", "settings", "dayOffset"] {
             XCTAssertNotNil(obj[key], "缺 \(key)")
         }
-        let logs = try XCTUnwrap(obj["logs"] as? [String: [String: Any]])
-        XCTAssertEqual(logs["2026-09-23"]?["t"] as? String, "done")
-        XCTAssertEqual(logs["2026-10-10"]?["reason"] as? String, "出遠門")
+        XCTAssertNil(obj["logs"], "v2 不再存每天一格的字典")
+        let records = try XCTUnwrap(obj["records"] as? [[String: Any]])
+        XCTAssertEqual(records.count, 38)
+        let first = try XCTUnwrap(records.first)
+        XCTAssertEqual(first["day"] as? String, "2026-09-23")
+        XCTAssertEqual(first["kind"] as? String, "done")
+        XCTAssertEqual(first["source"] as? String, "imported")
+        XCTAssertEqual(first["id"] as? String, "rec-v1-2026-09-23")
+        let leave = try XCTUnwrap(records.first { ($0["day"] as? String) == "2026-10-10" })
+        XCTAssertEqual(leave["reason"] as? String, "出遠門")
         let habit = try XCTUnwrap(obj["habit"] as? [String: Any])
         XCTAssertEqual(habit["planted"] as? String, "2026-09-23")
+        XCTAssertEqual(habit["id"] as? String, "hab-v1-2026-09-23")
+        let reviews = try XCTUnwrap(obj["reviews"] as? [[String: Any]])
+        XCTAssertNil(reviews.first?["avg"], "平均不存，用的時候算")
     }
 
     func testToleratesMissingKeysAndNulls() throws {
@@ -305,7 +359,7 @@ final class CodableTests: XCTestCase {
         let t = try JSONDecoder().decode(AppState.self, from: Data(
             "{\"v\":1,\"habit\":null,\"logs\":{\"2026-11-01\":{\"t\":\"done\"},\"bad\":{\"t\":\"done\"}},\"pressure\":null,\"travel\":true}".utf8))
         XCTAssertNil(t.pressure)
-        XCTAssertEqual(t.logs.count, 1, "不合法的日期 key 要丟掉")
+        XCTAssertEqual(t.records.count, 1, "不合法的日期 key 要丟掉")
         XCTAssertTrue(t.travel)
     }
 }
@@ -329,7 +383,7 @@ final class StoreTests: XCTestCase {
         let saved = try JSONDecoder().decode(AppState.self, from: Data(contentsOf: url))
         XCTAssertEqual(saved.logs.count, 38, "備份是挖之前的狀態")
         XCTAssertEqual(saved.habit?.floor, "打開檔案寫一句")
-        XCTAssertTrue(s.state.logs.isEmpty, "挖完才歸零")
+        XCTAssertEqual(s.state.records.count, 38, "v2 挖地瓜不清紀錄")
     }
 
     func testImportMigratesObstacle() {
@@ -365,14 +419,14 @@ final class StoreTests: XCTestCase {
     func testReturnFlower() {
         let s = makeStore()
         s.state = AppState.demo(today: T)
-        s.state.logs["2026-11-06"] = nil
+        s.state.drop("2026-11-06")
         XCTAssertTrue(s.logToday(), "昨天沒紀錄，今天這一節是回來")
     }
 
     func testBackfillYesterday() {
         let s = makeStore()
         s.state = AppState.demo(today: T)
-        s.state.logs["2026-11-06"] = nil
+        s.state.drop("2026-11-06")
         XCTAssertTrue(s.canBackfillYesterday)
         s.backfillYesterday()
         XCTAssertEqual(s.state.log(on: T.adding(-1))?.t, .done)
@@ -410,7 +464,7 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(s.state.letgoResult?.start, T)
         XCTAssertEqual(s.state.letgoResult?.end, T.adding(14))
         XCTAssertEqual(s.page, 0)
-        XCTAssertTrue(s.state.signals().s3)
+        XCTAssertTrue(s.state.signals(today: s.today).s3)
         s.resetOffset()
 
         let f = makeStore()
@@ -421,51 +475,51 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(f.state.letgoResult?.pass, false, "10 < 11 不算過")
     }
 
-    func testLogNodeIntentReplies() {
+    func testShortcutReplies() {
         let s = makeStore()
-        XCTAssertEqual(LogNodeIntent.log(into: s), "還沒種東西。先打開薯記種一個。")
+        XCTAssertEqual(s.shortcutLog(), "還沒種東西。先打開薯記種一個。")
         s.plant(floor: "打開檔案寫一句", trigger: "起床喝完第一杯水")
-        XCTAssertEqual(LogNodeIntent.log(into: s), "記好了。打開檔案寫一句，第 1 節。")
+        XCTAssertEqual(s.shortcutLog(), "記好了。打開檔案寫一句，第 1 節。")
         XCTAssertEqual(s.state.log(on: T)?.t, .done)
-        XCTAssertEqual(LogNodeIntent.log(into: s), "今天已經記過了。", "同一天不會記兩次")
+        XCTAssertEqual(s.state.activeRecords.last?.source, .shortcut, "捷徑記的標成 shortcut")
+        XCTAssertEqual(s.shortcutLog(), "今天已經記過了。", "同一天不會記兩次")
         XCTAssertEqual(s.state.stats(today: T).nodes, 1)
         s.undoToday()
         s.leaveToday(reason: "出遠門")
-        XCTAssertEqual(LogNodeIntent.log(into: s), "今天請假了。")
+        XCTAssertEqual(s.shortcutLog(), "今天請假了。")
         s.undoToday()
         s.startLetGo()
-        XCTAssertEqual(LogNodeIntent.log(into: s), "放手測試中，照常做就好，不用記。")
+        XCTAssertEqual(s.shortcutLog(), "放手測試中，照常做就好，不用記。")
         XCTAssertNil(s.state.log(on: T))
-        s.state.letgo = nil
         s.state = AppState.demo(today: T)
-        s.state.logs[T.adding(-1).string] = nil
-        s.state.logs[T.adding(-2).string] = nil
-        XCTAssertTrue(LogNodeIntent.log(into: s).hasPrefix("回來了。"), "漏兩天後再記是回來")
+        s.state.drop(T.adding(-1).string)
+        s.state.drop(T.adding(-2).string)
+        XCTAssertTrue(s.shortcutLog().hasPrefix("回來了。"), "漏兩天後再記是回來")
     }
 
     func testWidgetSnapshotFollowsMainScreenOrder() {
         var d = AppState()
-        XCTAssertEqual(WidgetBridge.snapshot(state: d, today: T).status, .empty)
+        XCTAssertEqual(WidgetSnapshot.make(state: d, today: T).status, .empty)
         d = AppState.demo(today: T)
-        let none = WidgetBridge.snapshot(state: d, today: T)
+        let none = WidgetSnapshot.make(state: d, today: T)
         XCTAssertEqual(none.status, .none)
         XCTAssertEqual(none.nodes, 37)
         XCTAssertEqual(none.trigger, "起床喝完第一杯水")
         XCTAssertEqual(none.floor, "打開檔案寫一句")
         XCTAssertEqual(none.day, T.string)
-        d.logs[T.string] = .done
-        XCTAssertEqual(WidgetBridge.snapshot(state: d, today: T).status, .done)
-        XCTAssertEqual(WidgetBridge.snapshot(state: d, today: T).nodes, 38)
-        d.logs[T.string] = .leave("出遠門")
-        XCTAssertEqual(WidgetBridge.snapshot(state: d, today: T).status, .leave)
-        d.letgo = LetGo(start: T, prior: 10)
-        XCTAssertEqual(WidgetBridge.snapshot(state: d, today: T).status, .letgo, "放手測試優先於今天的紀錄")
-        d.letgo = nil
-        d.travel = true
-        XCTAssertEqual(WidgetBridge.snapshot(state: d, today: T).floor, "在手機上寫三行", "旅行中顯示旅行版最小一步")
-        d.travel = false
+        d.put(T.string, .done)
+        XCTAssertEqual(WidgetSnapshot.make(state: d, today: T).status, .done)
+        XCTAssertEqual(WidgetSnapshot.make(state: d, today: T).nodes, 38)
+        d.put(T.string, .leave("出遠門"))
+        XCTAssertEqual(WidgetSnapshot.make(state: d, today: T).status, .leave)
+        var lg = d
+        lg.mark(.letgoStart, T, prior: 10)
+        XCTAssertEqual(WidgetSnapshot.make(state: lg, today: T).status, .letgo, "放手測試優先於今天的紀錄")
+        d.mark(.travelOn, T)
+        XCTAssertEqual(WidgetSnapshot.make(state: d, today: T).floor, "在手機上寫三行", "旅行中顯示旅行版最小一步")
+        d.mark(.travelOff, T)
         d.justDug = Potato(floor: "x", trigger: "y", nodes: 1, ret: 0, days: 1, planted: T, dug: T)
-        XCTAssertEqual(WidgetBridge.snapshot(state: d, today: T).status, .dug, "剛挖出來優先於一切")
+        XCTAssertEqual(WidgetSnapshot.make(state: d, today: T).status, .dug, "剛挖出來優先於一切")
     }
 
     func testWidgetSnapshotResetsAfterDayChange() {
@@ -494,12 +548,19 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(s.state.basket[0].days, 46)
         XCTAssertEqual(s.state.basket[0].dug, T)
         XCTAssertNotNil(s.state.justDug)
-        XCTAssertTrue(s.state.logs.isEmpty)
-        XCTAssertTrue(s.state.weekly.isEmpty)
+        XCTAssertEqual(s.state.records.count, 38, "紀錄全部留著")
+        XCTAssertEqual(s.state.reviews.count, 7, "開始四問全部留著")
+        XCTAssertEqual(s.state.basket[0].habit, "hab-v1-2026-09-23", "地瓜指回原始紀錄")
+        XCTAssertEqual(s.state.pastHabits.map(\.id), ["hab-v1-2026-09-23"])
         XCTAssertNotNil(s.state.habit, "挖完還沒按「種下一個」之前習慣還在")
         s.plantNext()
         XCTAssertNil(s.state.habit)
         XCTAssertNil(s.state.justDug)
+        XCTAssertTrue(s.state.logs.isEmpty, "沒有目前的習慣，畫面上就沒有紀錄")
+        XCTAssertEqual(s.state.records.count, 38)
+        s.plant(floor: "讀一頁書", trigger: "刷完牙")
+        XCTAssertEqual(s.state.stats(today: T).nodes, 0, "新的習慣從 0 節開始，舊的紀錄不算進來")
+        XCTAssertTrue(s.state.weekly.isEmpty)
     }
 
     func testReviewAndPressure() {
@@ -507,8 +568,11 @@ final class StoreTests: XCTestCase {
         s.state = AppState.demo(today: T)
         s.recordReview(scores: [5, 6, 7, 6])
         XCTAssertEqual(s.state.weekly.count, 8)
-        XCTAssertEqual(s.state.weekly.last?.avg, 6)
-        XCTAssertEqual(s.state.weekly.last?.date, T)
+        // 示範資料最後一次四問在未來（原型的寫法），線照日期排，所以看最後加進去的那一筆
+        XCTAssertEqual(s.state.reviews.last?.avg, 6)
+        XCTAssertEqual(s.state.reviews.last?.date, T)
+        XCTAssertEqual(s.state.reviews.last?.habit, s.state.habit?.id)
+        XCTAssertNotNil(s.state.reviews.last?.at, "新的開始四問存世界標準時間")
         s.setPressure(true)
         XCTAssertEqual(s.state.pressure, true)
     }
@@ -542,34 +606,11 @@ final class StoreTests: XCTestCase {
 // MARK: - AI 任務的輸入
 
 final class AIInputTests: XCTestCase {
-    func testWeeklyInputFromDemo() throws {
-        let d = AppState.demo(today: T)
-        let w = try XCTUnwrap(d.weeklyInput(today: T))
-        XCTAssertEqual(w.planted_days, 45)
-        XCTAssertEqual(w.last14.count, 14)
-        XCTAssertEqual(w.last14_weekdays.count, 14)
-        // 昨天往回 14 天：10/24（週六）到 11/6（週五），只有 10/31 漏
-        XCTAssertEqual(w.last14_weekdays.first, 6)
-        XCTAssertEqual(w.last14_weekdays.last, 5)
-        XCTAssertEqual(w.last14.filter { $0 == "miss" }.count, 1)
-        XCTAssertEqual(w.last14[7], "miss", "10/31 是第 8 天")
-        XCTAssertEqual(w.leaves.map(\.reason), ["出遠門"])
-        XCTAssertEqual(w.weeks.count, 7)
-        XCTAssertFalse(w.travel)
-        XCTAssertEqual(w.floor, "打開檔案寫一句")
-    }
-
-    func testWeeklyInputUsesTravelFloor() throws {
-        var d = AppState.demo(today: T)
-        d.travel = true
-        XCTAssertEqual(try XCTUnwrap(d.weeklyInput(today: T)).floor, "在手機上寫三行")
-    }
-
     func testGapAndDiagnoseInput() throws {
         var d = AppState.demo(today: T)
         XCTAssertEqual(d.gapDays(today: T), 1)
         XCTAssertEqual(d.gapDays(today: T.adding(18)), 19)
-        d.logs = [:]
+        d.keepOnly([:])
         XCTAssertEqual(d.gapDays(today: T), 45, "沒記過就從種下去那天算")
         let input = try XCTUnwrap(d.diagnoseInput(today: T, q1: "有時候沒有", q2: "不會", q3: "想睡"))
         XCTAssertEqual(input.answers.q3_rival, "想睡")
@@ -594,9 +635,6 @@ final class AIInputTests: XCTestCase {
         XCTAssertTrue(d.obstaclePromptReady(today: T))
         XCTAssertFalse(d.auditReady(today: T), "種了 45 天，還不到一季")
         XCTAssertTrue(d.auditReady(today: T.adding(39)))
-        XCTAssertTrue(d.weeklyAdviceReady(today: T))
-        d.weekly = []
-        XCTAssertFalse(d.weeklyAdviceReady(today: T), "沒做過開始四問")
         var fresh = AppState()
         fresh.habit = Habit(floor: "a", trigger: "b", planted: T.adding(-3))
         XCTAssertFalse(fresh.obstaclePromptReady(today: T), "種下去不到 7 天")
@@ -614,8 +652,8 @@ final class AIInputTests: XCTestCase {
 
     func testWidgetSnapshotCarriesFullFlag() {
         let d = AppState.demo(today: T)
-        XCTAssertEqual(WidgetBridge.snapshot(state: d, today: T).full, false)
-        XCTAssertEqual(WidgetBridge.snapshot(state: d, today: T, full: true).full, true)
+        XCTAssertEqual(WidgetSnapshot.make(state: d, today: T).full, false)
+        XCTAssertEqual(WidgetSnapshot.make(state: d, today: T, full: true).full, true)
     }
 
     func testOutputsDecodeFromServerShape() throws {

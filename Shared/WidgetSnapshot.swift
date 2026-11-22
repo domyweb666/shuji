@@ -31,9 +31,13 @@ struct WidgetSnapshot: Codable, Equatable {
     static let fileName = "widget.json"
 
     static func url() -> URL? {
-        FileManager.default
+        #if os(Linux)
+        return nil // 只有在 Linux 上跑核心測試時才走這裡
+        #else
+        return FileManager.default
             .containerURL(forSecurityApplicationGroupIdentifier: groupID)?
             .appendingPathComponent(fileName)
+        #endif
     }
 
     static func read(from url: URL? = WidgetSnapshot.url()) -> WidgetSnapshot? {

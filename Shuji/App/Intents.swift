@@ -17,22 +17,9 @@ struct LogNodeIntent: AppIntent {
         return .result(dialog: IntentDialog(stringLiteral: reply))
     }
 
-    /// 回一句給 Siri 唸的話。跟畫面上的狀態機同一個順序。
+    /// 回一句給 Siri 唸的話。跟畫面上的狀態機同一個順序（Store.shortcutLog）。
     @MainActor
-    static func log(into store: Store) -> String {
-        let s = store.state
-        let t = store.today
-        guard let h = s.habit else { return "還沒種東西。先打開薯記種一個。" }
-        if s.justDug != nil { return "剛挖出來了。先打開薯記種下一個。" }
-        if s.letgo != nil { return "放手測試中，照常做就好，不用記。" }
-        if let log = s.log(on: t) {
-            return log.t == .leave ? "今天請假了。" : "今天已經記過了。"
-        }
-        let isReturn = store.logToday()
-        let n = store.state.stats(today: t).nodes
-        if isReturn { return "回來了。\(h.floor)，第 \(n) 節。" }
-        return "記好了。\(h.floor)，第 \(n) 節。"
-    }
+    static func log(into store: Store) -> String { store.shortcutLog() }
 }
 
 /// 讓 Siri 聽得懂「薯記記一節」，捷徑 app 也會自動列出來
