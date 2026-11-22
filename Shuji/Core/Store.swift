@@ -27,8 +27,6 @@ final class Store {
     var settingsTarget: SettingsTarget? = nil
     /// 從這週的田過去改設定時，下一次存下去的改版記成「從這週的田」
     var pendingVia: HabitChange.Via? = nil
-    /// 田要打開這週的田（從今天頁或田的列）
-    var openWeek = false
     private(set) var tick = 0
 
     let now: () -> Date

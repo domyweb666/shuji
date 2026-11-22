@@ -33,6 +33,10 @@ struct SettingsView: View {
                 debugSection
                 #endif
             }
+            .onChange(of: store.page) { _, page in
+                // 從這週的田過來、沒改就離開：之後的改動不算在這週的田
+                if page != 2 { store.pendingVia = nil }
+            }
             .onChange(of: store.settingsTarget) { _, target in
                 guard let target else { return }
                 withAnimation { proxy.scrollTo(target, anchor: .center) }
@@ -125,6 +129,11 @@ struct SettingsView: View {
                           selection: Binding(get: { store.state.settings.reviewDay },
                                              set: { v in store.updateSettings { $0.reviewDay = v } }),
                           title: { DayKey.weekNames[$0] })
+            RowSep()
+            DomyToggleRow(label: "這週的田",
+                          mini: "做完開始四問，接著看這週記了幾天、線往哪走。關掉的話，田裡照樣看得到。",
+                          isOn: Binding(get: { store.state.settings.weekCard },
+                                        set: { v in store.updateSettings { $0.weekCard = v } }))
         }
     }
 
@@ -133,7 +142,7 @@ struct SettingsView: View {
     private var reminderSection: some View {
         DomySection(title: "提醒") {
             DomyToggleRow(label: "收工檢查",
-                          mini: "一天最多一則，記了就不會響。預設關閉，開關要在生活裡，不在手機裡。",
+                          mini: "一天最多一則，記了就不會響；連著三天沒記，就先不響，記了下一節再恢復。預設關閉，開關要在生活裡，不在手機裡。",
                           isOn: Binding(get: { store.state.settings.check }, set: { setCheck($0) }))
             if store.state.settings.check {
                 RowSep()
@@ -186,7 +195,7 @@ struct SettingsView: View {
     // MARK: 完整版
 
     private var fullSection: some View {
-        DomySection(title: "完整版", footer: "一次買斷：週回顧建議、季稽核、小工具。其他功能一直免費。") {
+        DomySection(title: "完整版", footer: "一次買斷：季稽核、小工具。這週的田和其他功能一直免費。") {
             RowButton(text: purchases.isFull ? "完整版已解鎖" : "看看完整版",
                       value: purchases.isFull ? nil : purchases.product?.displayPrice,
                       tone: purchases.isFull ? .normal : .action) { showPaywall = true }

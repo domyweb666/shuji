@@ -35,7 +35,7 @@ struct TodayView: View {
         .sheet(item: $sheet) { which in
             switch which {
             case .more: MoreSheet()
-            case .review: ReviewSheet()
+            case .review: WeekSheet(start: .review)
             case .tips: TipsSheet()
             case .diagnose: DiagnoseSheet()
             case .obstacle: ObstacleSheet()
@@ -70,7 +70,7 @@ struct TodayView: View {
 
     private var header: some View {
         let st = store.state.stats(today: t)
-        return DomyHeader(title: "今天", sub: "\(t.long) · 第 \(st.nodes) 節") {
+        return DomyHeader(title: "今天", sub: GlanceCopy.todaySub(date: t.long, nodes: st.nodes)) {
             if store.state.travel { Chip("旅行中") }
         }
     }
@@ -131,15 +131,15 @@ struct TodayView: View {
                         .foregroundStyle(Theme.fg)
                         .multilineTextAlignment(.center)
                     MoreCapsule(title: "今天記好了") { sheet = .more }
-                    if AIClient.shared.isAvailable && store.state.obstaclePromptReady(today: t) && obstaclePromptSeen != h.planted.string {
+                    // 記好之後最多多出一行：週回顧優先（.analytics/08 安靜規則 2）
+                    if store.state.reviewPending(today: t) {
+                        DomyButton(t.weekday == store.state.settings.reviewDay ? "今天週回顧 · 開始四問" : "這週的開始四問還沒做",
+                                   variant: .plain, size: .compact) { sheet = .review }
+                    } else if AIClient.shared.isAvailable && store.state.obstaclePromptReady(today: t) && obstaclePromptSeen != h.planted.string {
                         DomyButton("這週有被打斷過嗎？", variant: .plain, size: .compact) {
                             obstaclePromptSeen = h.planted.string
                             sheet = .obstacle
                         }
-                    }
-                    if store.state.reviewPending(today: t) {
-                        DomyButton(t.weekday == store.state.settings.reviewDay ? "今天週回顧 · 開始四問" : "這週的開始四問還沒做",
-                                   variant: .plain, size: .compact) { sheet = .review }
                     }
                 }
             } else if let log, log.t == .leave {
@@ -292,37 +292,27 @@ struct DugView: View {
     }
 }
 
-/// 放手兩週到了，憑感覺回想做了幾天
+/// 放手兩週到了，憑感覺回想做了幾天。沒有預設天數（原本停在 12，幾乎一定過關，審查 P0-4）
 struct LetGoEndView: View {
     @Environment(Store.self) private var store
-    @State private var days: Double = 12
+    /// nil 還沒選；-1 是「記不清楚」
+    @State private var days: Int? = nil
 
     var body: some View {
         DomyScreen(title: "放手兩週到了", sub: "不用翻紀錄，憑感覺回想就好。") {
             Card {
                 CardBody(spacing: Sp.s3) {
-                    Text("這兩週，大概有幾天做了「\(store.state.habit?.floor ?? "")」？")
+                    Text(Copy.t(.p3, ["floor": store.state.habit?.floor ?? ""]))
                         .domyType(Ty.body)
                         .foregroundStyle(Theme.fg)
                         .fixedSize(horizontal: false, vertical: true)
-                    Text("\(Int(days)) 天")
-                        .domyType(Ty.title1)
-                        .foregroundStyle(Theme.strong)
-                        .monospacedDigit()
-                        .frame(maxWidth: .infinity)
-                    Slider(value: $days, in: 0...14, step: 1)
-                        .tint(Theme.accent)
-                        .accessibilityValue("\(Int(days)) 天")
-                    HStack {
-                        Text("0 天")
-                        Spacer()
-                        Text("14 天")
-                    }
-                    .domyType(Ty.caption)
-                    .foregroundStyle(Theme.fg2)
+                    DayCountPicker(selection: $days, unsure: Copy.t(.p3unsure))
                 }
             }
-            DomyButton("記下來") { store.finishLetGo(days: Int(days)) }
+            DomyButton(days == nil ? Copy.t(.p3disabled) : Copy.t(.p3button), disabled: days == nil) {
+                guard let d = days else { return }
+                store.finishLetGo(days: d < 0 ? nil : d)
+            }
         }
     }
 }

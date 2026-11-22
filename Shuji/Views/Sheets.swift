@@ -61,11 +61,8 @@ struct MoreSheet: View {
     private var log: DayLog? { store.state.log(on: t) }
     private var leaveLeft: Int { store.state.stats(today: t).leaveLeft }
     private var lastReason: String? { store.lastLeaveReason }
-    private var sameReason: Bool {
-        guard let lastReason else { return false }
-        let v = reason.trimmingCharacters(in: .whitespacesAndNewlines)
-        return !v.isEmpty && v == lastReason
-    }
+    /// 這個習慣請過幾次同一個原因（M9，比全部，不只上一次）
+    private var sameReasonCount: Int { store.state.leaveReasonCount(reason, today: t) }
 
     var body: some View {
         SheetFrame {
@@ -105,7 +102,7 @@ struct MoreSheet: View {
                         .domyField(focused: reasonFocused)
                     if let lastReason { Foot("上次請假：\(lastReason)") }
                 }
-                if sameReason { WarnBox { Text("這個原因第二次了，可能是開關要換。") } }
+                if sameReasonCount > 0 { WarnBox { Text(Copy.t(.p2, ["k": sameReasonCount + 1])) } }
                 DomyButton("請假") {
                     store.leaveToday(reason: reason)
                     dismiss()
@@ -116,51 +113,7 @@ struct MoreSheet: View {
     }
 }
 
-// MARK: 開始四問
-
-struct ReviewSheet: View {
-    @Environment(Store.self) private var store
-    @Environment(\.dismiss) private var dismiss
-    /// 0 代表還沒點。原型預設 4，很多人直接送出，曲線永遠走平，所以改成一定要點
-    @State private var scores: [Int] = [0, 0, 0, 0]
-    private var allPicked: Bool { scores.allSatisfy { $0 >= 1 } }
-
-    var body: some View {
-        SheetFrame {
-            SheetTitle("開始四問")
-            SheetNote("只問開始那一下，不問做得好不好。1 是完全不像，7 是完全就是。")
-            let questions = Phrases.reviewQuestions(floor: store.state.habit?.floor ?? "")
-            ForEach(0..<4, id: \.self) { i in
-                Card {
-                    CardBody(spacing: Sp.s3) {
-                        Text("\(i + 1)／4")
-                            .domyType(Ty.caption)
-                            .foregroundStyle(Theme.strong)
-                        Text(questions[i])
-                            .domyType(Ty.body)
-                            .foregroundStyle(Theme.fg)
-                            .fixedSize(horizontal: false, vertical: true)
-                        ScalePicker(title: questions[i], selection: $scores[i])
-                            .accessibilityIdentifier("review-q\(i + 1)")
-                        HStack {
-                            Text("完全不像")
-                            Spacer()
-                            Text("完全就是")
-                        }
-                        .domyType(Ty.caption)
-                        .foregroundStyle(Theme.fg2)
-                        .accessibilityHidden(true)
-                    }
-                }
-            }
-            DomyButton(allPicked ? "記下這週" : "四題都點一下才能記", disabled: !allPicked) {
-                guard allPicked else { return }
-                store.recordReview(scores: scores.map(Double.init))
-                dismiss()
-            }
-        }
-    }
-}
+// 開始四問搬到 WeekView.swift：送出之後接著看「這週的田」。
 
 // MARK: 讓開始更容易（從設定頁搬過來，卡住的時候才看）
 

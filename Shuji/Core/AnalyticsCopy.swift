@@ -105,6 +105,7 @@ enum CopyID: String, CaseIterable {
     case d7letgo = "D-7p"
     case d7changed = "D-7 改過開關"
     case d7today = "D-7 今天"
+    case d7foot = "D-7 說明"
     case d8title = "D-8"
     case d8counts = "D-8 天數"
     case d8below = "D-8 未過"
@@ -231,6 +232,7 @@ enum Copy {
         .d7letgo: "放手測試",
         .d7changed: "改過開關",
         .d7today: "（今天還沒記）",
+        .d7foot: "實心是記了，空心是請假，滿格是 7 天。沒有紀錄的週不畫。",
         .d8title: "漏掉的日子有沒有規律",
         .d8counts: "最近 {w} 週：平日 {c} 天裡記了 {d} 天；週末 {a} 天裡記了 {b} 天。",
         .d8below: "差距在平常的起伏裡，先不下結論。",

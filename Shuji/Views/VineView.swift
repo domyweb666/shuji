@@ -25,15 +25,15 @@ struct VineView: View {
             model.startMotion()
         }
         .onDisappear { model.stopMotion() }
-        .onChange(of: store.state.logs) { _, _ in sync() }
+        .onChange(of: store.state.records) { _, _ in sync() }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { model.startMotion() } else { model.stopMotion() }
         }
     }
 
     private func sync() {
-        let ds = store.state.doneKeys
-        let returns = ds.map { store.state.isReturn($0, doneKeys: ds) }
+        let ledger = store.state.ledger(today: store.today)
+        let returns = ledger.doneDays.map { ledger.isReturn($0) }
         model.configure(returns: returns, animateLast: store.vineGrow, reduce: reduceMotion)
         store.vineGrow = false
     }
