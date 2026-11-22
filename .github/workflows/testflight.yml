@@ -171,7 +171,7 @@ jobs:
             -authenticationKeyPath "$AUTH_KEY_PATH" \
             -authenticationKeyID "$ASC_KEY_ID" \
             -authenticationKeyIssuerID "$ASC_ISSUER_ID"
-          echo "已上傳，建置編號 $BUILD_NUMBER。Apple 處理要幾分鐘到半小時，好了會出現在 App Store Connect 的 TestFlight 頁。"
+          echo "已上傳，建置編號 ${BUILD_NUMBER}。Apple 處理要幾分鐘到半小時，好了會出現在 App Store Connect 的 TestFlight 頁。"
 
       - name: 刪鑰匙圈與金鑰（不管成敗）
         if: always()
