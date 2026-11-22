@@ -48,7 +48,7 @@ struct HoldButton: View {
                         .foregroundStyle(pressing ? Theme.onAccent : Theme.onBright)
                     }
                     .scaleEffect(pressing && !reduceMotion ? DomyTokens.Motion.pressScale : 1)
-                    .animation(.easeOut(duration: DomyTokens.Motion.pressDuration), value: pressing)
+                    .animation(Feel.press, value: pressing)
             }
             .frame(width: Sz.heroRing, height: Sz.heroRing)
             .contentShape(Circle())

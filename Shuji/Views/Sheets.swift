@@ -86,6 +86,7 @@ struct MoreSheet: View {
                 }
                 if log != nil {
                     RowButton(text: "撤銷今天", chevron: false, tone: .danger) {
+                        Haptic.remove()
                         store.undoToday()
                         dismiss()
                     }
@@ -317,6 +318,7 @@ struct RestoreSheet: View {
                     dismiss()
                 } else {
                     failed = true
+                    Haptic.error()
                 }
             }
         }

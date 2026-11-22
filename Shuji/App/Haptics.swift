@@ -7,9 +7,19 @@ enum Haptic {
     private static let notify = UINotificationFeedbackGenerator()
     private static let selection = UISelectionFeedbackGenerator()
 
-    /// 主要按鈕、換分頁（Domy 規格：輕輕一下）
+    /// 換分頁、選分數。一般按鈕不震，震動留給有意義的時刻
     static func select() {
         selection.selectionChanged()
+    }
+
+    /// 移除、撤銷、清除
+    static func remove() {
+        light.impactOccurred()
+    }
+
+    /// 出錯（讀不出來、AI 沒回來）。畫面上一定同時有一句怎麼辦
+    static func error() {
+        notify.notificationOccurred(.error)
     }
 
     /// 按下去
@@ -23,7 +33,7 @@ enum Haptic {
         rigid.impactOccurred(intensity: 1.0)
     }
 
-    /// 回來那一節開花
+    /// 回來那一節開花、種下去、挖地瓜
     static func bloom() {
         notify.notificationOccurred(.success)
     }

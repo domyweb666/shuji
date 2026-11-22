@@ -112,6 +112,7 @@ struct OnboardingView: View {
     private func plant() {
         guard !floorValue.isEmpty, !triggerValue.isEmpty else { return }
         focus = nil
+        Haptic.bloom()
         store.plant(floor: floorValue, trigger: triggerValue)
     }
 

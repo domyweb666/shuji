@@ -74,8 +74,10 @@ final class AICall<O: Decodable> {
             }
         } catch let f as AIClient.Failure {
             phase = .failed(f.message)
+            Haptic.error()
         } catch {
             phase = .failed(AIClient.fallbackMessage)
+            Haptic.error()
         }
         seq += 1
     }
