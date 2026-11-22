@@ -40,22 +40,15 @@ struct DayKey: Hashable, Comparable, Codable, CustomStringConvertible {
     static func days(from a: DayKey, to b: DayKey) -> Int { b.dayNumber - a.dayNumber }
     static func < (l: DayKey, r: DayKey) -> Bool { l.dayNumber < r.dayNumber }
 
-    /// 西元曆、手機目前的時區。手機設成民國或其他曆法時，「哪一天」也照西元算，key 才不會亂掉
-    static var gregorian: Calendar {
-        var c = Calendar(identifier: .gregorian)
-        c.timeZone = .current
-        return c
-    }
-
     /// 現在算哪一天。offset 是測試區「往後 N 天」用的。
-    static func today(now: Date = Date(), offset: Int = 0, calendar: Calendar = DayKey.gregorian) -> DayKey {
+    static func today(now: Date = Date(), offset: Int = 0, calendar: Calendar = .current) -> DayKey {
         let shifted = now.addingTimeInterval(-4 * 3600)
         let c = calendar.dateComponents([.year, .month, .day], from: shifted)
         return DayKey(year: c.year ?? 1970, month: c.month ?? 1, day: c.day ?? 1).adding(offset)
     }
 
     /// 這一天在本地時區的某個時刻
-    func date(hour: Int, minute: Int, calendar: Calendar = DayKey.gregorian) -> Date? {
+    func date(hour: Int, minute: Int, calendar: Calendar = .current) -> Date? {
         var c = DateComponents()
         c.year = year; c.month = month; c.day = day; c.hour = hour; c.minute = minute
         return calendar.date(from: c)

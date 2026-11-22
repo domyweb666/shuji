@@ -238,9 +238,11 @@ extension AppState {
         return 14 - DayKey.days(from: lg.start, to: t)
     }
 
-    /// 收工檢查要不要排（08 安靜規則 6、7）：放手中、剛挖出來、連漏 3 天以上都不排
+    /// 收工檢查要不要排（08 安靜規則 6、7）：放手中、剛挖出來不排；連漏 3 天以上先不排，
+    /// 今天記了（停的那段就結束了）馬上恢復，排明天那一則
     func checkShouldSchedule(today t: DayKey) -> Bool {
         guard settings.check, habit != nil, letgo == nil, justDug == nil else { return false }
+        if log(on: t) != nil { return true }
         return consecutiveMissed(today: t) < 3
     }
 }

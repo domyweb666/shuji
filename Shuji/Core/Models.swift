@@ -637,7 +637,10 @@ struct LegacyState: Decodable {
         if travel {
             s.marks.append(Mark(id: "mark-v1-travelOn", habit: nil, kind: .travelOn, day: t, at: nil, tz: nil))
         }
-        s.marks.sort { $0.day < $1.day }
+        // 照日期排；同一天照上面加進去的順序（結束一次放手、同一天又開始一次，順序不能顛倒）
+        s.marks = s.marks.enumerated()
+            .sorted { ($0.element.day, $0.offset) < ($1.element.day, $1.offset) }
+            .map(\.element)
 
         s.basket = basket.enumerated().map { i, p in
             var q = p

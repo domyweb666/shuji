@@ -754,7 +754,8 @@ final class QuietRuleTests: XCTestCase {
         f.s.records.removeAll { $0.day >= T.adding(-3) }
         XCTAssertFalse(f.s.checkShouldSchedule(today: T), "連漏 3 天以上先不響")
         f.done(T)
-        XCTAssertTrue(f.s.checkShouldSchedule(today: T.adding(1)), "記了下一節就恢復")
+        XCTAssertTrue(f.s.checkShouldSchedule(today: T), "今天記了，當下就恢復（排明天那一則）")
+        XCTAssertTrue(f.s.checkShouldSchedule(today: T.adding(1)))
     }
 
     func testD7EightWeeksOfAnalyticsNotificationsIsZero() {
@@ -794,6 +795,30 @@ final class MigrationTests: XCTestCase {
         XCTAssertEqual(a.pressure, true)
         XCTAssertTrue(a.travel)
         XCTAssertEqual(a.records[1].reason, "發燒")
+    }
+
+    func testSameDayLetGoEndAndRestartKeepsOrder() {
+        var legacy = LegacyState()
+        legacy.habit = Habit(floor: "a", trigger: "b", planted: T.adding(-40))
+        legacy.letgoResult = LetGoResult(days: 8, prior: 13, pass: false, start: T.adding(-14), end: T)
+        legacy.letgo = LetGo(start: T, prior: 12)
+        let s = legacy.migrated(today: T)
+        XCTAssertEqual(s.marks.map(\.kind), [.letgoStart, .letgoEnd, .letgoStart])
+        XCTAssertNotNil(s.letgo, "同一天結束又開始，進行中的是新的那一次")
+        XCTAssertEqual(s.letgoResult?.pass, false)
+    }
+
+    func testFirstV2LaunchKeepsTheV1File() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("shuji-v1-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let url = dir.appendingPathComponent("state.json")
+        let v1 = "{\"v\":1,\"habit\":{\"floor\":\"a\",\"trigger\":\"b\",\"planted\":\"2026-11-01\"},\"logs\":{\"2026-11-02\":{\"t\":\"done\"}}}"
+        try Data(v1.utf8).write(to: url)
+        let store = MainActor.assumeIsolated { Store(fileURL: url, backupDir: nil) }
+        let kept = try String(contentsOf: dir.appendingPathComponent("state.v1.json"), encoding: .utf8)
+        XCTAssertEqual(kept, v1, "轉換之前原檔原封不動留一份")
+        MainActor.assumeIsolated { XCTAssertEqual(store.state.records.count, 1) }
     }
 
     func testV2RoundTripKeepsEverything() throws {

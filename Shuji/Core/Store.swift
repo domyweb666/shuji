@@ -58,7 +58,8 @@ final class Store {
 
     var today: DayKey {
         _ = tick
-        var cal = Calendar(identifier: .gregorian)
+        // 曆法照手機（跟 v1 一樣），時區可以換（測試、換時區）
+        var cal = Calendar.current
         cal.timeZone = timeZone()
         return DayKey.today(now: now(), offset: state.dayOffset, calendar: cal)
     }
@@ -96,6 +97,11 @@ final class Store {
 
     nonisolated private static func load(from url: URL?) -> AppState {
         guard let url, let data = try? Data(contentsOf: url) else { return AppState() }
+        // 第一次用 v2 打開 v1 的存檔：轉換之前，原檔先原封不動留一份 state.v1.json
+        if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any], obj["records"] == nil {
+            let keep = url.deletingLastPathComponent().appendingPathComponent("state.v1.json")
+            if !FileManager.default.fileExists(atPath: keep.path) { try? data.write(to: keep, options: .atomic) }
+        }
         if let s = try? JSONDecoder().decode(AppState.self, from: data) { return s }
         // 讀不出來的檔案改名留著，不要蓋掉
         let broken = url.deletingLastPathComponent()
