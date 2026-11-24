@@ -13,8 +13,9 @@ struct TodayView: View {
 
     /// 土面以上：一片葉子加捲鬚的高度
     private static let vineAbove: CGFloat = 60 // domy-ignore: 插畫畫布高度
-    /// 土面到地瓜那一塊：留給根
+    /// 土面到地瓜那一塊：留給根。字多、畫面矮的時候先縮這裡，地瓜的位置不動
     private static let rootGap: CGFloat = 76 // domy-ignore: 插畫畫布高度
+    private static let rootGapMin: CGFloat = 36 // domy-ignore: 插畫畫布高度
     /// 地瓜外框上緣到外圈上緣
     private static let ringInset: CGFloat = 20 // domy-ignore: 插畫尺寸
 
@@ -62,6 +63,7 @@ struct TodayView: View {
                     .padding(.horizontal, Sz.screenMargin)
                     .padding(.top, Theme.pageTop)
                     .frame(maxWidth: Theme.contentMaxWidth)
+                    .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: Sp.s2)
                     soil
                 }
@@ -140,23 +142,20 @@ struct TodayView: View {
 
     @ViewBuilder
     private func absence(_ h: Habit) -> some View {
-        Card {
-            CardBody {
-                Text("藤還在，根都還在。")
-                    .domyType(Ty.title3)
-                    .foregroundStyle(Theme.fg)
-                Text("停了一陣子。接上之前，看一下哪裡卡住：")
+        VStack(alignment: .leading, spacing: Sp.s2) {
+            Text("藤還在，根都還在。")
+                .domyType(Ty.title3)
+                .foregroundStyle(Theme.fg)
+            if !h.why.isEmpty {
+                Text("你說這是為了：\(h.why)")
                     .domyType(Ty.subheadline)
-                    .foregroundStyle(Theme.fg2)
+                    .foregroundStyle(Theme.fg)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-        }
-        if !h.why.isEmpty {
-            Card {
-                CardBody(spacing: Sp.s1) {
-                    Eyebrow("你說這是為了")
-                    Text(h.why).domyType(Ty.body).foregroundStyle(Theme.fg)
-                }
-            }
+            Text("停了一陣子。接上之前，看一下哪裡卡住：")
+                .domyType(Ty.subheadline)
+                .foregroundStyle(Theme.fg2)
+                .fixedSize(horizontal: false, vertical: true)
         }
         VStack(spacing: Sp.s2) {
             Card {
@@ -191,21 +190,26 @@ struct TodayView: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(DomyPressStyle())
+        // 44 點的點擊高度上下各多出一截，扣掉才跟別的段落一樣遠
+        .padding(.vertical, -Sp.s3)
     }
 
     // MARK: 土
 
-    /// 藤、土和地瓜。地瓜底下讓出分頁列
+    /// 藤、土和地瓜。地瓜底下讓出分頁列，離畫面底的距離固定
     private var soil: some View {
-        let box = PotatoBody<EmptyView>.frameSize.height
-        let top = TodayView.vineAbove + TodayView.rootGap
-        return VineView(soilTop: TodayView.vineAbove, potatoTop: top + TodayView.ringInset)
-            .frame(height: top + box + Sp.s2 + bottomInset)
-            .overlay(alignment: .top) {
-                potato
-                    .padding(.top, top)
-                    .animation(Feel.transition, value: store.state.log(on: t)?.t)
-            }
+        let fixed = TodayView.vineAbove + PotatoBody<EmptyView>.frameSize.height + Sp.s2 + bottomInset
+        return GeometryReader { geo in
+            let top = TodayView.vineAbove + geo.size.height - fixed
+            VineView(soilTop: TodayView.vineAbove, potatoTop: top + TodayView.ringInset)
+                .overlay(alignment: .top) {
+                    potato
+                        .padding(.top, top)
+                        .animation(Feel.transition, value: store.state.log(on: t)?.t)
+                }
+        }
+        .frame(minHeight: fixed + TodayView.rootGapMin, maxHeight: fixed + TodayView.rootGap)
+        .layoutPriority(1)
     }
 
     @ViewBuilder
@@ -259,13 +263,14 @@ struct MoreButton: View {
     }
 }
 
-/// 開關句當大標題：如果〔開關〕，／我就〔最小一步〕。句子長就小一級
+/// 開關句當大標題：如果〔開關〕，／我就〔最小一步〕。句子越長字越小
 struct Sentence: View {
     var trigger: String
     var floor: String
 
     var body: some View {
-        let style = trigger.count + floor.count > 24 ? Ty.title3 : Ty.title1
+        let count = trigger.count + floor.count
+        let style = count > 48 ? Ty.headline : count > 24 ? Ty.title3 : Ty.title1
         (soft("如果") + strong(trigger) + strong("，\n") + soft("我就") + strong(floor) + strong("。"))
             .font(.system(style.textStyle))
             .lineSpacing(Sp.s1)
