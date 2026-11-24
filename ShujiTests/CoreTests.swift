@@ -1,30 +1,6 @@
 import XCTest
 @testable import Shuji
 
-final class GuideTests: XCTestCase {
-    func testDecodesProposal() throws {
-        let json = #"{"type":"propose","say":"照你選的排。","question":"","options":[],"plans":[{"trigger":"起床喝完第一杯水","floor":"換上球鞋站到門口"},{"trigger":"刷完牙","floor":"換上球鞋"}],"difficulty":"hard","weeks_min":9,"weeks_max":19,"reason":"要換衣服出門。","category":null,"message":null}"#
-        let o = try JSONDecoder().decode(GuideOutput.self, from: Data(json.utf8))
-        XCTAssertEqual(o.plans.count, 2)
-        XCTAssertEqual(Guide.weeksText(o), "9 到 19 週")
-        XCTAssertEqual(o.difficultyLabel, "比較吃力")
-    }
-
-    func testDecodesQuestion() throws {
-        let json = #"{"type":"ask","say":"","question":"最糟的一天做得到哪一個？","options":["換上球鞋","走到巷口"],"plans":[],"difficulty":null,"weeks_min":0,"weeks_max":0,"reason":"","category":null,"message":null}"#
-        let o = try JSONDecoder().decode(GuideOutput.self, from: Data(json.utf8))
-        XCTAssertEqual(o.options.count, 2)
-        XCTAssertNil(o.difficulty)
-    }
-
-    func testFeedbackQuestionFitsServerLimit() {
-        let long = GuideOutput.Plan(trigger: String(repeating: "起", count: 30), floor: String(repeating: "做", count: 40))
-        XCTAssertLessThanOrEqual(Guide.feedbackQuestion([long, long, long]).count, 200)
-        let q = Guide.feedbackQuestion([.init(trigger: "刷完牙", floor: "讀一頁")])
-        XCTAssertEqual(q, "方案：如果刷完牙，我就讀一頁。想調整什麼？")
-    }
-}
-
 // 標準答案是用 Node 跑原型 index.html 裡同一段 JS 算出來的（today 固定 2026-11-07），
 // 這裡只比對 Swift 版算出來的是不是一模一樣。
 
@@ -274,7 +250,6 @@ final class LogicTests: XCTestCase {
         let bars = d.weekBars(today: T)
         XCTAssertEqual(bars.map(\.done), [1, 1, 2], "週回顧日是星期日：10/19、10/26、11/2 起")
         XCTAssertEqual(bars.last?.current, true)
-        XCTAssertEqual(d.weekdayTally(today: T), [1, 1, 1, 1, 0, 0, 0])
     }
 
     func testObstacleMigratesIntoBackup() {
@@ -525,8 +500,83 @@ final class StoreTests: XCTestCase {
         s.undoToday()
         XCTAssertNil(s.state.log(on: T))
         s.updateSettings { $0.leave = 0 }
-        s.leaveToday(reason: "發燒")
-        XCTAssertNil(s.state.log(on: T), "本月沒有請假額度就不能請")
+        s.leaveToday(reason: " 旅行 ")
+        XCTAssertEqual(s.state.log(on: T)?.reason, "旅行", "沒有每月次數限制")
+        s.undoToday()
+        s.skip(day: T, reason: "")
+        XCTAssertEqual(s.state.log(on: T)?.t, .leave, "可以不選理由")
+    }
+
+    func testSkipReasons() throws {
+        let s = makeStore()
+        XCTAssertEqual(s.state.settings.skipReasons, ["旅行", "生病", "太累", "太忙"])
+        XCTAssertFalse(s.addSkipReason("  "))
+        XCTAssertFalse(s.addSkipReason("旅行"), "不重複")
+        XCTAssertTrue(s.addSkipReason("一二三四五六七八九"))
+        XCTAssertEqual(s.state.settings.skipReasons.last, "一二三四五六七八")
+        for r in ["甲", "乙", "丙"] { XCTAssertTrue(s.addSkipReason(r)) }
+        XCTAssertFalse(s.addSkipReason("丁"), "最多 8 個")
+        s.removeSkipReason("生病")
+        XCTAssertEqual(s.state.settings.skipReasons.count, 7)
+
+        let back = try JSONDecoder().decode(AppState.self, from: JSONEncoder().encode(s.state))
+        XCTAssertEqual(back.settings, s.state.settings, "存檔讀得回來")
+        let old = try JSONDecoder().decode(Settings.self, from: Data(#"{"leave":1}"#.utf8))
+        XCTAssertEqual(old.skipReasons, Settings.defaultSkipReasons, "舊檔沒有這一欄")
+        let odd = try JSONDecoder().decode(Settings.self, from: Data(#"{"skipReasons":3}"#.utf8))
+        XCTAssertEqual(odd.skipReasons, Settings.defaultSkipReasons, "形狀不對就用預設")
+        let dup = try JSONDecoder().decode(Settings.self, from: Data(#"{"skipReasons":["累","累",""]}"#.utf8))
+        XCTAssertEqual(dup.skipReasons, ["累"])
+    }
+
+    /// 月曆點一天：今天和昨天改得到，更早的看得到、改不到
+    func testEditDayFromCalendar() {
+        let s = makeStore()
+        s.state = AppState.demo(today: T)
+        let y = T.adding(-1), old = T.adding(-2)
+        XCTAssertTrue(s.canEdit(day: T))
+        XCTAssertTrue(s.canEdit(day: y))
+        XCTAssertFalse(s.canEdit(day: old))
+        XCTAssertFalse(s.canEdit(day: T.adding(1)))
+
+        s.undo(day: old)
+        XCTAssertNotNil(s.state.log(on: old), "前天不能改")
+        s.undo(day: y)
+        XCTAssertNil(s.state.log(on: y))
+        s.skip(day: y, reason: "生病")
+        XCTAssertEqual(s.state.log(on: y), DayLog.leave("生病"))
+        XCTAssertEqual(s.state.records.last?.source, .backfill)
+        s.backfill(day: y)
+        XCTAssertEqual(s.state.log(on: y)?.t, .leave, "已經有一筆就不補")
+        s.undo(day: y)
+        s.backfill(day: y)
+        XCTAssertEqual(s.state.log(on: y)?.t, .done)
+        s.state.drop(old.string)
+        s.backfill(day: old)
+        XCTAssertNil(s.state.log(on: old), "補記只能補昨天")
+
+        s.startLetGo()
+        XCTAssertFalse(s.canEdit(day: T), "放手中不改")
+
+        let n = makeStore()
+        n.plant(floor: "讀一頁書", trigger: "刷完牙")
+        XCTAssertFalse(n.canEdit(day: y), "種下去之前")
+    }
+
+    /// 旅行中拿掉了：舊存檔還停在旅行中，打開就補一筆結束
+    func testOpenEndsTravel() throws {
+        var d = AppState.demo(today: T)
+        d.mark(.travelOn, T.adding(-3))
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("shuji-travel-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let url = dir.appendingPathComponent("state.json")
+        try JSONEncoder().encode(d).write(to: url)
+        let s = Store(now: { localDate(2026, 11, 7, 12, 0) }, fileURL: url, backupDir: dir)
+        XCTAssertFalse(s.state.travel)
+        XCTAssertEqual(s.state.travelEndedOn, T)
+        let again = Store(now: { localDate(2026, 11, 8, 12, 0) }, fileURL: url, backupDir: dir)
+        XCTAssertEqual(again.state.marks.filter { $0.kind == .travelOff }.count, 1, "存起來了，不會再補一筆")
     }
 
     func testLetGoFlow() {
@@ -568,7 +618,7 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(s.state.stats(today: T).nodes, 1)
         s.undoToday()
         s.leaveToday(reason: "出遠門")
-        XCTAssertEqual(s.shortcutLog(), "今天請假了。")
+        XCTAssertEqual(s.shortcutLog(), "今天跳過了。")
         s.undoToday()
         s.startLetGo()
         XCTAssertEqual(s.shortcutLog(), "放手測試中，照常做就好，不用記。")

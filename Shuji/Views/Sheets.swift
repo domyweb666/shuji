@@ -6,7 +6,11 @@ import UniformTypeIdentifiers
 struct SheetFrame<Content: View>: View {
     /// true：一打開就是整頁，不先停在一半
     var full = false
+    /// true：高度跟著內容走（跳過單、月曆點一天）
+    var fit = false
     @ViewBuilder var content: Content
+    /// 量到內容之前先給一個差不多的高度
+    @State private var fitHeight: CGFloat = 320 // domy-ignore: 量到之前的起始值
 
     var body: some View {
         ScrollView {
@@ -14,16 +18,26 @@ struct SheetFrame<Content: View>: View {
                 .padding(.horizontal, Sz.screenMargin)
                 .padding(.top, Sp.s6)
                 .padding(.bottom, full ? Sp.s4 : Sp.s8)
-                .frame(maxWidth: Theme.contentMaxWidth)
+                .frame(maxWidth: Theme.contentMaxWidth, alignment: .leading)
                 .frame(maxWidth: .infinity)
+                .background {
+                    GeometryReader { geo in
+                        Color.clear.onChange(of: geo.size.height, initial: true) { _, v in fitHeight = v }
+                    }
+                }
         }
         .scrollDismissesKeyboard(.interactively)
         .scrollBounceBehavior(.basedOnSize)
-        .presentationDetents(full ? [.large] : [.medium, .large])
+        .presentationDetents(detents)
         .presentationDragIndicator(.visible)
         .presentationCornerRadius(Rd.xxl)
         .presentationBackground(Theme.canvas)
         .tint(Theme.accent)
+    }
+
+    private var detents: Set<PresentationDetent> {
+        if full { return [.large] }
+        return fit ? [.height(fitHeight)] : [.medium, .large]
     }
 }
 
@@ -51,68 +65,205 @@ struct SheetNote: View {
     }
 }
 
-// MARK: 今天的更多選項
+// MARK: 跳過一次
 
-struct MoreSheet: View {
+/// 今天頁的跳過單：點一個理由就記好
+struct SkipSheet: View {
     @Environment(Store.self) private var store
     @Environment(\.dismiss) private var dismiss
-    @State private var leaving = false
-    @State private var reason = ""
-    @FocusState private var reasonFocused: Bool
-
-    private var t: DayKey { store.today }
-    private var log: DayLog? { store.state.log(on: t) }
-    private var leaveLeft: Int { store.state.stats(today: t).leaveLeft }
-    private var lastReason: String? { store.lastLeaveReason }
-    /// 這個習慣請過幾次同一個原因（M9，比全部，不只上一次）
-    private var sameReasonCount: Int { store.state.leaveReasonCount(reason, today: t) }
 
     var body: some View {
-        SheetFrame {
-            SheetTitle("今天")
-            Card {
-                if store.canBackfillYesterday {
-                    RowButton(text: "昨天做了，忘了記") {
-                        store.backfillYesterday()
-                        dismiss()
-                    }
-                }
-                if log == nil {
-                    if store.canBackfillYesterday { RowSep() }
-                    RowButton(text: "今天請假", value: "本月剩 \(leaveLeft) 次", chevron: false, disabled: leaveLeft == 0) {
-                        leaving = true
-                        reasonFocused = true
-                    }
-                }
-                if log != nil {
-                    RowButton(text: "撤銷今天", chevron: false, tone: .danger) {
-                        Haptic.remove()
-                        store.undoToday()
-                        dismiss()
+        SheetFrame(fit: true) {
+            SkipPicker(day: store.today, title: "今天跳過，因為") { dismiss() }
+        }
+    }
+}
+
+/// 兩欄理由，點一下就記；最下面「不說理由」也是點了就記
+struct SkipPicker: View {
+    var day: DayKey
+    var title: String
+    var done: () -> Void
+    @Environment(Store.self) private var store
+
+    private var rows: [[String]] {
+        let all = store.state.settings.skipReasons
+        return stride(from: 0, to: all.count, by: 2).map { Array(all[$0..<min($0 + 2, all.count)]) }
+    }
+
+    var body: some View {
+        VStack(spacing: Sp.s5) {
+            Text(title)
+                .domyType(Ty.title2)
+                .foregroundStyle(Theme.fg)
+                .multilineTextAlignment(.center)
+                .accessibilityAddTraits(.isHeader)
+            if !rows.isEmpty {
+                VStack(spacing: Sp.s3) {
+                    ForEach(rows, id: \.self) { row in
+                        HStack(spacing: Sp.s3) {
+                            ForEach(row, id: \.self) { r in reasonButton(r) }
+                            if row.count == 1 { Color.clear.frame(maxWidth: .infinity, maxHeight: 0) } // domy-ignore: 單數格補空位
+                        }
                     }
                 }
             }
-            if leaving {
-                VStack(alignment: .leading, spacing: Sp.s2) {
-                    Text("請假的原因，一行就好")
-                        .domyType(Ty.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Theme.fg)
-                        .padding(.horizontal, Sp.s1)
-                    TextField("出遠門、發燒…", text: $reason)
-                        .focused($reasonFocused)
-                        .submitLabel(.done)
-                        .onChange(of: reason) { _, v in if v.count > 40 { reason = String(v.prefix(40)) } }
-                        .domyField(focused: reasonFocused)
-                    if let lastReason { Foot("上次請假：\(lastReason)") }
+            DomyButton("不說理由", variant: .plain, fullWidth: true) { skip("") }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func reasonButton(_ r: String) -> some View {
+        let shape = RoundedRectangle(cornerRadius: Rd.xl, style: .continuous)
+        return Button { skip(r) } label: {
+            Text(r)
+                .domyType(Ty.headline)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .foregroundStyle(Theme.fg)
+                .padding(.horizontal, Sp.s3)
+                .frame(maxWidth: .infinity, minHeight: Sp.s8 * 2)
+                .background(Theme.surface, in: shape)
+                .contentShape(shape)
+        }
+        .buttonStyle(DomyPressStyle())
+    }
+
+    private func skip(_ reason: String) {
+        Haptic.select()
+        store.skip(day: day, reason: reason)
+        done()
+    }
+}
+
+/// 設定 → 跳過的理由
+struct SkipReasonsView: View {
+    @Environment(Store.self) private var store
+    @State private var text = ""
+    @FocusState private var focused: Bool
+
+    private var reasons: [String] { store.state.settings.skipReasons }
+
+    var body: some View {
+        DomyScreen {
+            DomySection {
+                ForEach(reasons, id: \.self) { r in reasonRow(r) }
+                if reasons.count < Settings.maxSkipReasons { addRow }
+            }
+        }
+    }
+
+    private func reasonRow(_ r: String) -> some View {
+        VStack(spacing: 0) {
+            HStack(spacing: Sp.s3) {
+                Text(r).domyType(Ty.body).foregroundStyle(Theme.fg)
+                Spacer(minLength: 0)
+                DomyButton("移除", variant: .quiet, size: .compact) {
+                    Haptic.remove()
+                    withAnimation(Feel.change) { store.removeSkipReason(r) }
                 }
-                if sameReasonCount > 0 { WarnBox { Text(Copy.t(.p2, ["k": sameReasonCount + 1])) } }
-                DomyButton("請假") {
-                    store.leaveToday(reason: reason)
-                    dismiss()
+                .accessibilityLabel("移除 \(r)")
+            }
+            .padding(.leading, Sp.s4)
+            .padding(.trailing, Sp.s2)
+            .frame(minHeight: Sz.row)
+            RowSep()
+        }
+    }
+
+    private var addRow: some View {
+        HStack(spacing: Sp.s2) {
+            TextField("加一個理由", text: $text)
+                .focused($focused)
+                .submitLabel(.done)
+                .onSubmit { add() }
+                .onChange(of: text) { _, v in
+                    if v.count > Settings.maxSkipReasonLength { text = String(v.prefix(Settings.maxSkipReasonLength)) }
+                }
+                .domyField(focused: focused)
+            DomyButton("加入", size: .compact, disabled: text.trimmingCharacters(in: .whitespaces).isEmpty) { add() }
+        }
+        .padding(Sp.s4)
+    }
+
+    private func add() {
+        withAnimation(Feel.change) {
+            _ = store.addSkipReason(text)
+        }
+        text = ""
+    }
+}
+
+// MARK: 月曆點一天
+
+struct DaySheet: View {
+    var day: DayKey
+    @Environment(Store.self) private var store
+    @Environment(\.dismiss) private var dismiss
+    @State private var skipping = false
+
+    private var log: DayLog? { store.state.log(on: day) }
+    private var isToday: Bool { day == store.today }
+
+    private var status: String {
+        guard let log else {
+            if store.state.ledger(today: store.today).isLetGo(day) { return "放手測試" }
+            return isToday ? "還沒記" : "沒記"
+        }
+        if log.t == .done { return "記了" }
+        let reason = log.reason ?? ""
+        return reason.isEmpty ? "跳過" : "跳過，\(reason)"
+    }
+
+    private var dayName: String {
+        if isToday { return "今天" }
+        return day == store.today.adding(-1) ? "昨天" : day.long
+    }
+
+    var body: some View {
+        SheetFrame(fit: true) {
+            if skipping {
+                SkipPicker(day: day, title: "\(dayName)跳過，因為") { dismiss() }
+            } else {
+                VStack(spacing: Sp.s5) {
+                    VStack(spacing: Sp.s1) {
+                        Text(dayName)
+                            .domyType(Ty.subheadline)
+                            .foregroundStyle(Theme.fg2)
+                        Text(status)
+                            .domyType(Ty.title2)
+                            .foregroundStyle(Theme.fg)
+                            .multilineTextAlignment(.center)
+                            .accessibilityAddTraits(.isHeader)
+                    }
+                    if store.canEdit(day: day) { actions }
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var actions: some View {
+        if log != nil {
+            DomyButton("復原", variant: .secondary) {
+                Haptic.remove()
+                store.undo(day: day)
+                dismiss()
+            }
+        } else {
+            HStack(spacing: Sp.s3) {
+                // 今天有做要回今天頁按住，這裡不給記
+                if !isToday {
+                    DomyButton("有做") {
+                        store.backfill(day: day)
+                        dismiss()
+                    }
+                }
+                DomyButton("跳過", variant: .secondary) {
+                    withAnimation(Feel.transition) { skipping = true }
                 }
             }
-            SheetNote("補記只能補昨天，而且是補紀錄，不是補做。")
         }
     }
 }
@@ -127,7 +278,7 @@ struct TipsSheet: View {
     var body: some View {
         SheetFrame {
             SheetTitle("讓開始更容易")
-            SheetNote("開關出現的那一刻，手邊的阻力越小越好。三件前一晚就能做的事：")
+            SheetNote("時機到的那一刻，手邊的阻力越小越好。三件前一晚就能做的事：")
             Card {
                 ForEach(Array(Phrases.tips.enumerated()), id: \.offset) { i, tip in
                     if i > 0 { RowSep() }
@@ -307,7 +458,7 @@ struct PotatoSheet: View {
                 .frame(maxWidth: .infinity)
                 .multilineTextAlignment(.center)
             Card {
-                RowLabel(text: "開關", value: potato.trigger)
+                RowLabel(text: "時機", value: potato.trigger)
                 RowSep()
                 RowLabel(text: "根", value: "\(potato.nodes) 條")
                 RowSep()

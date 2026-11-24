@@ -204,14 +204,11 @@ try {
   check('按住一秒半後變成「今天記好了」', await has('今天記好了'));
   check('節數變 1', await has('第 1 節'));
 
-  // 更多選項：撤銷今天，再按住時手指滑開 15 點也要算
-  await tapLabel('今天記好了，更多選項', { wait: 900 });
-  await shot('07-more-sheet');
-  await dump('more');
-  await tapLabel('撤銷今天', { wait: 1200 });
+  // 復原今天，再按住時手指滑開 15 點也要算
+  await tapLabel('復原', { wait: 1200 });
   await waitFor(HOLD, 3000);
   await shot('08-undone');
-  check('撤銷後回到按住', await has(HOLD));
+  check('復原後回到按住', await has(HOLD));
   await hold(1800, 15);
   await sleep(1400);
   await shot('09-hold-with-drift');
@@ -224,7 +221,7 @@ try {
   check('田頁有「根」的數字', await has('根'));
   await goPage('設定');
   await shot('11-settings');
-  check('設定頁有「開關句」', await has('開關句'));
+  check('設定頁有「我的習慣」', await has('我的習慣'));
   // 收工檢查：開了會問通知權限
   if (await tapLabel('收工檢查', { wait: 1200 })) {
     const asked = await allowIfAsked();

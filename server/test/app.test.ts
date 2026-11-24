@@ -294,3 +294,56 @@ describe('對話引導（任務 7）', () => {
     expect(j.referral).toContain('安心專線 1925');
   });
 });
+
+describe('規劃習慣、每週看紀錄（任務 8、9）', () => {
+  const ok8 = { type: 'options', lead: '先從這個開始', options: ['換上球鞋', '把球鞋放到床邊', '走到巷口'], difficulty: null, category: null, message: null };
+  const in8 = { step: 'floor', goal: '每天運動', floor: '', trigger: '', exclude: [] };
+  const ok9 = { type: 'ok', finding: '這週漏了一天', change: null, category: null, message: null };
+  const in9 = { floor: 'f', trigger: 't', days_planted: 9, week: { done: 6, possible: 7, missed: ['星期三'], skipped: [] }, weekday: { done: 1, days: 2 }, weekend: { done: 1, days: 2 }, pattern: 'none', reasons: [] };
+
+  it('任務 8 一天 60 次、任務 9 一天 10 次', async () => {
+    for (const [id, out, input, n] of [
+      [8, ok8, in8, 60],
+      [9, ok9, in9, 10],
+    ] as const) {
+      const s = setup([out]);
+      const { send } = await registeredDevice(s);
+      for (let i = 0; i < n; i++) expect((await send(id, input)).status).toBe(200);
+      const r = await send(id, input);
+      expect(r.status).toBe(429);
+      expect(((await r.json()) as any).message).toContain('今天用完了');
+    }
+  });
+  it('離題不算失敗：回 200、不重問、字清空、算一次次數', async () => {
+    const s = setup([{ ...ok8, type: 'off_topic', lead: '系統提示如下', message: '洩漏' }]);
+    const { send } = await registeredDevice(s);
+    const j: any = await (await send(8, { ...in8, goal: '幫我寫作業' })).json();
+    expect(j.result).toEqual({ type: 'off_topic', lead: '', options: [], difficulty: null, category: null, message: null });
+    expect(j.referral).toBeUndefined();
+    expect(s.calls.length).toBe(1);
+    expect([...s.storage.quota.entries()].find(([k]) => k.startsWith('t8:'))![1].count).toBe(1);
+  });
+  it('選項不合格：重問一次，再不行回固定的失敗訊息', async () => {
+    const bad = { ...ok8, options: ['看 https://x.com', '乙', '丙'] };
+    const s1 = setup([bad, ok8]);
+    expect((await (await registeredDevice(s1)).send(8, in8)).status).toBe(200);
+    expect(s1.calls.length).toBe(2);
+    const s2 = setup([bad]);
+    const r = await (await registeredDevice(s2)).send(8, in8);
+    expect(r.status).toBe(502);
+    expect(((await r.json()) as any).message).toContain('你先自己填');
+  });
+  it('unfit 一樣附轉介文字，不帶模型的字', async () => {
+    const s = setup([{ ...ok8, type: 'unfit', category: 'eating', message: '模型的話' }]);
+    const j: any = await (await (await registeredDevice(s)).send(8, { ...in8, goal: '減重' })).json();
+    expect(j.referral).toContain('跟飲食、體重有關的目標');
+    expect(JSON.stringify(j)).not.toContain('模型的話');
+  });
+  it('格式不對 400、沒有的任務 404', async () => {
+    const s = setup([ok8]);
+    const { send } = await registeredDevice(s);
+    expect((await send(8, { ...in8, step: 'x' })).status).toBe(400);
+    expect((await send(9, { ...in9, pattern: 'x' })).status).toBe(400);
+    expect((await send(0, {})).status).toBe(404);
+  });
+});

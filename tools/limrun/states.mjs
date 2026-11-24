@@ -35,12 +35,12 @@ function make({ skipLast = 0, log: lg, letgo, reviewDay = 0, lastReview = -1, n 
   if (letgo) s.letgo = { start: day(-3), prior: 12 };
   return s;
 }
-async function load(state) {
+async function load(state, args = []) {
   try { await c.terminateApp(BUNDLE); } catch {}
   await sleep(500);
   const p = join(SP, 'state.json'); writeFileSync(p, JSON.stringify(state));
   await c.pushFile(p, 'Library/Application Support/Shuji/state.json', { bundleId: BUNDLE, containerType: 'data' });
-  await simctl(['launch', 'booted', BUNDLE]); await sleep(2600);
+  await simctl(['launch', 'booted', BUNDLE, ...args]); await sleep(2600);
 }
 const LONGT = '週末早上帶孩子從公園回到家，把鞋子放進櫃子', LONGF = '坐到書桌前打開昨天的稿子補一句話';
 const L40T = '每天晚上睡前把手機放到客廳的充電座，再回房間坐到床邊之後了';
@@ -59,7 +59,7 @@ async function states(sfx) {
   await t('empty', make({ empty: true }));
   await t('todo', make());
   if (want('hold')) { await load(make()); await holdShot('hold' + sfx); }
-  if (want('undo') && !sfx) { await load(make({ log: { t: 'done' } })); await tap('更多選項，可以撤銷今天', 1500); await tap('撤銷今天', 2000); await shot('undo'); await holdShot('undo-hold'); }
+  if (want('undo') && !sfx) { await load(make({ log: { t: 'done' } })); await tap('復原', 2000); await shot('undo'); await holdShot('undo-hold'); }
   await t('done', make({ log: { t: 'done' } }));
   await t('leave', make({ log: { t: 'leave', reason: '出遠門' } }));
   await t('letgo', make({ letgo: true }));
@@ -70,8 +70,7 @@ async function states(sfx) {
   await t('ask-grown', make({ log: { t: 'done' }, flat: true }));
   // 四問同一天只跳一次，所以只在淺色那輪走
   if (want('review') && !sfx) { await load(make({ log: { t: 'done' }, lastReview: -9 })); await shot('review'); await dump('review'); for (let i = 1; i <= 4; i++) { const f = (await nodes()).find(x => x.frame?.height > 36 && x.frame?.height < 46 && x.frame?.width > 300 && x.frame?.y > 500 && x.AXLabel)?.frame; if (!f) { log('no scale', i); break; } await c.tap(f.x + f.width * 4.5 / 7, f.y + f.height / 2); await sleep(1100); if (i === 1) await shot('review-q2' + sfx); } await shot('review-after' + sfx); await dump('review-after' + sfx); }
-  if (want('field')) { await load(make({ log: { t: 'done' } })); await tap('田', 1500); await shot('field-month' + sfx); await dump('field-month' + sfx); await tap('分析', 1200); await shot('field-charts' + sfx); await tap('竹籃與排隊', 1500); await shot('field-basket' + sfx); await load(make({ empty: true })); await tap('田', 1500); await shot('field-empty' + sfx); await tap('分析', 1200); await shot('field-empty-charts' + sfx); }
-  if (want('more')) { await load(make({ log: { t: 'done' } })); if (await tap('更多選項，可以撤銷今天', 1500)) { await shot('more-done' + sfx); } await load(make({ skipLast: 1 })); if (await tap('昨天忘了記、今天請假', 1500)) await shot('more-todo' + sfx); }
+  if (want('field')) { await load(make({ log: { t: 'done' } })); await tap('田', 1500); await shot('field-month' + sfx); await dump('field-month' + sfx); await tap('分析', 1200); await shot('field-charts' + sfx); await tap('竹籃與排隊', 1500); await shot('field-basket' + sfx); await load(make({ log: { t: 'done' } })); await tap('田', 1500); await tap('分析', 1200); try { await c.scroll('down', 620); } catch {} await sleep(1000); await shot('field-charts2' + sfx); await load(make({ empty: true })); await tap('田', 1500); await shot('field-empty' + sfx); await tap('分析', 1200); await shot('field-empty-charts' + sfx); }
 }
 try {
   const asset = await lim.assets.getOrUpload({ path: process.argv[2], name: 'shuji-sim-' + Date.now() + '.zip', platform: 'ios', kind: 'App', ttl: '2h' });
@@ -100,6 +99,38 @@ try {
     await load(make()); await tap('設定', 1500); await drag(); await go(/^完整版/, 'paywall');
     await load(make()); await tap('設定', 1500); await drag(); await drag(); await go(/家族|其他.*app|蔬果|更多/i, 'family');
     await simctl(['ui', 'booted', 'appearance', 'dark']); await load(make()); await tap('設定', 1500); await shot('set1-dark'); await drag(); await shot('set2-dark'); await drag(); await shot('set3-dark');
+  }
+  // 2026-11-25：跳過、月曆可點、設定瘦身、AI 頁
+  if (want('lazy')) {
+    const cal = async (off, name) => { const d = new Date(TODAY.getTime() + off * 864e5); const re = new RegExp('^' + (d.getUTCMonth() + 1) + '月' + d.getUTCDate() + '日'); const f = (await nodes()).find(x => re.test(x.AXLabel || '') && x.frame.x >= 0 && x.frame.x < 402 && x.frame.y > 200); if (!f) { log('cal not found', name); return; } log('cal', f.AXLabel); await c.tap(f.frame.x + f.frame.width / 2, f.frame.y + f.frame.height / 2); await sleep(1500); await shot(name); await dump(name); };
+    await load(make()); await shot('z-today'); await tap('跳過', 1500); await shot('z-skip'); await dump('z-skip');
+    if (await tap('旅行', 1800)) { await shot('z-skipped'); await dump('z-skipped'); }
+    await load(make({ skipLast: 1 })); await tap('田', 1500); await shot('z-month'); await cal(-1, 'z-day-yesterday');
+    await load(make()); await tap('田', 1500); await cal(-6, 'z-day-past');
+    await load(make()); await tap('設定', 1500); await shot('z-set'); await dump('z-set'); await tap('跳過的理由, 4 個', 1500); await shot('z-reasons'); await dump('z-reasons');
+    await load(make()); await tap('設定', 1500); await tap('AI', 1500); await shot('z-ai'); await dump('z-ai');
+    await load(make()); await tap('設定', 1500); await tap('我的習慣', 1500); await shot('z-habit');
+    await simctl(['ui', 'booted', 'appearance', 'dark']); await load(make()); await tap('跳過', 1500); await shot('z-skip-dark'); if (await tap('旅行', 1800)) await shot('z-skipped-dark'); await load(make()); await tap('設定', 1500); await tap('AI', 1500); await shot('z-ai-dark');
+  }
+  // 2026-11-25：跟地瓜對答。-talkDemo N 只有 DEBUG 建置認得：1 到 4 步，5 離題，6 等待，7 連兩次離題，8 連不到
+  if (want('talk')) {
+    const none = { logs: {}, weekly: [], queue: [], basket: [], settings: {} };
+    await simctl(['ui', 'booted', 'appearance', 'light']);
+    for (const sfx of ['', '-dark']) {
+      if (sfx) await simctl(['ui', 'booted', 'appearance', 'dark']);
+      for (let n = 1; n <= 8; n++) { await load(none, ['-talkDemo', String(n)]); await shot('talk' + n + sfx); if (!sfx) await dump('talk' + n); }
+    }
+    await simctl(['ui', 'booted', 'appearance', 'light']);
+    await load(none, ['-talkDemo', '2']); await tap('都不是，自己打', 2200); await shot('talk2-key'); await dump('talk2-key');
+    await load(none, ['-talkDemo', '3']); await tap('都不是，自己打', 2200); await shot('talk3-key');
+    await load(none); await c.tap(150, 666); await sleep(2200); await shot('talk1-key');
+    await load(none); await shot('talk-first'); await dump('talk-first');
+    await tap('自己填', 1500); await shot('talk-manual'); await dump('talk-manual');
+    await load(none); await tap('更多', 1200); await shot('talk-more');
+    await load(none); await tap('連電腦的 Claude', 1800); await shot('talk-connect');
+    await load({ ...none, queue: ['坐上蒲團按計時器'] }); await shot('talk-queue');
+    await load(make()); await tap('設定', 1500); await shot('talk-set'); await tap('重新規劃習慣', 1500); await shot('talk-replan'); await dump('talk-replan');
+    if (await tap('重新規劃', 1800)) { await shot('talk-replan-open'); await dump('talk-replan-open'); await tap('自己填', 1500); await shot('talk-replan-manual'); }
   }
   log('DONE');
 } catch (e) { log('ERROR', e.stack || e); process.exitCode = 1; }

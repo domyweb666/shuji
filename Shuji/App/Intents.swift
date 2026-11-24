@@ -6,7 +6,7 @@ import Foundation
 /// 不開 app、不跳畫面，只回一句話。
 struct LogNodeIntent: AppIntent {
     static let title: LocalizedStringResource = "記一節"
-    static let description = IntentDescription("做完最小一步之後記一節。今天記過、請假、放手測試中都不會重複記。")
+    static let description = IntentDescription("做完最小一步之後記一節。今天記過、跳過、放手測試中都不會重複記。")
     static let openAppWhenRun = false
 
     @MainActor

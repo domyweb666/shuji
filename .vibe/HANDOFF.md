@@ -1,37 +1,40 @@
-# Handoff: 今天頁烤好剝開、田改報表、四問自動跳（已併 main，TestFlight 已上傳）
+# Handoff: AI 對答、重新規劃、週報都做進 app 了，等多米看圖、真機試
 
-> 產出時間：2026-11-24
-> repo：`E:\習慣地瓜\shuji`（外層 `E:\習慣地瓜` 不是 git repo）
-> 分支：`main`（bf7e76f 併進 done-shape，CI 全綠）；TestFlight run 45417876090 上傳成功
+> 2026-11-25 凌晨。repo `E:\習慣地瓜\shuji`，分支 `lazy-1125`（沒併 main、沒出 TestFlight）。上一份見 `.vibe/handoff/archive/2026-11-25-lazy-round2.md`
 
-## ✅ 這次完成了什麼
+## ✅ 現況
+- 程式：第一輪懶人化、跳過 A、田 B、設定 A、地瓜對答（Onboarding 與「重新規劃習慣」）、週報 B、任務 8／9、離題防線、`estimatedDays`。
+- CI：程式最後一版 8b876c8，run 45467034042 三個工作全綠。
+- 圖：`E:\習慣地瓜\懶人化-1125\`（對答、對答-深色、週報、其他、其他-2）。淺深色都看過。
+- 電腦轉接：`npm run bridge` 真 CLI 打過任務 8 三步、離題一次、任務 9 一次，都 200，2.5 到 7 秒，欄位跟 app 的 Decodable 對得上。
 
-- 今天頁記好後只剩開關句；多米選 C：地瓜烤好剝開（`HoldButton.swift` 的 `done`、`BakedFlesh`、`Steam`；`VineView` 的 `baked`／`linkP` 把根移到左端）。按住、完成、撤銷、再按，淺深色都在模擬器看過。
-- 田改成「月曆｜分析」（`FieldView.swift`，數字在 `Core/FieldReport.swift`）；竹籃＋排隊收在右上角。
-- 開始四問、壓力週、放手、挖地瓜改成打開 app 自動問（`AppState.autoAsk`、`Store.nextAsk`、`RootView`、`AskSheet`）。四問四題走完在模擬器看過。
-- 選項畫布：https://claude.ai/artifact/YGYgSPzPEMFESfPjbvrJYD ；截圖在 `E:\習慣地瓜\完成形狀`。
+## 🔧 這一輪改的
+- 田分析「這週做得多嗎」：還沒到回顧日只寫「這週到現在 {n} 天」（沒記：這週還沒記），回顧日當天才跟平常比。
+- 對答：「換一批」會折成兩行，鎖一行；按「自己打」就收起選項（原本鍵盤會蓋住輸入框），上一步回到選項；連不到電腦的卡分成一句大字加一句小字；自己填的進度條也改綠色。
+- 「重新規劃習慣」的確認改成系統提示框（原本的小框浮在畫面中間、字折得難看）。
+- 週報：改完留在同一張卡，標題變「改好了」，只剩一顆「好」；藤和葉貼住土面。AI 那句沒句號就補；`backup` 只給一個瞬間時，補成「吃完早午餐就坐上蒲團」再存。
+- 田分析資料不夠的那張：加地瓜，進度條從 0 也看得到一點。
+- `tools/limrun/states.mjs`：拍對答前先切回淺色、補「跳過的理由」、分析捲到底、鍵盤升起（talk1-key 到 talk3-key）的圖。
 
-## 🚧 還沒做完 / 待決定
+## 📌 多米定的（別再問）
+1. 跳過 A、田 B、設定 A、週報 B。
+2. AI 貫穿流程、直接講答案；第 1 題只給輸入框，第 2、3 步給選項；預估天數由程式給（60／66／90，依據 `ai/預估天數依據.md`），不給使用者挑。
+3. 對話有綠色進度條、地瓜、大字、一頁一題。
+4. 「程式寫週報、不用模型」已推翻（`.analytics/00`）。數字、門檻、規律仍由程式算。
+5. 畫布「先試幾天」選單、page `ai` 兩個入口作廢。
 
-- 等多米真機回饋（裂開那一下、四問自動跳、田報表）。
-- 沒在模擬器走過：挖地瓜那張、放手那張（只有單元測試）；比 402×874 小的手機、放大字級。裂開那一下順不順要真機看。
-- 田 A 已做；多米若選 B 再改。「這週的田」兩行字還在，設定可關。
-- `tools/limrun/test.mjs` 還是舊流程，要改寫；看畫面用 `states.mjs`。AnalyticsCopy 的 D-1 到 D-9 大多沒人用，還沒清。
-- AI 四個新用途（講一句話請假補記、請假原因歸類、下一個該種哪個、挖出來的回顧）等多米選。
-- 舊待辦：Anthropic 金鑰（多米自己跑 `npx wrangler secret put ANTHROPIC_API_KEY`）、ShujiAIBaseURL、內購商品、Apple ID、隱私權政策網址、iCloud 同步、鎖定畫面一按就記、真機手感。
+## 🚧 等多米
+- 看 `懶人化-1125` 的圖，說哪裡要改。
+- 要不要併 main、出 TestFlight。
 
-## 📌 關鍵決策
+## ⚠️ 沒驗
+- 真機：掃 QR、區網授權、防火牆、手感、旁白、字級放大。
+- 模擬器裡沒有接真的 AI：對答和週報的圖是 DEBUG 假資料（`-talkDemo`、`-weekDemo`）。真的那段只驗到 bridge 回傳。
+- 對答打中文（注音選字列較高）沒拍，鍵盤只拍了英文的。任務 1、3、4、6 沒用真 CLI 跑。
+- 週報、其他兩組圖是 cac499e 拍的（之後只改對答頁）；對答兩張是 8b876c8。
+- 週回顧日在 Limrun 是 UTC 日期，跟台灣差一天內，沒影響。
 
-- 四問沿用週回顧日：過了那天第一次打開就問，「晚點再說」隔天再問；長好了嗎的三張跳過隔 14 天。
-- 月曆推翻舊的「田不做月曆」；完成率、連續天數照舊不做。
-- 按住與記好用同一個 view，變形才沒有殘影。
-
-## ⏭️ 下一步從哪繼續
-
-1. 真機回饋 → 從 main 開新分支照改，出版 `gh workflow run testflight.yml --ref main`（排不到 Mac 機器就 `gh run rerun`）。
-
-## 🧩 剩下的工作（工作包）
-
-- [x] 完成的樣子變形
-- [x] 併 main 出 TestFlight
-- [ ] AI 打開與新用途（等多米選與金鑰）
+## ⏭️ 下一步
+1. 照多米的回饋改圖。
+2. 他說好就併 main、出 TestFlight，真機跑一次「掃 QR → 對答 → 種下去 → 四問 → 週報」。
+3. Limrun 拍圖：`node tools/limrun/states.mjs <zip> <輸出> talk,lazy,field,done,leave,long40`、`node tools/limrun/week.mjs <zip> <輸出>`。macOS runner 常排不到，看到 job was not acquired 就 `gh run rerun <id> --failed`。

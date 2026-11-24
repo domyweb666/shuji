@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 土裡那顆地瓜的尺寸與外觀。按鈕和記好、請假、放手的樣子共用，換狀態位置不跳。
+/// 土裡那顆地瓜的尺寸與外觀。按鈕和記好、跳過、放手的樣子共用，換狀態位置不跳。
 struct PotatoBody<Label: View>: View {
     var fill: Color
     /// 外圈跑到哪（0 到 1）
@@ -88,7 +88,31 @@ private struct PotatoMarks: Shape {
     }
 }
 
-/// 請假、放手：安靜的淡色
+/// 跳過：深色的地瓜，理由寫在上面
+struct PotatoSkip: View {
+    var reason: String
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        PotatoBody(fill: Theme.potatoSkip, ring: 0, ringColor: Theme.potatoRing(scheme)) {
+            VStack(spacing: Sp.s1) {
+                Text("跳過").domyType(Ty.title1)
+                if !reason.isEmpty {
+                    Text(reason)
+                        .domyType(Ty.callout)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
+            }
+            .foregroundStyle(Color.white)
+            .frame(maxWidth: PotatoBody<EmptyView>.bodySize.width * 0.8)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(reason.isEmpty ? "今天跳過" : "今天跳過，\(reason)")
+    }
+}
+
+/// 放手：安靜的淡色
 struct PotatoSeal: View {
     var icon: String
     var title: String

@@ -109,7 +109,7 @@ struct ShujiWidgetView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         default:
             VStack(alignment: .leading, spacing: DomyTokens.Space.s2) {
-                Text("開關")
+                Text("我的習慣")
                     .font(Ty.caption.font)
                     .foregroundStyle(brand.strong)
                 if let s = snap, status != .empty {
@@ -150,7 +150,7 @@ struct ShujiWidget: Widget {
                 }
         }
         .configurationDisplayName("薯記")
-        .description("開關句，和今天記了沒。記一節還是要進 app 按住。")
+        .description("我的習慣，和今天記了沒。記一節還是要進 app 按住。")
         .supportedFamilies([.systemSmall, .systemMedium, .accessoryRectangular, .accessoryInline])
     }
 }

@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 田：數據報表（2026-11-24 多米定，照豆帳的「行事曆｜分析」）。一張卡一張圖，不放說明。
+/// 田：月曆｜分析。分析是四張問句卡（2026-11-25 多米選田 B）：問題、答案、一張圖，資料不夠就不出那張。
 /// 開始四問、長好了嗎不在這裡：時間到了打開 app 自動問（AutoAsk）。竹籃和排隊收在右上角。
 struct FieldView: View {
     enum Side: String, CaseIterable { case month = "月曆", charts = "分析" }
@@ -11,6 +11,14 @@ struct FieldView: View {
     @State private var back = 0
     @State private var showAudit = false
     @State private var showPaywall = false
+    @State private var picked: DayPick? = nil
+
+    /// 月曆點的那一天
+    struct DayPick: Identifiable {
+        let day: DayKey
+        var id: String { day.string }
+    }
+
     private let purchases = Purchases.shared
 
     private var t: DayKey { store.today }
@@ -36,6 +44,7 @@ struct FieldView: View {
             case .charts: chartSide
             }
         }
+        .sheet(item: $picked) { pick in DaySheet(day: pick.day) }
         .sheet(isPresented: $showAudit) { AuditSheet() }
         .sheet(isPresented: $showPaywall) { PaywallSheet() }
     }
@@ -75,14 +84,14 @@ struct FieldView: View {
                         Spacer(minLength: 0)
                         monthArrow("chevron.right", "下個月", enabled: back > 0) { back -= 1 }
                     }
-                    MonthGrid(month: m, today: t)
+                    MonthGrid(month: m, today: t, planted: store.state.habit?.planted ?? t) { d in picked = DayPick(day: d) }
                 }
                 .padding(Sp.s4)
             }
             HStack(spacing: Sp.s3) {
                 number(m.done, "記了幾天")
                 number(m.back, "回來幾次")
-                number(m.leave, "請假幾天")
+                number(m.leave, "跳過幾天")
             }
         }
     }
@@ -124,10 +133,29 @@ struct FieldView: View {
 
     @ViewBuilder
     private var chartSide: some View {
-        chartCard("每週記了幾天") { WeekBarsView(rows: store.state.weekBars(today: t)) }
-        chartCard("星期幾記得最多") { WeekdayBarsView(counts: store.state.weekdayTally(today: t)) }
-        if !store.state.weekly.isEmpty {
-            chartCard("開始有多自動") { ChartView(weekly: Array(store.state.weekly.suffix(8))) }
+        let cards = store.state.fieldCards(today: t)
+        if let few = cards.few { fewCard(few) }
+        if let w = cards.week {
+            questionCard(Copy.t(.f1q), w.answer) { WeekBarsView(card: w) }
+        }
+        if let g = cards.gap {
+            questionCard(Copy.t(.f2q), g.answer) {
+                VStack(spacing: Sp.s3) {
+                    RatioBar(name: Copy.groupName("weekday"), count: g.weekday)
+                    RatioBar(name: Copy.groupName("weekend"), count: g.weekend)
+                }
+            }
+        }
+        if let e = cards.ease {
+            questionCard(Copy.t(.f3q), e.answer) { ChartView(weekly: e.weekly) }
+        }
+        if let s = cards.skips {
+            questionCard(Copy.t(.f4q), s.answer) {
+                Text(s.list)
+                    .domyType(Ty.body)
+                    .foregroundStyle(Theme.fg)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         if AIClient.shared.isAvailable && store.state.auditReady(today: t) {
             DomySection {
@@ -138,25 +166,57 @@ struct FieldView: View {
         }
     }
 
-    private func chartCard<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+    /// 第一行問題，第二行答案，下面一張圖或原始天數
+    private func questionCard<Content: View>(_ question: String, _ answer: String, @ViewBuilder content: () -> Content) -> some View {
         Card {
             VStack(alignment: .leading, spacing: Sp.s4) {
-                Text(title)
-                    .domyType(Ty.headline)
-                    .foregroundStyle(Theme.fg)
-                    .accessibilityAddTraits(.isHeader)
+                VStack(alignment: .leading, spacing: Sp.s1) {
+                    Text(question)
+                        .domyType(Ty.subheadline)
+                        .foregroundStyle(Theme.fg2)
+                    Text(answer)
+                        .domyType(Ty.title2)
+                        .foregroundStyle(Theme.fg)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(.isHeader)
                 content()
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(Sp.s5)
         }
     }
+
+    private func fewCard(_ few: FewCard) -> some View {
+        Card {
+            VStack(spacing: Sp.s5) {
+                TalkPotato(width: FieldView.fewPotato)
+                Text(few.title)
+                    .domyType(Ty.title3)
+                    .foregroundStyle(Theme.fg)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let p = few.progress {
+                    FillBar(value: max(p, 0.03), color: Theme.leafDynamic, height: Sp.s2)
+                        .accessibilityHidden(true)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, Sp.s5)
+            .padding(.vertical, Sp.s8)
+        }
+    }
+
+    private static let fewPotato: CGFloat = 120 // domy-ignore: 插畫尺寸
 }
 
-/// 月曆：葉子是記了，帶花是回來，空圈是請假，漏掉的留白
+/// 月曆：葉子是記了，帶花是回來，空圈是跳過，漏掉的留白
 struct MonthGrid: View {
     var month: MonthReport
     var today: DayKey
+    var planted: DayKey
+    var pick: (DayKey) -> Void
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 7)
 
     var body: some View {
@@ -174,7 +234,21 @@ struct MonthGrid: View {
         }
     }
 
+    /// 種下那天到今天可以點
+    @ViewBuilder
     private func cell(_ d: MonthDay) -> some View {
+        if d.day >= planted && d.day <= today {
+            Button { pick(d.day) } label: { face(d) }
+                .buttonStyle(DomyPressStyle())
+                .accessibilityLabel("\(d.day.long)\(word(d.kind))")
+        } else {
+            face(d)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(d.day.long)\(word(d.kind))")
+        }
+    }
+
+    private func face(_ d: MonthDay) -> some View {
         let isToday = d.day == today
         return VStack(spacing: Sp.s1 / 2) {
             Text("\(d.day.day)")
@@ -187,8 +261,7 @@ struct MonthGrid: View {
         .frame(maxWidth: .infinity, minHeight: Sz.touch)
         .padding(.vertical, Sp.s1)
         .background(isToday ? Theme.soft : Color.clear, in: RoundedRectangle(cornerRadius: Rd.md, style: .continuous))
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(d.day.long)\(word(d.kind))")
+        .contentShape(Rectangle())
     }
 
     private func word(_ k: MonthDay.Kind) -> String {
@@ -196,7 +269,7 @@ struct MonthGrid: View {
         case .none: return ""
         case .done: return "，記了"
         case .back: return "，回來"
-        case .leave: return "，請假"
+        case .leave: return "，跳過"
         }
     }
 }
@@ -241,68 +314,90 @@ private struct LeafMark: View {
     }
 }
 
-/// 每週一條直條，滿格是 7 天；這週用主色，其他用淡色
+/// 每週一條直條，滿格是 7 天，後面淡色帶是平常的範圍；這週用主色，其他用淡色
 struct WeekBarsView: View {
-    var rows: [WeekBarData]
-    private static let full: CGFloat = 112 // domy-ignore: 圖表高度
+    var card: WeekCard
+    private static let full: CGFloat = 120 // domy-ignore: 圖表高度
+
+    private func tall(_ days: Int) -> CGFloat { WeekBarsView.full * CGFloat(min(7, max(0, days))) / 7 }
 
     var body: some View {
-        HStack(alignment: .bottom, spacing: Sp.s2) {
-            ForEach(rows, id: \.start) { r in
-                VStack(spacing: Sp.s1) {
-                    Text(r.letgo ? "–" : "\(r.done)")
-                        .domyType(Ty.footnote)
-                        .monospacedDigit()
-                        .foregroundStyle(r.current ? Theme.strong : Theme.fg)
-                    RoundedRectangle(cornerRadius: Rd.sm, style: .continuous)
-                        .fill(r.current ? Theme.accent : Theme.accent.opacity(0.4))
-                        .frame(height: r.done == 0 ? Sz.hairline : WeekBarsView.full * CGFloat(min(7, r.done)) / 7)
-                    Text(r.current ? "這週" : r.start.short)
-                        .domyType(Ty.caption)
-                        .monospacedDigit()
-                        .foregroundStyle(Theme.fg2)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.6)
+        VStack(spacing: Sp.s2) {
+            ZStack(alignment: .bottom) {
+                RoundedRectangle(cornerRadius: Rd.sm, style: .continuous)
+                    .fill(Theme.soft)
+                    .frame(height: max(Sp.s1, tall(card.hi) - tall(card.lo)))
+                    .padding(.bottom, tall(card.lo))
+                    .accessibilityHidden(true)
+                HStack(alignment: .bottom, spacing: Sp.s2) {
+                    ForEach(card.rows, id: \.start) { r in bar(r) }
                 }
-                .frame(maxWidth: rows.count < 4 ? Sp.s12 : .infinity)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("\(r.current ? "這週" : r.start.short + "那週")，\(r.letgo ? "放手測試" : "\(r.done) 天")")
             }
+            .frame(height: WeekBarsView.full, alignment: .bottom)
+            HStack {
+                Text(card.from)
+                Spacer(minLength: 0)
+                Text(Copy.t(.f1now))
+            }
+            .domyType(Ty.footnote)
+            .foregroundStyle(Theme.fg2)
+            .accessibilityHidden(true)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func bar(_ r: WeekBarData) -> some View {
+        let week = r.current ? "這週" : r.start.short + "那週"
+        let days = r.letgo ? "放手測試" : "\(r.done) 天"
+        return RoundedRectangle(cornerRadius: Rd.sm, style: .continuous)
+            .fill(r.current ? Theme.accent : Theme.accent.opacity(0.4))
+            .frame(maxWidth: .infinity)
+            .frame(height: r.done == 0 ? Sz.hairline : tall(r.done))
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(week)，\(days)")
     }
 }
 
-/// 星期一到星期日各一條橫條，最多的那幾條用主色
-struct WeekdayBarsView: View {
-    var counts: [Int]
+/// 淡底一條，左邊填色
+struct FillBar: View {
+    /// 0 到 1
+    var value: Double
+    var color: Color
+    var height: CGFloat
 
     var body: some View {
-        let top = max(1, counts.max() ?? 1)
-        VStack(spacing: Sp.s3) {
-            ForEach([1, 2, 3, 4, 5, 6, 0], id: \.self) { i in
-                let n = counts.indices.contains(i) ? counts[i] : 0
-                HStack(spacing: Sp.s3) {
-                    Text(DayKey.weekNames[i])
-                        .domyType(Ty.subheadline)
-                        .foregroundStyle(Theme.fg)
-                        .frame(width: Sp.s5, alignment: .leading)
-                    GeometryReader { geo in
-                        Capsule()
-                            .fill(n == top ? Theme.accent : Theme.accent.opacity(0.4))
-                            .frame(width: n == 0 ? 0 : max(geo.size.height, geo.size.width * CGFloat(n) / CGFloat(top)))
-                    }
-                    .frame(height: Sp.s3)
-                    Text("\(n) 天")
-                        .domyType(Ty.footnote)
-                        .monospacedDigit()
-                        .foregroundStyle(Theme.fg2)
-                        .frame(minWidth: Sp.s12 - Sp.s2, alignment: .trailing)
+        Capsule()
+            .fill(Theme.soft)
+            .frame(height: height)
+            .overlay(alignment: .leading) {
+                GeometryReader { geo in
+                    Capsule()
+                        .fill(color)
+                        .frame(width: geo.size.width * CGFloat(min(1, max(0, value))))
                 }
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("星期\(DayKey.weekNames[i])，\(n) 天")
             }
+    }
+}
+
+/// 平日、週末各一條，底一樣長
+struct RatioBar: View {
+    var name: String
+    var count: GroupCount
+
+    private var words: String { Copy.t(.f2count, ["a": count.days, "b": count.done]) }
+
+    var body: some View {
+        VStack(spacing: Sp.s1) {
+            HStack {
+                Text(name)
+                Spacer(minLength: Sp.s2)
+                Text(words).monospacedDigit()
+            }
+            .domyType(Ty.subheadline)
+            .foregroundStyle(Theme.fg)
+            FillBar(value: count.rate, color: Theme.accent, height: Sp.s3)
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(name)，\(words)")
     }
 }
 
@@ -429,43 +524,56 @@ struct BasketView: View {
 
 }
 
-/// 開始四問的折線：y 是量表全幅 1 到 7，x 照日期（不是第幾次）；隔超過 10 天的兩點不連線（中間空了）
+/// 開始四問的折線：y 是量表全幅 1 到 7（不寫數字），x 照日期（不是第幾次）；隔超過 10 天的兩點不連線（中間空了）
 struct ChartView: View {
     var weekly: [WeeklyReview]
 
     var body: some View {
+        VStack(alignment: .leading, spacing: Sp.s1) {
+            axis(Copy.t(.f3top))
+            line
+            axis(Copy.t(.f3bottom))
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("開始四問最近 \(weekly.count) 次，從 \(weekly.first?.date.short ?? "") 到 \(weekly.last?.date.short ?? "")")
+    }
+
+    private func axis(_ text: String) -> some View {
+        Text(text)
+            .domyType(Ty.footnote)
+            .foregroundStyle(Theme.fg2)
+    }
+
+    private var line: some View {
         Canvas { ctx, size in
             let w = weekly
             guard !w.isEmpty else { return }
             let wd = Double(size.width)
-            let hd = Double(size.height)
-            let l = Double(Sp.s6), r = Double(Sp.s3), top = Double(Sp.s3), bottom = Double(Sp.s6)
-            let gap = Double(Sp.s2)
-            let iw = wd - l - r
-            let ih = hd - top - bottom
+            // 兩頭留出最後一點的半徑
+            let pad = Double(Sp.s2)
+            let iw = wd - pad * 2
+            let ih = Double(size.height) - pad * 2
             let first = w[0].date.dayNumber
             let span = Double(max(1, w[w.count - 1].date.dayNumber - first))
             func X(_ i: Int) -> Double {
-                w.count == 1 ? l + iw / 2 : l + Double(w[i].date.dayNumber - first) / span * iw
+                w.count == 1 ? wd / 2 : pad + Double(w[i].date.dayNumber - first) / span * iw
             }
-            func Y(_ v: Double) -> Double { top + ih - (v - 1) / 6 * ih }
+            func Y(_ v: Double) -> Double { pad + ih - (v - 1) / 6 * ih }
 
-            for v in [1.0, 4.0, 7.0] {
+            for v in [1.0, 7.0] {
                 var grid = Path()
-                grid.move(to: CGPoint(x: l, y: Y(v)))
-                grid.addLine(to: CGPoint(x: wd - r, y: Y(v)))
+                grid.move(to: CGPoint(x: 0, y: Y(v)))
+                grid.addLine(to: CGPoint(x: wd, y: Y(v)))
                 ctx.stroke(grid, with: .color(Theme.separator), lineWidth: Sz.hairline)
-                ctx.draw(Text("\(Int(v))").font(Ty.caption.font).foregroundStyle(Theme.fg2),
-                         at: CGPoint(x: l - gap, y: Y(v)), anchor: .trailing)
             }
 
             let pts = w.enumerated().map { CGPoint(x: X($0.offset), y: Y($0.element.avg)) }
-            var line = Path()
+            var path = Path()
             for (i, p) in pts.enumerated() {
                 let broken = i > 0 && w[i].date.dayNumber - w[i - 1].date.dayNumber > 10
-                if i == 0 || broken { line.move(to: p) } else { line.addLine(to: p) }
+                if i == 0 || broken { path.move(to: p) } else { path.addLine(to: p) }
             }
-            ctx.stroke(line, with: .color(Theme.accent),
+            ctx.stroke(path, with: .color(Theme.accent),
                        style: StrokeStyle(lineWidth: Sz.heroRingWidth, lineCap: .round, lineJoin: .round))
             for (i, p) in pts.enumerated() {
                 let last = i == pts.count - 1
@@ -478,14 +586,7 @@ struct ChartView: View {
                     ctx.fill(dot, with: .color(Theme.accent))
                 }
             }
-            ctx.draw(Text(w[0].date.short).font(Ty.caption.font).foregroundStyle(Theme.fg2),
-                     at: CGPoint(x: X(0), y: hd - 2), anchor: .bottom)
-            if w.count > 1 {
-                ctx.draw(Text(w[w.count - 1].date.short).font(Ty.caption.font).foregroundStyle(Theme.fg2),
-                         at: CGPoint(x: X(w.count - 1), y: hd - 2), anchor: .bottom)
-            }
         }
-        .frame(height: 160) // domy-ignore: 圖表高度
-        .accessibilityLabel("開始四問最近 \(weekly.count) 次，從 \(weekly.first?.date.short ?? "") 到 \(weekly.last?.date.short ?? "")")
+        .frame(height: 110) // domy-ignore: 圖表高度
     }
 }

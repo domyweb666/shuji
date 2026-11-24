@@ -1,5 +1,5 @@
 import { BANNED_LINES, REFERRAL, REFERRAL_EATING } from './generated/packs';
-import type { TaskId, TaskOutput } from './tasks';
+import type { TaskId, TaskInput, TaskOutput } from './tasks';
 
 // 模型輸出的第二道關：結構化輸出保證 JSON 合法、欄位都在；這裡管內容。
 // 檢查不過 → 伺服器重問一次 → 再不過就回 bad_output，app 回手動流程。
@@ -50,7 +50,75 @@ export const DIAGNOSE_NOTHING = '設計看起來沒問題，可能只是那陣�
 export const GUIDE_WEEKS: Record<'easy' | 'medium' | 'hard', [number, number]> = { easy: [4, 8], medium: [8, 12], hard: [10, 20] };
 const QUANTITY = /[0-9０-９]+\s*(分鐘|次|字|頁|下|公里|小時)/;
 
-export const AUDIT_WARNS = ['開關和環境留著，只拆記錄', '加量和加新習慣不要同一季', '有些結果要好幾季才看得到'];
+export const AUDIT_WARNS = ['時機和環境留著，只拆記錄', '加量和加新習慣不要同一季', '有些結果要好幾季才看得到'];
+
+// ---------- 任務 8、9：離題與注入的最後一道 ----------
+
+/** 使用者打得到字的任務，輸出裡不准出現的東西 */
+const UNSAFE: [RegExp, string][] = [
+  [/[\r\n\t]/, '換行'],
+  [/[<>{}`]/, '半形符號'],
+  [/https?:|www\.|[a-z0-9-]+\.(com|tw|org|net|io|dev|ai|me|cn)(?![a-z])/i, '網址'],
+  [/\b(import|def|print|console|function|const|return|select|lambda)\b|==|=>|\(\)|;|\\/i, '程式碼'],
+  [/系統提示|提示詞|提示內容|system\s*prompt|語言模型|人工智慧|claude|anthropic|chat\s*gpt|\bgpt|openai|gemini/i, '提到 AI 或系統提示'],
+  // 只擋講自己：「打開 AI 課程」這種習慣要放行
+  [/(我是|我只是|身為|作為|本)\s*(一個|一款|個)?\s*(AI|助理|機器人|顧問|模型)|AI\s*(助理|助手|模型)/i, '提到 AI 自己'],
+];
+
+export function unsafeHits(text: string): string[] {
+  return UNSAFE.filter(([re]) => re.test(text)).map(([, name]) => `${name}：${text.slice(0, 40)}`);
+}
+
+/** 天數、週數由程式填，AI 一律不講。「每天」「一天」放行 */
+const DURATION = /[0-9０-９二兩三四五六七八九十百幾]\s*多?\s*(天|週|周(?!末)|個?星期|個?禮拜|個月)|一\s*(週|周(?!末)|個?星期(?![一二三四五六日天])|個?禮拜|個月)/;
+/** 最小一步不帶量。QUANTITY 只管阿拉伯數字，這裡連中文數字的時間長度一起擋 */
+const TIME_SPAN = /[0-9０-９一二兩三四五六七八九十半幾]\s*(分鐘|小時|公里)/;
+/** 時機要是一個瞬間：不是時段、不是鐘點、不在手機裡 */
+const NOT_A_MOMENT = /有空|空檔|[0-9０-９]|[一二兩三四五六七八九十]點|鬧鐘|通知|提醒|^(早上|中午|下午|晚上|睡前)$/;
+
+/** 畫面上看到的字數（一個中文字、一個表情都算一個） */
+const len = (s: string) => [...s].length;
+/** 比對「是不是同一個選項」：不看空白和標點 */
+const same = (s: string) => s.replace(/[\s，。、,.！!？?「」]/g, '');
+/** 時機寫成已完成的瞬間：「刷完牙之後」「闔上筆電時」都收成「刷完牙」「闔上筆電」 */
+const tidyTrigger = (s: string) =>
+  s
+    .trim()
+    .replace(/^如果/, '')
+    .replace(/[，,。.]$/, '')
+    .replace(/，?我就$/, '')
+    .replace(/(?<=.{2})(的時候|的?那一刻|之後|以後|(?<!最)後|(?<!小)時)$/, '');
+const tidyFloor = (s: string) => s.trim().replace(/^我就/, '').replace(/[。.]$/, '');
+const tidyLine = (s: string) => s.trim().replace(/請假/g, '跳過');
+
+/** pattern=none 時不准講的：任何聽起來像規律的字 */
+const PATTERN_WORDS = /週末|周末|平日|六日|假日|上班日|總是|常常|每次|老是|通常|往往|容易|規律|多半|大多|比較|比[^比]{0,6}(少|多)|習慣性/;
+const CAUSE = /因為|所以|由於|導致|害你|害得|原因|太累|太忙/;
+
+function cnNumber(s: string): number {
+  const d: Record<string, number> = { 零: 0, 一: 1, 二: 2, 兩: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
+  if (/^[0-9]+$/.test(s)) return Number(s);
+  const m = s.match(/^([一二三四五六七八九])?十([一二三四五六七八九])?$/);
+  if (m) return (m[1] ? d[m[1]] : 1) * 10 + (m[2] ? d[m[2]] : 0);
+  return d[s] ?? -1;
+}
+
+/** 發現裡每一個「N 天」「N 次」都要是輸入裡有的數字；講「這週」就只能用這週的，漏、做、跳過各自對 */
+function wrongNumbers(finding: string, i: TaskInput<9>): string[] {
+  const w = i.week;
+  const known = [w.done, w.possible, w.missed.length, w.skipped.length];
+  if (!finding.includes('這週')) {
+    known.push(i.weekday.done, i.weekday.days, i.weekday.days - i.weekday.done, i.weekend.done, i.weekend.days, i.weekend.days - i.weekend.done, ...i.reasons.map((r) => r.count));
+  }
+  const bad: string[] = [];
+  for (const m of finding.matchAll(/(漏了?|做了?|跳過了?)?([0-9]+|[一二兩三四五六七八九十]+)s*(天|次)/g)) {
+    const n = cnNumber(m[2]);
+    const verb = finding.includes('這週') ? m[1]?.[0] : undefined;
+    const want = verb === '漏' ? w.missed.length : verb === '做' ? w.done : verb === '跳' ? w.skipped.length : null;
+    if (want === null ? !known.includes(n) : n !== want) bad.push(`數字對不上：${m[0]}`);
+  }
+  return bad;
+}
 
 export interface CheckResult<T> {
   ok: boolean;
@@ -75,23 +143,40 @@ export function bannedHits(text: string): string[] {
   return hits;
 }
 
+/** 給使用者看的字不講「開關」（WORDING_RULE 的第二道）。電燈開關、按下開關這種真的東西不換 */
+export function plainWording(s: string): string {
+  return s.replace(/開關句/g, '習慣').replace(/(?<![燈源扇器電按下打離])開關(?![燈門機])/g, '時機');
+}
+
+/** 整份輸出裡給人看的字串都換一遍 */
+function plainDeep(v: unknown): unknown {
+  if (typeof v === 'string') return plainWording(v);
+  if (Array.isArray(v)) return v.map(plainDeep);
+  if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, plainDeep(x)]));
+  return v;
+}
+
 const negated = (s: string) => NEGATION.test(s);
 
 /**
  * 整理並檢查一份輸出。會改的東西：
+ * - 給人看的字裡的「開關」換成「時機」
  * - 任務 1 的 example 用 floors[0]、triggers[0] 重組（保證跟候選一致）
  * - 任務 4 的 closing 換成固定句；layer 0 時換成固定建議
  * - 任務 6 的 warn 不在三句之內就清空
  * - 非 ok 的時候把候選陣列清空
  * - 任務 7 的選項去重、週數夾在合理範圍；ask 與 propose 各自用不到的欄位清空
- * input 只有任務 7 用：題數用完還在問就算不合規
+ * - 任務 8、9 只留那一種 type 用得到的欄位；off_topic、unfit 的字整個丟掉
+ * input 給任務 7（題數用完還在問）、8（步驟、換一批）、9（數字對不對）用
  */
 export function review<T extends TaskId>(task: T, raw: TaskOutput<T>, input?: unknown): CheckResult<TaskOutput<T>> {
   const problems: string[] = [];
-  const out = structuredClone(raw) as any;
+  const out = plainDeep(structuredClone(raw)) as any;
 
   if (out.type === 'unfit') {
     if (!out.category) problems.push('unfit 沒有 category');
+    if ((task as TaskId) === 8) Object.assign(out, { lead: '', options: [], difficulty: null, message: null });
+    if ((task as TaskId) === 9) Object.assign(out, { finding: '', change: null, message: null });
     return { ok: problems.length === 0, problems, value: out };
   }
 
@@ -178,6 +263,88 @@ export function review<T extends TaskId>(task: T, raw: TaskOutput<T>, input?: un
         out.question = '';
         out.options = [];
       }
+      break;
+    }
+    case 8: {
+      const i = input as TaskInput<8> | undefined;
+      out.category = null;
+      out.message = null;
+      if (out.type === 'off_topic') {
+        // 模型的字整個丟掉，畫面上那句由 app 寫死
+        out.lead = '';
+        out.options = [];
+        out.difficulty = null;
+        break;
+      }
+      const wanted = i?.step === 'estimate' ? 'estimate' : 'options';
+      if (i && out.type !== wanted) problems.push(`這一步要 ${wanted}，拿到 ${out.type}`);
+      out.lead = out.lead.trim();
+      if (!out.lead) problems.push('沒有 lead');
+      if (len(out.lead) > 24) problems.push(`lead 太長：${out.lead}`);
+      if (out.type === 'estimate') {
+        out.options = [];
+        if (!out.difficulty) problems.push('estimate 沒有 difficulty');
+      } else {
+        out.difficulty = null;
+        const tidy = i?.step === 'trigger' ? tidyTrigger : tidyFloor;
+        // 模型偶爾多給一個。第一個是最推薦的，留前三個
+        out.options = out.options.map(tidy).filter(Boolean).slice(0, 3);
+        const seen = new Set(out.options.map(same));
+        if (out.options.length !== 3) problems.push(`選項要 3 個，拿到 ${out.options.length} 個`);
+        else if (seen.size !== 3) problems.push('選項重複');
+        for (const x of i?.exclude ?? []) if (x && seen.has(same(x))) problems.push(`選項是換掉的那個：${x}`);
+        for (const o of out.options as string[]) {
+          if (len(o) > 16) problems.push(`選項太長：${o}`);
+          if (i?.step === 'trigger') {
+            if (NOT_A_MOMENT.test(o)) problems.push(`時機不是一個瞬間：${o}`);
+          } else {
+            if (negated(o)) problems.push(`最小一步有否定詞：${o}`);
+            if (QUANTITY.test(o) || TIME_SPAN.test(o)) problems.push(`最小一步帶了量：${o}`);
+          }
+        }
+      }
+      for (const s of [out.lead, ...out.options]) {
+        if (DURATION.test(s)) problems.push(`講了天數：${s}`);
+        problems.push(...unsafeHits(s));
+      }
+      break;
+    }
+    case 9: {
+      const i = input as TaskInput<9> | undefined;
+      out.category = null;
+      out.message = null;
+      out.finding = tidyLine(out.finding);
+      if (!out.finding) problems.push('沒有 finding');
+      if (len(out.finding) > 16) problems.push(`finding 太長：${out.finding}`);
+      if (CAUSE.test(out.finding)) problems.push(`finding 講了原因：${out.finding}`);
+      if (/[%％]|完成率|比上週|上週/.test(out.finding)) problems.push(`finding 有統計句：${out.finding}`);
+      // 這週沒漏就沒有東西好改，不管模型給什麼
+      if (i && i.week.missed.length === 0) out.change = null;
+      const c = out.change as { field: string; label: string; text: string } | null;
+      if (c) {
+        c.label = tidyLine(c.label);
+        c.text = c.field === 'floor' ? tidyFloor(tidyLine(c.text)) : tidyTrigger(tidyLine(c.text));
+        if (!c.label || len(c.label) > 10) problems.push(`label 長度不對：${c.label}`);
+        if (!c.text || len(c.text) > 16) problems.push(`text 長度不對：${c.text}`);
+        if (negated(c.text)) problems.push(`改法有否定詞：${c.text}`);
+        if (QUANTITY.test(c.text) || TIME_SPAN.test(c.text)) problems.push(`改法帶了量：${c.text}`);
+        if (c.field !== 'floor' && NOT_A_MOMENT.test(c.text)) problems.push(`改的時機不是一個瞬間：${c.text}`);
+        if (i && [i.floor, i.trigger].some((x) => same(x) === same(c.text))) problems.push('改法跟現在的一樣');
+      }
+      if (i) {
+        problems.push(...wrongNumbers(out.finding, i));
+        if (i.week.done < i.week.possible && /這週(每天|全|都)|七天都/.test(out.finding)) problems.push(`finding 說全做到：${out.finding}`);
+        for (const s of [...i.reasons.map((r) => r.reason), ...i.week.skipped.map((r) => r.reason)]) {
+          if (len(s) >= 2 && out.finding.includes(s)) problems.push('finding 講了跳過的理由');
+        }
+        if (i.pattern === 'none') {
+          for (const s of [out.finding, c?.label ?? '']) {
+            const days = s.match(/(星期|週|周|禮拜)[一二三四五六日天]/g) ?? [];
+            if (PATTERN_WORDS.test(s) || days.length > 1) problems.push(`沒有規律卻講規律：${s}`);
+          }
+        }
+      }
+      for (const s of [out.finding, c?.label ?? '', c?.text ?? '']) problems.push(...unsafeHits(s));
       break;
     }
   }

@@ -100,6 +100,9 @@ enum Theme {
     static let bakedCore = hex(0xFFD27A)
     static let bakedLine = hex(0xC97A1E)
 
+    /// 跳過那天的地瓜（插畫，淺深同色，上面的字是白的）
+    static let potatoSkip = hex(0x74485D).opacity(0.85)
+
     /// 地瓜外圈：土裡的根色，不透明
     static func potatoRing(_ scheme: ColorScheme) -> Color {
         scheme == .dark ? Color(red: 1, green: 226 / 255, blue: 196 / 255) : Color(red: 1, green: 236 / 255, blue: 214 / 255)

@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 import VeggieKit
 
-/// 設定。順序照多米 iOS 開發準則 3-3：app 專屬 → 一般 → 資料 → 購買 → 支援 → 關於 → 頁尾。
+/// 設定（2026-11-25 多米選 A）：四張卡都不放標題，app 專屬 → 一般 → 資料與購買 → 支援與關於 → 頁尾。
 /// 列一律是「圖示＋名稱＋右邊的狀態或箭頭」（VeggieKit），不放常駐說明（3-4）。
 /// 開關句要打字的欄位收進 SentenceView。
 struct SettingsView: View {
@@ -10,6 +10,8 @@ struct SettingsView: View {
     @Environment(\.openURL) private var openURL
     @State private var sheet: SettingsSheet? = nil
     @State private var confirmWipe = false
+    @State private var confirmReplan = false
+    @State private var replanning = false
     @State private var restoring = false
     @AppStorage(Appearance.storageKey) private var appearanceCode = Appearance.system.rawValue
     @AppStorage(VeggieHaptics.storageKey) private var hapticsOn = true
@@ -28,12 +30,9 @@ struct SettingsView: View {
     var body: some View {
         DomyScreen(title: "設定") {
             habitSection
-            rhythmSection
             generalSection
             dataSection
-            purchaseSection
             supportSection
-            aboutSection
             #if DEBUG
             debugSection
             #endif
@@ -50,6 +49,13 @@ struct SettingsView: View {
                     .ignoresSafeArea()
             }
         }
+        .alert("重新規劃習慣？", isPresented: $confirmReplan) {
+            Button("取消", role: .cancel) {}
+            Button("重新規劃") { replanning = true }
+        } message: {
+            Text("現在這個會收起來，紀錄留著。")
+        }
+        .fullScreenCover(isPresented: $replanning) { ReplanView() }
         .confirmationDialog("全部清除？", isPresented: $confirmWipe, titleVisibility: .visible) {
             Button("清除全部，不可復原", role: .destructive) {
                 Haptic.remove()
@@ -93,46 +99,35 @@ struct SettingsView: View {
     // MARK: 這個習慣
 
     private var habitSection: some View {
-        DomySection(title: "這個習慣") {
-            pushRow("text.quote", "開關句") { store.route = [.sentence] }
+        DomySection {
+            pushRow("text.quote", "我的習慣") { store.route = [.sentence] }
                 .disabled(habit == nil)
             RowSep()
-            toggleRow("suitcase", "旅行中", isOn: Binding(get: { store.state.travel }, set: { store.setTravel($0) }))
+            pushRow("arrow.triangle.2.circlepath", "重新規劃習慣") { confirmReplan = true }
                 .disabled(habit == nil)
+            RowSep()
+            pushRow("forward", "跳過的理由", value: "\(store.state.settings.skipReasons.count) 個") { store.route = [.skipReasons] }
+            RowSep()
+            toggleRow("alarm", "每天提醒", isOn: Binding(get: { store.state.settings.check }, set: { setCheck($0) }))
+            if store.state.settings.check {
+                RowSep()
+                timeRow
+            }
+            RowSep()
+            pushRow("sparkles", "AI", value: AIClient.shared.bridge == nil ? nil : "已連電腦") { store.route = [.ai] }
         }
     }
 
-    // MARK: 節奏
-
-    private var rhythmSection: some View {
-        DomySection(title: "節奏") {
-            menuRow("calendar", "每月請假", options: Array(0..<4),
-                    selection: Binding(get: { store.state.settings.leave },
-                                       set: { v in store.updateSettings { $0.leave = v } }),
-                    name: { "\($0) 次" })
-            RowSep()
-            menuRow("calendar.badge.clock", "週回顧日", options: Array(0..<7),
-                    selection: Binding(get: { store.state.settings.reviewDay },
-                                       set: { v in store.updateSettings { $0.reviewDay = v } }),
-                    name: { DayKey.weekNames[$0] })
-            RowSep()
-            toggleRow("leaf", "這週的田", isOn: Binding(get: { store.state.settings.weekCard },
-                                                     set: { v in store.updateSettings { $0.weekCard = v } }))
-            RowSep()
-            toggleRow("checkmark.circle", "收工檢查", isOn: Binding(get: { store.state.settings.check }, set: { setCheck($0) }))
-            if store.state.settings.check {
-                RowSep()
-                row {
-                    HStack {
-                        Text("時間").domyType(Ty.body).foregroundStyle(Theme.fg)
-                        Spacer()
-                        DatePicker("時間", selection: checkTimeBinding, displayedComponents: .hourAndMinute)
-                            .labelsHidden()
-                            .tint(Theme.accent)
-                    }
-                    .frame(minHeight: Sz.row)
-                }
+    private var timeRow: some View {
+        row {
+            HStack {
+                Text("時間").domyType(Ty.body).foregroundStyle(Theme.fg)
+                Spacer()
+                DatePicker("時間", selection: checkTimeBinding, displayedComponents: .hourAndMinute)
+                    .labelsHidden()
+                    .tint(Theme.accent)
             }
+            .frame(minHeight: Sz.row)
         }
     }
 
@@ -172,7 +167,7 @@ struct SettingsView: View {
     // MARK: 一般
 
     private var generalSection: some View {
-        DomySection(title: VeggieText.general) {
+        DomySection {
             menuRow("circle.lefthalf.filled", VeggieText.appearance, options: Appearance.allCases.map(\.rawValue),
                     selection: $appearanceCode,
                     name: { (Appearance(rawValue: $0) ?? .system).title })
@@ -189,20 +184,14 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: 資料
+    // MARK: 資料與購買
 
     private var dataSection: some View {
-        DomySection(title: VeggieText.data) {
+        DomySection {
             pushRow("square.and.arrow.up", VeggieText.exportData) { sheet = .export }
             RowSep()
             pushRow("square.and.arrow.down", VeggieText.importData) { sheet = .restore }
-        }
-    }
-
-    // MARK: 購買
-
-    private var purchaseSection: some View {
-        DomySection(title: VeggieText.purchase) {
+            RowSep()
             pushRow("star.circle", "完整版", value: purchases.isFull ? "已購買" : purchases.product?.displayPrice) { sheet = .paywall }
             RowSep()
             Button { Task { await restore() } } label: {
@@ -221,11 +210,11 @@ struct SettingsView: View {
         store.show(purchases.owned ? VeggieText.restored : VeggieText.restoreNothing)
     }
 
-    // MARK: 支援
+    // MARK: 支援與關於
 
     /// 評分、分享要有 Apple ID 才出現（還沒上架，分享出去也找不到）
     private var supportSection: some View {
-        DomySection(title: VeggieText.support) {
+        DomySection {
             Button { writeFeedback() } label: {
                 row { VeggieRow(icon: "envelope", title: VeggieText.feedback, accessory: .push) }
             }
@@ -242,6 +231,24 @@ struct SettingsView: View {
                 }
                 .buttonStyle(.plain)
             }
+            RowSep()
+            aboutRows
+        }
+    }
+
+    @ViewBuilder
+    private var aboutRows: some View {
+        pushRow("info.circle", "什麼時候不適合用這個 app") { sheet = .unfit }
+        if !VeggieApp.others(excluding: config.slug).isEmpty {
+            RowSep()
+            pushRow("square.grid.2x2", VeggieText.family) { store.route = [.family] }
+        }
+        if let url = config.privacyURL {
+            RowSep()
+            Link(destination: url) {
+                row { VeggieRow(icon: "hand.raised", title: VeggieText.privacy, accessory: .external) }
+            }
+            .buttonStyle(.plain)
         }
     }
 
@@ -253,25 +260,6 @@ struct SettingsView: View {
         guard let address = config.supportEmail, let url = Feedback(config: config).mailtoURL(to: address) else { return }
         openURL(url) { accepted in
             if !accepted { store.show("這支手機沒有可以寄信的 app") }
-        }
-    }
-
-    // MARK: 關於
-
-    private var aboutSection: some View {
-        DomySection(title: VeggieText.about) {
-            pushRow("info.circle", "什麼時候不適合用這個 app") { sheet = .unfit }
-            if !VeggieApp.others(excluding: config.slug).isEmpty {
-                RowSep()
-                pushRow("square.grid.2x2", VeggieText.family) { store.route = [.family] }
-            }
-            if let url = config.privacyURL {
-                RowSep()
-                Link(destination: url) {
-                    row { VeggieRow(icon: "hand.raised", title: VeggieText.privacy, accessory: .external) }
-                }
-                .buttonStyle(.plain)
-            }
         }
     }
 

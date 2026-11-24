@@ -368,7 +368,7 @@ final class EdgeCaseTests: XCTestCase {
         f.s.observations[0].week = T.adding(-28)
         guard case .finding(let again)? = f.s.weekObservation(today: T) else { return XCTFail("過了冷卻要再出") }
         XCTAssertFalse(again.askCause, "她選過原因，只說現象")
-        XCTAssertEqual(f.s.memoryText(again), "上次選的是「週末作息不一樣，開關沒出現」。")
+        XCTAssertEqual(f.s.memoryText(again), "上次選的是「週末作息不一樣，時機沒出現」。")
     }
 
     func testEdge25And26DigKeepsRecordsAndNextHabitStartsClean() {
@@ -421,7 +421,7 @@ final class MetricTests: XCTestCase {
         XCTAssertEqual(w.leave, 1)
         XCTAssertTrue(w.todayPending, "今天還沒記，不算漏")
         XCTAssertEqual(w.considered, 6)
-        XCTAssertEqual(f.s.lineDays(Ledger(f), end: T, isBack: false), "這週記了 4 天，請假 1 天（今天還沒記）。前 3 週都是 7 天。", "種下那週不完整，不算進平常")
+        XCTAssertEqual(f.s.lineDays(Ledger(f), end: T, isBack: false), "這週記了 4 天，跳過 1 天（今天還沒記）。前 3 週都是 7 天。", "種下那週不完整，不算進平常")
     }
 
     func testM4UsualRange() {
@@ -522,10 +522,9 @@ final class MetricTests: XCTestCase {
         XCTAssertEqual(lv.reason, "加班")
         XCTAssertEqual(lv.count, 2)
         XCTAssertEqual(lv.total, 3)
-        XCTAssertEqual(f.s.leaveReasonCount("加班", today: T), 2, "請假卡：前面請過 2 次")
-        XCTAssertEqual(Copy.t(.p2, ["k": 3]), "這個原因第 3 次了，可能是開關要換。")
+        XCTAssertEqual(Copy.t(.p2, ["k": 3]), "這個理由第 3 次了。")
         guard case .finding(let x)? = f.s.weekObservation(today: T) else { return XCTFail("同一個請假原因排在平日／週末前面") }
-        XCTAssertEqual(f.s.findingText(x), "最近 8 週請假 3 次，其中 2 次寫「加班」。")
+        XCTAssertEqual(f.s.findingText(x), "最近 8 週跳過 3 次，其中 2 次是「加班」。")
         XCTAssertFalse(x.askCause, "原因是她自己寫的，不再問")
     }
 
@@ -586,7 +585,7 @@ final class WeekReportTests: XCTestCase {
         XCTAssertEqual(f.s.findingText(x), "最近 6 週，週末 12 天裡記了 5 天；平日 30 天裡記了 27 天。")
         XCTAssertTrue(x.askCause)
         XCTAssertEqual(Copy.causes(.weekend, low: x.low).map(\.text),
-                       ["週末作息不一樣，開關沒出現", "有出現，但被別的事搶走", "不是這個原因", "不確定"])
+                       ["週末作息不一樣，時機沒出現", "有出現，但被別的事搶走", "不是這個原因", "不確定"])
     }
 
     func testReturnWeekDoesNotCompare() {
@@ -622,7 +621,7 @@ final class WeekReportTests: XCTestCase {
         let id = s.state.observations[0].id
         s.answerCause(id, "no_trigger")
         XCTAssertEqual(Copy.actions(.weekend, cause: "no_trigger", low: "weekend").map(\.text),
-                       ["寫一個週末用的「不順的時候」", "把開關換成週末也會發生的瞬間"])
+                       ["寫一個週末用的「不順的時候」", "把時機換成週末也會發生的瞬間"])
         s.answerAction(id, "backup")
         let trial = s.startTrial(from: id)!
         XCTAssertEqual(trial.group, "weekend")

@@ -1,46 +1,104 @@
 import SwiftUI
 
-/// 首次設定。AI 接得上就先走問答（GuideView），隨時可以改成自己填；
-/// 自己填是原本的兩步：最小一步、掛在哪個瞬間後面。
+/// 還沒種的時候：一打開就是跟地瓜對答
 struct OnboardingView: View {
     @Environment(Store.self) private var store
-    @State private var step = 1
-    @State private var floor = ""
-    @State private var trigger = ""
-    @State private var showUnfit = false
     @State private var showRestore = false
+
+    var body: some View {
+        PlantFlow(prefill: store.state.queue.first ?? "", onRestore: { showRestore = true })
+            .sheet(isPresented: $showRestore) { RestoreSheet() }
+    }
+}
+
+/// 種一個：跟地瓜對答，隨時可以改成自己填。首次設定和重新規劃共用
+struct PlantFlow: View {
+    /// 先填在第一步的字（排隊的第一個）
+    var prefill: String = ""
+    var onExit: (() -> Void)? = nil
+    var onRestore: (() -> Void)? = nil
+    var onDone: () -> Void = {}
+    @State private var model = TalkModel()
+    @State private var manual = false
     @State private var loaded = false
+
+    var body: some View {
+        Group {
+            if manual {
+                ManualPlantView(floor: model.floor.isEmpty ? prefill : model.floor, trigger: model.trigger,
+                                step: model.floor.isEmpty ? 1 : 2,
+                                onBack: { manual = false }, onRestore: onRestore, onDone: onDone)
+            } else {
+                TalkView(model: model, onExit: onExit, onManual: { manual = true }, onRestore: onRestore, onDone: onDone)
+            }
+        }
+        .onAppear {
+            guard !loaded else { return }
+            loaded = true
+            #if DEBUG
+            let demo = UserDefaults.standard.integer(forKey: "talkDemo")
+            if demo > 0, onExit == nil {
+                model = TalkModel.demo(demo)
+                return
+            }
+            #endif
+            if model.draft.isEmpty { model.draft = prefill }
+        }
+    }
+}
+
+/// 設定的「重新規劃習慣」：整頁蓋上來，種下去就回今天
+struct ReplanView: View {
+    @Environment(Store.self) private var store
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        PlantFlow(onExit: { dismiss() }, onDone: {
+            store.page = 1
+            dismiss()
+        })
+        .background(Theme.canvas.ignoresSafeArea())
+        .environment(\.domyBottomInset, Sp.s8)
+        .tint(Theme.accent)
+    }
+}
+
+/// 自己填：最小一步、掛在哪個瞬間後面，兩格。預估天數當中等難度
+struct ManualPlantView: View {
+    @Environment(Store.self) private var store
+    private let onBack: () -> Void
+    private let onRestore: (() -> Void)?
+    private let onDone: () -> Void
+    @State private var step: Int
+    @State private var floor: String
+    @State private var trigger: String
+    @State private var showUnfit = false
     /// 種下去助手給的開關候選，第 2 步用來取代預設的範例
     @State private var aiTriggers: [String] = []
     /// 種下去助手判斷不適合（轉介），改了最小一步才放行
     @State private var blocked = false
-    /// 不走問答，自己填兩格
-    @State private var manual = false
     @FocusState private var focus: Field?
 
     enum Field { case floor, trigger }
+
+    init(floor: String, trigger: String, step: Int, onBack: @escaping () -> Void,
+         onRestore: (() -> Void)?, onDone: @escaping () -> Void) {
+        self.onBack = onBack
+        self.onRestore = onRestore
+        self.onDone = onDone
+        _step = State(initialValue: step)
+        _floor = State(initialValue: floor)
+        _trigger = State(initialValue: trigger)
+    }
 
     private var floorValue: String { floor.trimmingCharacters(in: .whitespacesAndNewlines) }
     private var triggerValue: String { trigger.trimmingCharacters(in: .whitespacesAndNewlines) }
 
     var body: some View {
         Group {
-            if AIClient.shared.isAvailable && !manual {
-                GuideView(onManual: { f, t in
-                    if !f.isEmpty { floor = f }
-                    if !t.isEmpty { trigger = t }
-                    step = f.isEmpty ? 1 : 2
-                    manual = true
-                }, onRestore: { showRestore = true })
-            } else if step == 1 { stepOne } else { stepTwo }
-        }
-        .onAppear {
-            guard !loaded else { return }
-            loaded = true
-            if floor.isEmpty { floor = store.state.queue.first ?? "" }
+            if step == 1 { stepOne } else { stepTwo }
         }
         .sheet(isPresented: $showUnfit) { UnfitSheet() }
-        .sheet(isPresented: $showRestore) { RestoreSheet() }
         .onChange(of: floor) { _, _ in blocked = false }
     }
 
@@ -69,10 +127,10 @@ struct OnboardingView: View {
             }
             VStack(spacing: Sp.s2) {
                 DomyButton("下一步", disabled: !canGoNext) { goNext() }
-                if AIClient.shared.isAvailable {
-                    DomyButton("‹ 回到問答", variant: .quiet, size: .compact) { manual = false }
+                DomyButton("‹ 回去問地瓜", variant: .quiet, size: .compact) { onBack() }
+                if let onRestore {
+                    DomyButton("從備份還原", variant: .quiet, size: .compact) { onRestore() }
                 }
-                DomyButton("從備份還原", variant: .quiet, size: .compact) { showRestore = true }
             }
         }
     }
@@ -113,7 +171,8 @@ struct OnboardingView: View {
         guard !floorValue.isEmpty, !triggerValue.isEmpty else { return }
         focus = nil
         Haptic.bloom()
-        store.plant(floor: floorValue, trigger: triggerValue)
+        store.plant(floor: floorValue, trigger: triggerValue, estimatedDays: HabitDifficulty.medium.days)
+        onDone()
     }
 
     // MARK: 零件
@@ -169,7 +228,7 @@ struct StepBar: View {
             HStack(spacing: Sp.s1) {
                 ForEach(1...total, id: \.self) { i in
                     Capsule()
-                        .fill(i <= step ? Theme.accent : Theme.surfaceMuted)
+                        .fill(i <= step ? Theme.leafDynamic : Theme.surfaceMuted)
                         .frame(height: Sp.s1)
                 }
             }

@@ -44,7 +44,7 @@ enum CheckNotification {
         let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: date)
         let content = UNMutableNotificationContent()
         content.title = "薯記"
-        content.body = "今天還沒記一節。開關有出現嗎？做完最小一步，回來按住一下。"
+        content.body = "今天還沒記。做完「\(state.activeFloor)」，回來按住一下。"
         content.sound = .default
         let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
         center.add(UNNotificationRequest(identifier: identifier, content: content, trigger: trigger))

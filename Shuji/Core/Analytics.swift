@@ -27,6 +27,9 @@ enum Threshold {
     static let stopAsking = 3
     static let usualWeeks = 4
     static let usualMin = 2
+    /// 「跳過都因為什麼」看最近幾天、有理由的至少幾次
+    static let skipWindow = 84
+    static let skipMin = 3
 }
 
 // MARK: - 一週
@@ -312,15 +315,6 @@ extension AppState {
         if l[2] == hi && l[2] - l[0] > 0.5 { return .up }
         if l[2] == lo && l[0] - l[2] > 0.5 { return .down }
         return .mixed
-    }
-
-    /// M9（請假卡）：今天以前，這個習慣請過幾次同一個原因
-    func leaveReasonCount(_ reason: String, today t: DayKey) -> Int {
-        let r = reason.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !r.isEmpty else { return 0 }
-        return activeRecords.filter {
-            $0.kind == .leave && $0.day < t && ($0.reason ?? "").trimmingCharacters(in: .whitespacesAndNewlines) == r
-        }.count
     }
 
     /// 目前習慣的觀察、試兩週

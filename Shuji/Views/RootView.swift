@@ -141,6 +141,8 @@ struct RouteView: View {
         case .sentence: SentenceView()
         case .basket: BasketView().navigationTitle("竹籃")
         case .family: VeggieFamilyView(config: .shuji)
+        case .skipReasons: SkipReasonsView().navigationTitle("跳過的理由")
+        case .ai: AIHubView()
         }
     }
 }
