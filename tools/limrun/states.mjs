@@ -101,6 +101,18 @@ try {
     await load(make()); await tap('設定', 1500); await drag(); await drag(); await go(/家族|其他.*app|蔬果|更多/i, 'family');
     await simctl(['ui', 'booted', 'appearance', 'dark']); await load(make()); await tap('設定', 1500); await shot('set1-dark'); await drag(); await shot('set2-dark'); await drag(); await shot('set3-dark');
   }
+  // 2026-11-25：跳過、月曆可點、設定瘦身、AI 頁
+  if (want('lazy')) {
+    const cal = async (off, name) => { const d = new Date(TODAY.getTime() + off * 864e5); const re = new RegExp('^' + (d.getUTCMonth() + 1) + '月' + d.getUTCDate() + '日'); const f = (await nodes()).find(x => re.test(x.AXLabel || '') && x.frame.x >= 0 && x.frame.x < 402 && x.frame.y > 200); if (!f) { log('cal not found', name); return; } log('cal', f.AXLabel); await c.tap(f.frame.x + f.frame.width / 2, f.frame.y + f.frame.height / 2); await sleep(1500); await shot(name); await dump(name); };
+    await load(make()); await shot('z-today'); await tap('跳過今天、昨天忘了記', 1500); await shot('z-skip'); await dump('z-skip');
+    if (await tap('旅行', 700)) { await shot('z-skip-picked'); await tap('跳過今天', 1800); await shot('z-skipped'); await dump('z-skipped'); }
+    await load(make({ skipLast: 1 })); await tap('田', 1500); await shot('z-month'); await cal(-1, 'z-day-yesterday');
+    await load(make()); await tap('田', 1500); await cal(-6, 'z-day-past');
+    await load(make()); await tap('設定', 1500); await shot('z-set'); await dump('z-set'); await tap('跳過的理由', 1500); await shot('z-reasons'); await dump('z-reasons');
+    await load(make()); await tap('設定', 1500); await tap('AI', 1500); await shot('z-ai'); await dump('z-ai');
+    await load(make()); await tap('設定', 1500); await tap('我的習慣', 1500); await shot('z-habit');
+    await simctl(['ui', 'booted', 'appearance', 'dark']); await load(make()); await tap('跳過今天、昨天忘了記', 1500); await shot('z-skip-dark'); await load(make()); await tap('設定', 1500); await tap('AI', 1500); await shot('z-ai-dark');
+  }
   log('DONE');
 } catch (e) { log('ERROR', e.stack || e); process.exitCode = 1; }
 finally {

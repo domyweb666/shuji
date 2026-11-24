@@ -14,7 +14,7 @@ struct SheetFrame<Content: View>: View {
                 .padding(.horizontal, Sz.screenMargin)
                 .padding(.top, Sp.s6)
                 .padding(.bottom, full ? Sp.s4 : Sp.s8)
-                .frame(maxWidth: Theme.contentMaxWidth)
+                .frame(maxWidth: Theme.contentMaxWidth, alignment: .leading)
                 .frame(maxWidth: .infinity)
         }
         .scrollDismissesKeyboard(.interactively)

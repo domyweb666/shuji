@@ -1,37 +1,25 @@
-# Handoff: 今天頁烤好剝開、田改報表、四問自動跳（已併 main，TestFlight 已上傳）
+# Handoff: 懶人化（跳過、月曆可點、設定瘦身、AI 接電腦 CLI），等多米選畫布
 
-> 產出時間：2026-11-24
-> repo：`E:\習慣地瓜\shuji`（外層 `E:\習慣地瓜` 不是 git repo）
-> 分支：`main`（bf7e76f 併進 done-shape，CI 全綠）；TestFlight run 45417876090 上傳成功
+> 2026-11-25。repo `E:\習慣地瓜\shuji`，分支 `lazy-1125`（已推，沒併 main，沒出 TestFlight）
 
-## ✅ 這次完成了什麼
+## ✅ 做完
+- 「開關句」→「我的習慣」、「開關」→「時機」、「收工檢查」→「每天提醒」、「請假」→「跳過」（AI 產出也換，`server/src/checks.ts` plainWording）。存檔格式沒動。
+- 跳過一次：理由在設定可增刪，沒有每月次數。單子 `SkipSheet`／`SkipForm`，入口暫放今天頁 ⋯。旅行中開關拿掉，打開 app 會自動結束舊的旅行狀態。
+- 月曆可點（`DaySheet`）：今天、昨天可改，更早只看。
+- 設定拿掉旅行中、每月請假、週回顧日、這週的田；加跳過的理由、AI。
+- AI：`server/bridge`（`cd server; npm run bridge`）＋ `Shuji/AI/Bridge.swift`、`AIHubView.swift`、`QRScanner.swift`。真的 CLI 跑過任務 7、2。
+- CI run 45438034981 全綠；模擬器截圖 `E:\習慣地瓜\懶人化-1125\模擬器截圖.jpg`（`states.mjs ... lazy`）。
 
-- 今天頁記好後只剩開關句；多米選 C：地瓜烤好剝開（`HoldButton.swift` 的 `done`、`BakedFlesh`、`Steam`；`VineView` 的 `baked`／`linkP` 把根移到左端）。按住、完成、撤銷、再按，淺深色都在模擬器看過。
-- 田改成「月曆｜分析」（`FieldView.swift`，數字在 `Core/FieldReport.swift`）；竹籃＋排隊收在右上角。
-- 開始四問、壓力週、放手、挖地瓜改成打開 app 自動問（`AppState.autoAsk`、`Store.nextAsk`、`RootView`、`AskSheet`）。四問四題走完在模擬器看過。
-- 選項畫布：https://claude.ai/artifact/YGYgSPzPEMFESfPjbvrJYD ；截圖在 `E:\習慣地瓜\完成形狀`。
+## 🚧 等多米
+- 畫布 https://claude.ai/artifact/6Lb2CczhJG9BNGdpwhcz5u 四組選一：跳過位置、田的分析、AI 入口、設定。選了才重做分析頁與今天頁入口。**分析頁這次只改字，沒重做。**
+- 要不要先併 main 出 TestFlight。
 
-## 🚧 還沒做完 / 待決定
+## ⚠️ 沒驗
+- 真機：掃 QR、區域網路授權、防火牆、手機經 Wi-Fi 打到電腦。任務 1、3、4、6 沒用真 CLI 跑。
+- 375 點寬手機月曆格 43.3 點。首次設定（還沒種）進不了設定，所以連不到 AI，要在 OnboardingView 加入口。
+- 畫布沒有逐張開起來看。
 
-- 等多米真機回饋（裂開那一下、四問自動跳、田報表）。
-- 沒在模擬器走過：挖地瓜那張、放手那張（只有單元測試）；比 402×874 小的手機、放大字級。裂開那一下順不順要真機看。
-- 田 A 已做；多米若選 B 再改。「這週的田」兩行字還在，設定可關。
-- `tools/limrun/test.mjs` 還是舊流程，要改寫；看畫面用 `states.mjs`。AnalyticsCopy 的 D-1 到 D-9 大多沒人用，還沒清。
-- AI 四個新用途（講一句話請假補記、請假原因歸類、下一個該種哪個、挖出來的回顧）等多米選。
-- 舊待辦：Anthropic 金鑰（多米自己跑 `npx wrangler secret put ANTHROPIC_API_KEY`）、ShujiAIBaseURL、內購商品、Apple ID、隱私權政策網址、iCloud 同步、鎖定畫面一按就記、真機手感。
-
-## 📌 關鍵決策
-
-- 四問沿用週回顧日：過了那天第一次打開就問，「晚點再說」隔天再問；長好了嗎的三張跳過隔 14 天。
-- 月曆推翻舊的「田不做月曆」；完成率、連續天數照舊不做。
-- 按住與記好用同一個 view，變形才沒有殘影。
-
-## ⏭️ 下一步從哪繼續
-
-1. 真機回饋 → 從 main 開新分支照改，出版 `gh workflow run testflight.yml --ref main`（排不到 Mac 機器就 `gh run rerun`）。
-
-## 🧩 剩下的工作（工作包）
-
-- [x] 完成的樣子變形
-- [x] 併 main 出 TestFlight
-- [ ] AI 打開與新用途（等多米選與金鑰）
+## ⏭️ 下一步
+1. 照多米選的做：田（先更新 `.analytics/06`、`07`）、今天頁入口、AI 選一句的半頁、Onboarding 的 AI 入口。
+2. 設計哲學見記憶 feedback-lazy-design：少設定、先講答案、規則藏起來。
+3. 畫布 AI 那組的「一直忘記、做起來太累…」選單是新流程，要接任務 4（找哪裡卡住）或新任務。

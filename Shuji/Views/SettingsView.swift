@@ -106,7 +106,7 @@ struct SettingsView: View {
     // MARK: 節奏
 
     private var rhythmSection: some View {
-        DomySection(title: "節奏") {
+        DomySection {
             toggleRow("alarm", "每天提醒", isOn: Binding(get: { store.state.settings.check }, set: { setCheck($0) }))
             if store.state.settings.check {
                 RowSep()
