@@ -299,11 +299,13 @@ struct TalkView: View {
 
     @ViewBuilder
     private var pickLinks: some View {
-        // 一行放不下就上下排，字不折行
-        DomyButton("換一批", variant: .plain) { model.more() }
-            .fixedSize()
-        DomyButton("都不是，自己打", variant: .plain) { typeOwn() }
-            .fixedSize()
+        // 字寬進位會少不到 1 點，「換一批」就折成兩行：鎖一行，差那一點用縮字補
+        Group {
+            DomyButton("換一批", variant: .plain) { model.more() }
+            DomyButton("都不是，自己打", variant: .plain) { typeOwn() }
+        }
+        .lineLimit(1)
+        .minimumScaleFactor(0.9)
     }
 
     private func option(_ title: String, primary: Bool = false, action: @escaping () -> Void) -> some View {
