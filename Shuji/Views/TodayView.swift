@@ -11,9 +11,9 @@ struct TodayView: View {
     @AppStorage("shuji.ai.obstaclePromptSeen") private var obstaclePromptSeen = ""
 
     /// 土面以上：一片葉子加捲鬚的高度
-    private static let vineAbove: CGFloat = 64 // domy-ignore: 插畫畫布高度
-    /// 土面到分頁列上緣：根最長 74，整條露在分頁列上面
-    private static let vineBelow: CGFloat = 84 // domy-ignore: 插畫畫布高度
+    private static let vineAbove: CGFloat = 60 // domy-ignore: 插畫畫布高度
+    /// 土面到讓位線（分頁列上緣再上去 16）：根最長 74，整條露在分頁列上面
+    private static let vineBelow: CGFloat = 64 // domy-ignore: 插畫畫布高度
 
     enum TodaySheet: String, Identifiable {
         case more
@@ -60,7 +60,7 @@ struct TodayView: View {
                     .padding(.horizontal, Sz.screenMargin)
                     .padding(.top, Theme.pageTop)
                     .frame(maxWidth: Theme.contentMaxWidth)
-                    Spacer(minLength: Sp.s4)
+                    Spacer(minLength: Sp.s2)
                     // 藤往下多長一段，讓分頁列浮在土上，不蓋到葉子
                     VineView(soilDepth: TodayView.vineBelow + bottomInset)
                         .frame(height: TodayView.vineAbove + TodayView.vineBelow + bottomInset)

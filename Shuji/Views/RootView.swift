@@ -5,6 +5,8 @@ import VeggieKit
 struct RootView: View {
     @Environment(Store.self) private var store
     @State private var bottomSafe: CGFloat = 0
+    /// 畫面上停在哪一頁，跟 store.page 互相同步
+    @State private var shown: Int? = 1
     private static let minute = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
 
     private static let tabs: [DomyTabBar.Item] = [
@@ -49,6 +51,10 @@ struct RootView: View {
                 pager(page: page)
             }
         }
+        .overlay(alignment: .top) {
+            // 捲上去的字不要疊在時間上
+            Theme.canvas.frame(height: 0).background(Theme.canvas.ignoresSafeArea(edges: .top)) // domy-ignore: 只借安全區那一條，自己不佔高
+        }
         .background {
             // 不算鍵盤，只要手勢條那一段
             GeometryReader { geo in
@@ -77,10 +83,16 @@ struct RootView: View {
             .scrollTargetLayout()
         }
         .scrollTargetBehavior(.paging)
-        .scrollPosition(id: Binding<Int?>(
-            get: { page.wrappedValue },
-            set: { v in if let v, v != page.wrappedValue { page.wrappedValue = v } }
-        ))
+        .scrollPosition(id: $shown)
+        // 起始停在中間那頁（今天），不靠 scrollPosition 的起始值
+        .defaultScrollAnchor(.center)
+        .onAppear { shown = page.wrappedValue }
+        .onChange(of: shown) { _, v in
+            if let v, v != page.wrappedValue { page.wrappedValue = v }
+        }
+        .onChange(of: page.wrappedValue) { _, v in
+            if shown != v { withAnimation(Feel.transition) { shown = v } }
+        }
         .scrollIndicators(.hidden)
         .environment(\.domyBottomInset, Theme.tabBarClearance + bottomSafe)
         // 內容鋪到螢幕最底，土不會在手勢條上面斷掉
