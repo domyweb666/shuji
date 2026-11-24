@@ -1,0 +1,106 @@
+// 把各狀態的存檔直接塞進 app，淺色深色各拍一輪。用法：node states.mjs <app.zip> <輸出資料夾> [狀態,用逗號]
+const _ts = URLSearchParams.prototype.toString; URLSearchParams.prototype.toString = function () { return _ts.call(this).replace(/[+]/g, "%20"); };
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
+const require = createRequire(import.meta.url);
+const api = await import(pathToFileURL(require.resolve('@limrun/api')).href);
+const Limrun = api.default?.default ?? api.default, Ios = api.Ios ?? api.default.Ios;
+const SP = process.argv[3], OUT = join(SP, 'shots'); mkdirSync(OUT, { recursive: true });
+const only = process.argv[4] ? process.argv[4].split(',') : null;
+const want = n => !only || only.includes(n);
+const apiKey = process.env.LIM_API_KEY ?? readFileSync(join(process.env.USERPROFILE, '.lim', 'config.yaml'), 'utf8').match(/api-key:\s*(\S+)/)[1];
+const BUNDLE = 'org.domyweb.shuji', HOLD = '按住一秒半，記一節';
+const lim = new Limrun({ apiKey }); const t0 = Date.now();
+const log = (...a) => console.log(((Date.now() - t0) / 1000).toFixed(1) + 's', ...a);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+let inst, c;
+const flat = (n, o = []) => { if (Array.isArray(n)) { n.forEach(x => flat(x, o)); return o; } if (n && typeof n === 'object') { o.push(n); (n.children ?? []).forEach(x => flat(x, o)); } return o; };
+const nodes = async () => flat(await c.elementTree());
+const shot = async n => { try { const s = await c.screenshot({ format: 'jpeg', size: 'scaled' }); writeFileSync(join(OUT, n + '.jpg'), Buffer.from(s.base64, 'base64')); log('shot', n, s.width + 'x' + s.height); } catch (e) { log('shot fail', n, e.message); } };
+const dump = async n => { try { const ns = await nodes(); log('tree@' + n, ns.filter(x => x.AXLabel).map(x => x.AXLabel.slice(0, 40) + `[${Math.round(x.frame.x)},${Math.round(x.frame.y)},${Math.round(x.frame.width)},${Math.round(x.frame.height)}]`).join(' | ')); } catch (e) { log('dump fail', e.message); } };
+const simctl = async a => { try { await c.simctl(a).wait(); } catch (e) { log('simctl fail', a.join(' '), e.message); } };
+const tap = async (l, wait = 900) => { try { await c.tapElement({ AXLabel: l }); log('tap', l); await sleep(wait); return true; } catch (e) { log('tap FAIL', l, (e.message || '').slice(0, 120)); return false; } };
+const frame = async l => (await nodes()).find(x => x.AXLabel === l)?.frame;
+const ymd = d => d.toISOString().slice(0, 10);
+let TODAY = new Date(Date.UTC(2026, 10, 24));
+const day = n => ymd(new Date(TODAY.getTime() + n * 864e5));
+function make({ skipLast = 0, log: lg, letgo, reviewDay = 0, lastReview = -1, n = 45, trigger = '起床喝完第一杯水', floor = '打開檔案寫一句', backup = '如果中午前還沒打開過檔案，就在第一餐吃完時打開', why = '把複雜的事想清楚、寫下來', empty = false, travel = false } = {}) {
+  const s = { logs: {}, weekly: [], queue: ['坐上蒲團按計時器'], basket: [], travel, settings: { reviewDay },
+    habit: { floor, trigger, planted: day(empty ? 0 : -n), travelFloor: travel ? '' : '在手機上寫三行', obstacle: '', backup, why } };
+  if (!empty) for (let i = -n; i < 0; i++) { if ([5, 6, 13, 21, 30].includes(i + n)) continue; if (i >= -skipLast) continue; s.logs[day(i)] = { t: 'done' }; }
+  if (lg) s.logs[day(0)] = lg;
+  if (!empty) for (let i = 5; i >= 0; i--) s.weekly.push({ date: day(lastReview - 7 * i), scores: [4, 4, 4, 4] });
+  if (letgo) s.letgo = { start: day(-3), prior: 12 };
+  return s;
+}
+async function load(state) {
+  try { await c.terminateApp(BUNDLE); } catch {}
+  await sleep(500);
+  const p = join(SP, 'state.json'); writeFileSync(p, JSON.stringify(state));
+  await c.pushFile(p, 'Library/Application Support/Shuji/state.json', { bundleId: BUNDLE, containerType: 'data' });
+  await simctl(['launch', 'booted', BUNDLE]); await sleep(2600);
+}
+const LONGT = '週末早上帶孩子從公園回到家，把鞋子放進櫃子', LONGF = '坐到書桌前打開昨天的稿子補一句話';
+const L40T = '每天晚上睡前把手機放到客廳的充電座，再回房間坐到床邊之後了';
+const L40F = '拿起床頭的書翻開夾著書籤的那一頁讀三行，讀完把書籤往後移一頁再把書放回去就好';
+async function holdShot(name) {
+  const f = await frame(HOLD); if (!f) { log('no hold'); return; }
+  const x = f.x + f.width / 2, y = f.y + f.height / 2; log('hold frame', JSON.stringify(f));
+  await c.startRecording({ touchIndicators: false }); await sleep(800);
+  await c.performActions([{ type: 'touchDown', x, y }, { type: 'wait', durationMs: 1300 }, { type: 'touchUp', x, y }]);
+  await sleep(1200);
+  await c.performActions([{ type: 'touchDown', x, y }, { type: 'wait', durationMs: 1900 }, { type: 'touchUp', x, y }]);
+  await sleep(3000); await c.stopRecording({ localPath: join(OUT, name + '.mp4') }); await shot(name + '-done'); await dump(name + '-done');
+}
+async function states(sfx) {
+  const t = async (n, st) => { if (!want(n)) return; await load(st); await shot(n + sfx); await dump(n + sfx); };
+  await t('empty', make({ empty: true }));
+  await t('todo', make());
+  if (want('hold')) { await load(make()); await holdShot('hold' + sfx); }
+  await t('done', make({ log: { t: 'done' } }));
+  await t('leave', make({ log: { t: 'leave', reason: '出遠門' } }));
+  await t('letgo', make({ letgo: true }));
+  await t('absent', make({ skipLast: 16 }));
+  await t('review', make({ log: { t: 'done' }, lastReview: -9, reviewDay: TODAY.getUTCDay() }));
+  await t('missed2', make({ skipLast: 2 }));
+  await t('long', make({ trigger: LONGT, floor: LONGF }));
+  await t('long40', make({ trigger: L40T, floor: L40F, skipLast: 2, travel: true }));
+  if (want('more')) { await load(make({ log: { t: 'done' } })); if (await tap('更多選項，可以撤銷今天', 1500)) { await shot('more-done' + sfx); } await load(make({ skipLast: 1 })); if (await tap('昨天忘了記、今天請假', 1500)) await shot('more-todo' + sfx); }
+}
+try {
+  const asset = await lim.assets.getOrUpload({ path: process.argv[2], name: 'shuji-sim-' + Date.now() + '.zip', platform: 'ios', kind: 'App', ttl: '2h' });
+  for (let i = 0; ; i++) {
+    try {
+      inst = await lim.iosInstances.create({ wait: true, metadata: { labels: { project: 'shuji' } }, spec: { model: 'iphone', inactivityTimeout: '3m', hardTimeout: '20m', initialAssets: [{ kind: 'App', source: 'AssetName', assetName: asset.name, launchMode: 'RelaunchIfRunning' }] } });
+      break;
+    } catch (e) { if (i < 15 && /Concurrency/i.test(e.message)) { log('wait slot'); await sleep(40000); } else throw e; }
+  }
+  log('instance', inst.metadata.id);
+  c = await Ios.createInstanceClient({ apiUrl: inst.status.apiUrl, token: inst.status.token, logLevel: 'none' });
+  await sleep(3500);
+  await load(make());
+  const lab = (await nodes()).map(x => x.AXLabel).filter(Boolean).find(x => /\d+\s*[月\/]\s*\d+/.test(x));
+  log('header', lab);
+  const m = lab?.match(/(\d+)\s*[月\/]\s*(\d+)/); if (m) { TODAY = new Date(Date.UTC(2026, +m[1] - 1, +m[2])); log('today', ymd(TODAY)); }
+  await states('');
+  await simctl(['ui', 'booted', 'appearance', 'dark']); await states('-dark'); await simctl(['ui', 'booted', 'appearance', 'light']);
+  if (want('settings')) {
+    const drag = async () => { try { await c.scroll('down', 620); } catch (e) { log('scroll fail', e.message); } await sleep(1000); };
+    const go = async (re, name) => { const f = (await nodes()).find(x => re.test(x.AXLabel || '') && x.frame.y > 40 && x.frame.y < 740); if (!f) { log('row not found', String(re)); return false; } await c.tap(f.frame.x + f.frame.width / 2, f.frame.y + f.frame.height / 2); await sleep(1800); await shot(name); await dump(name); return true; };
+    const toBottom = async () => { await tap('設定', 1500); await drag(); await drag(); };
+    await load(make()); await tap('設定', 1500); await shot('set1'); await dump('set1');
+    await drag(); await shot('set2'); await dump('set2'); await drag(); await shot('set3'); await dump('set3');
+    await load(make()); await tap('設定', 1500); await drag(); await drag(); await go(/什麼時候不適合/, 'unfit');
+    await load(make()); await tap('設定', 1500); await drag(); await go(/^完整版/, 'paywall');
+    await load(make()); await tap('設定', 1500); await drag(); await drag(); await go(/家族|其他.*app|蔬果|更多/i, 'family');
+    await simctl(['ui', 'booted', 'appearance', 'dark']); await load(make()); await tap('設定', 1500); await shot('set1-dark'); await drag(); await shot('set2-dark'); await drag(); await shot('set3-dark');
+  }
+  log('DONE');
+} catch (e) { log('ERROR', e.stack || e); process.exitCode = 1; }
+finally {
+  try { c?.disconnect(); } catch {}
+  if (inst) { try { await lim.iosInstances.delete(inst.metadata.id); log('deleted'); } catch (e) { log('DELETE FAILED', inst.metadata.id, e.message); } }
+  process.exit();
+}
