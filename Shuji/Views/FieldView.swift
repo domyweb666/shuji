@@ -255,7 +255,7 @@ struct WeekBarsView: View {
                         .monospacedDigit()
                         .foregroundStyle(r.current ? Theme.strong : Theme.fg)
                     RoundedRectangle(cornerRadius: Rd.sm, style: .continuous)
-                        .fill(r.current ? Theme.accent : Theme.bright)
+                        .fill(r.current ? Theme.accent : Theme.accent.opacity(0.4))
                         .frame(height: r.done == 0 ? Sz.hairline : WeekBarsView.full * CGFloat(min(7, r.done)) / 7)
                     Text(r.current ? "這週" : r.start.short)
                         .domyType(Ty.caption)
@@ -289,7 +289,7 @@ struct WeekdayBarsView: View {
                         .frame(width: Sp.s5, alignment: .leading)
                     GeometryReader { geo in
                         Capsule()
-                            .fill(n == top ? Theme.accent : Theme.bright)
+                            .fill(n == top ? Theme.accent : Theme.accent.opacity(0.4))
                             .frame(width: n == 0 ? 0 : max(geo.size.height, geo.size.width * CGFloat(n) / CGFloat(top)))
                     }
                     .frame(height: Sp.s3)
