@@ -2,6 +2,14 @@
 
 > 2026-11-25 凌晨。repo `E:\習慣地瓜\shuji`，分支 `lazy-1125`（沒併 main、沒出 TestFlight）。第一輪見 `.vibe/handoff/archive/2026-11-25-lazy-round1.md`
 
+## 🏃 2026-11-25 正在做（三個子代理，都沒 commit；接手先 `git status`）
+多米又定：對話有綠色進度條、第 1 題只給輸入框不給選項、第 2、3 步給選項；週報 B。畫布 Talk 已照改。
+- S：`server/**`、`ai/**`：任務 8 規劃習慣、任務 9 週報、離題防線五道、`npm run eval:plan`（真 CLI）、`ai/預估天數依據.md`（查 Lally 2010）。
+- T：`Shuji/**`（週報檔以外）：`AI/TalkView`、`PlanModels`、`Core/HabitEstimate`、Onboarding、設定「重新規劃習慣」、`-talkDemo N`。
+- W：`Views/WeekView`、`WeekVineView`、`AI/WeekReview`、`tools/limrun/week.mjs`。回報會寫 RootView 要加哪行 `-weekDemo`。
+- 合約：8 input {step,goal,floor,trigger,exclude} → {type options|estimate|off_topic|unfit, lead, options[3], difficulty}；9 input {floor,trigger,days_planted,week,weekday,weekend,pattern,reasons} → {type, finding, change{field,label,text}|null}。天數由 app 算（easy 60／medium 66／hard 90，S 查到的數字回來後改 `HabitEstimate.swift` 一處）。
+都回來後：UI 代號檢查、`npm test`、commit、push、CI、拍圖（talk、week、lazy、field）全部看過、一次回報多米。第二輪程式的 CI 是 run 45447400366。
+
 ## ✅ 已進程式
 - 第一輪：改字、跳過、月曆可點、設定瘦身、AI 接電腦 CLI（33f9dd8，CI 綠、模擬器看過）。
 - 第二輪：跳過 A、田 B、設定 A（commit「今天頁跳過與復原…」）。**先查這次 CI**：`gh run list --branch lazy-1125 --limit 2`。綠了下載 `Shuji-simulator-app`，`node tools/limrun/states.mjs <zip> <輸出> lazy,field` 拍圖，每張看過。優先看：單子高度會不會跳、理由 8 個時、深色地瓜、「1 天，平常 4 到 6 天」在週一二出現順不順（建議：週中只講天數，不跟平常比）。
@@ -14,7 +22,7 @@
 5. 畫布 page `ai` 兩個入口、`chat` 的「先試幾天」選單都作廢。
 
 ## 🚧 等多米
-- 週報 A 信／B 藤就是圖（推薦）／C 一張一張滑：https://claude.ai/artifact/6Lb2CczhJG9BNGdpwhcz5u 第 6 頁。畫布沒有逐張開起來看。
+- （已選 B）週報：https://claude.ai/artifact/6Lb2CczhJG9BNGdpwhcz5u 第 6 頁。畫布沒有逐張開起來看。
 - 天數怎麼算：我建議程式照難度給一個數字（AI 只判難度 easy／medium／hard），再照他的紀錄每週重算日期。畫布寫 60 天是示範。14 天多半不夠（記憶中 Lally 2010 中位數 66 天、範圍 18–254，上畫面前要查證，走 domi-evidence-hunter）。
 
 ## ⏭️ 要做：AI 流程
