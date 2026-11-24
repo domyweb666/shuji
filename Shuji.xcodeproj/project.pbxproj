@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		5A00000000000000000000EA /* ShujiWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 5A00000000000000000000E1 /* ShujiWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		5A00000000000000000000F2 /* VeggieKit in Frameworks */ = {isa = PBXBuildFile; productRef = 5A00000000000000000000F1 /* VeggieKit */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -116,6 +117,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5A00000000000000000000F2 /* VeggieKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -180,6 +182,7 @@
 			);
 			name = Shuji;
 			packageProductDependencies = (
+				5A00000000000000000000F1 /* VeggieKit */,
 			);
 			productName = Shuji;
 			productReference = 5A00000000000000000000B1 /* Shuji.app */;
@@ -262,6 +265,9 @@
 			);
 			mainGroup = 5A00000000000000000000A1;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				5A00000000000000000000F0 /* XCRemoteSwiftPackageReference "VeggieKit" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 5A00000000000000000000A2 /* Products */;
 			projectDirPath = "";
@@ -671,6 +677,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		5A00000000000000000000F0 /* XCRemoteSwiftPackageReference "VeggieKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/domyweb666/VeggieKit";
+			requirement = {
+				kind = exactVersion;
+				version = 1.0.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		5A00000000000000000000F1 /* VeggieKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5A00000000000000000000F0 /* XCRemoteSwiftPackageReference "VeggieKit" */;
+			productName = VeggieKit;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 5A00000000000000000000A0 /* Project object */;
 }

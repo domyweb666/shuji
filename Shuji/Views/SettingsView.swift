@@ -1,54 +1,55 @@
 import SwiftUI
+import UIKit
+import VeggieKit
 
-/// 設定。欄位是「離開欄位或按完成才存」，跟原型的 change 事件一樣。
+/// 設定。順序照多米 iOS 開發準則 3-3：app 專屬 → 一般 → 資料 → 購買 → 支援 → 關於 → 頁尾。
+/// 列一律是「圖示＋名稱＋右邊的狀態或箭頭」（VeggieKit），不放常駐說明（3-4）。
+/// 開關句要打字的欄位收進 SentenceView。
 struct SettingsView: View {
     @Environment(Store.self) private var store
-    @FocusState private var focus: SettingsTarget?
-    @State private var showNegWarning = false
-    @State private var showExport = false
-    @State private var showRestore = false
-    @State private var showUnfit = false
+    @Environment(\.openURL) private var openURL
+    @State private var sheet: SettingsSheet? = nil
     @State private var confirmWipe = false
-    @State private var showObstacle = false
-    @State private var showPaywall = false
+    @State private var restoring = false
+    @AppStorage(Appearance.storageKey) private var appearanceCode = Appearance.system.rawValue
+    @AppStorage(VeggieHaptics.storageKey) private var hapticsOn = true
     @AppStorage("shuji.ai.devToken") private var devToken = ""
     @AppStorage("shuji.ai.baseURL") private var aiBaseURL = ""
     private let purchases = Purchases.shared
+    private let config = VeggieConfig.shuji
+
+    enum SettingsSheet: String, Identifiable {
+        case export, restore, unfit, paywall, mail
+        var id: String { rawValue }
+    }
 
     private var habit: Habit? { store.state.habit }
 
     var body: some View {
-        ScrollViewReader { proxy in
-            DomyScreen(title: "設定") {
-                switchSection
-                travelSection
-                rhythmSection
-                reminderSection
-                fullSection
-                dataSection
-                Card {
-                    RowButton(text: "什麼時候不適合用這個 app") { showUnfit = true }
-                }
-                #if DEBUG
-                debugSection
-                #endif
-            }
-            .onChange(of: store.page) { _, page in
-                // 從這週的田過來、沒改就離開：之後的改動不算在這週的田
-                if page != 2 { store.pendingVia = nil }
-            }
-            .onChange(of: store.settingsTarget) { _, target in
-                guard let target else { return }
-                withAnimation { proxy.scrollTo(target, anchor: .center) }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { focus = target }
-                store.settingsTarget = nil
+        DomyScreen(title: "設定") {
+            habitSection
+            rhythmSection
+            generalSection
+            dataSection
+            purchaseSection
+            supportSection
+            aboutSection
+            #if DEBUG
+            debugSection
+            #endif
+            VeggieFooter(config: config, logo: Image("AppLogo")) { store.show($0) }
+        }
+        .sheet(item: $sheet) { which in
+            switch which {
+            case .export: ExportSheet()
+            case .restore: RestoreSheet()
+            case .unfit: UnfitSheet()
+            case .paywall: PaywallSheet()
+            case .mail:
+                FeedbackMailView(recipient: config.supportEmail ?? "", feedback: Feedback(config: config)) { sheet = nil }
+                    .ignoresSafeArea()
             }
         }
-        .sheet(isPresented: $showExport) { ExportSheet() }
-        .sheet(isPresented: $showRestore) { RestoreSheet() }
-        .sheet(isPresented: $showUnfit) { UnfitSheet() }
-        .sheet(isPresented: $showObstacle) { ObstacleSheet() }
-        .sheet(isPresented: $showPaywall) { PaywallSheet() }
         .confirmationDialog("全部清除？", isPresented: $confirmWipe, titleVisibility: .visible) {
             Button("清除全部，不可復原", role: .destructive) {
                 Haptic.remove()
@@ -60,104 +61,77 @@ struct SettingsView: View {
         } // 只有 Debug 測試區按得到；正式版照原型，不給清
     }
 
-    // MARK: 開關句
+    // MARK: 列
 
-    private var switchSection: some View {
-        VStack(alignment: .leading, spacing: Sp.s4) {
-            SectionTitle("開關句")
-            CommitField(label: "如果", helper: "每天一定會發生的瞬間", placeholder: "", value: habit?.trigger ?? "",
-                        limit: 30, enabled: habit != nil, focus: $focus, tag: .trigger) { v in
-                if v.isEmpty { return false }
-                store.updateHabit { $0.trigger = v }
-                return true
-            }
-            .id(SettingsTarget.trigger)
-            CommitField(label: "我就", helper: "最小一步", placeholder: "", value: habit?.floor ?? "",
-                        limit: 40, enabled: habit != nil, focus: $focus, tag: .floor,
-                        error: showNegWarning ? "「就」後面要放一個做得出來的動作。" : nil) { v in
-                if v.isEmpty || Wording.isNegative(v) {
-                    showNegWarning = true
-                    return false
-                }
-                showNegWarning = false
-                store.updateHabit { $0.floor = v }
-                return true
-            }
-            .id(SettingsTarget.floor)
-            CommitField(label: "不順的時候（選填）", helper: "主開關沒出現、或有東西擋著，改做什麼",
-                        placeholder: "早上要出門，就在捷運上用手機寫三行",
-                        value: habit?.backup ?? "", limit: 60, enabled: habit != nil, focus: $focus, tag: .backup) { v in
-                store.updateHabit { $0.backup = v }
-                return true
-            }
-            if habit != nil && AIClient.shared.isAvailable {
-                DomyButton("幫我想不順的時候怎麼辦", variant: .plain, size: .compact) { showObstacle = true }
-            }
-            CommitField(label: "這件事為了什麼（選填）", placeholder: "", value: habit?.why ?? "",
-                        limit: 60, enabled: habit != nil, focus: $focus, tag: .why) { v in
-                store.updateHabit { $0.why = v }
-                return true
-            }
-        }
+    private func row<V: View>(@ViewBuilder _ content: () -> V) -> some View {
+        content().padding(.horizontal, Sp.s4)
     }
 
-    // MARK: 旅行中
+    private func pushRow(_ icon: String, _ title: String, value: String? = nil, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            row { VeggieRow(icon: icon, title: title, value: value, accessory: .push) }
+        }
+        .buttonStyle(DomyRowPressStyle())
+    }
 
-    private var travelSection: some View {
-        VStack(alignment: .leading, spacing: Sp.s4) {
-            DomySection(title: "旅行中") {
-                DomyToggleRow(label: "旅行中",
-                              isOn: Binding(get: { store.state.travel }, set: { store.setTravel($0) }),
-                              disabled: habit == nil)
+    private func toggleRow(_ icon: String, _ title: String, isOn: Binding<Bool>) -> some View {
+        row { VeggieToggleRow(icon: icon, title: title, isOn: isOn) }
+    }
+
+    private func menuRow<V: Hashable>(_ icon: String, _ title: String, options: [V], selection: Binding<V>,
+                                      name: @escaping (V) -> String) -> some View {
+        Menu {
+            Picker(title, selection: selection) {
+                ForEach(options, id: \.self) { Text(name($0)).tag($0) }
             }
-            CommitField(label: "旅行版最小一步", placeholder: "在手機上寫三行", value: habit?.travelFloor ?? "",
-                        limit: 40, enabled: habit != nil, focus: $focus, tag: .travelFloor,
-                        helper2: "帶得走的照做最小一步，藤照長。回家第一天會提醒你把東西擺回原位。") { v in
-                store.updateHabit { $0.travelFloor = v }
-                return true
-            }
+        } label: {
+            row { VeggieRow(icon: icon, title: title, value: name(selection.wrappedValue), accessory: .push) }
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: 這個習慣
+
+    private var habitSection: some View {
+        DomySection(title: "這個習慣") {
+            pushRow("text.quote", "開關句") { store.route = [.sentence] }
+                .disabled(habit == nil)
+            RowSep()
+            toggleRow("suitcase", "旅行中", isOn: Binding(get: { store.state.travel }, set: { store.setTravel($0) }))
+                .disabled(habit == nil)
         }
     }
 
     // MARK: 節奏
 
     private var rhythmSection: some View {
-        DomySection(title: "節奏", footer: "凌晨四點換日：過了午夜才記的那一節，還是算前一天。") {
-            DomyPickerRow(label: "每月請假", options: Array(0..<4),
-                          selection: Binding(get: { store.state.settings.leave },
-                                             set: { v in store.updateSettings { $0.leave = v } }),
-                          title: { "\($0) 次" })
+        DomySection(title: "節奏") {
+            menuRow("calendar", "每月請假", options: Array(0..<4),
+                    selection: Binding(get: { store.state.settings.leave },
+                                       set: { v in store.updateSettings { $0.leave = v } }),
+                    name: { "\($0) 次" })
             RowSep()
-            DomyPickerRow(label: "週回顧日", options: Array(0..<7),
-                          selection: Binding(get: { store.state.settings.reviewDay },
-                                             set: { v in store.updateSettings { $0.reviewDay = v } }),
-                          title: { DayKey.weekNames[$0] })
+            menuRow("calendar.badge.clock", "週回顧日", options: Array(0..<7),
+                    selection: Binding(get: { store.state.settings.reviewDay },
+                                       set: { v in store.updateSettings { $0.reviewDay = v } }),
+                    name: { DayKey.weekNames[$0] })
             RowSep()
-            DomyToggleRow(label: "這週的田",
-                          mini: "做完開始四問，接著看這週記了幾天、線往哪走。關掉的話，田裡照樣看得到。",
-                          isOn: Binding(get: { store.state.settings.weekCard },
-                                        set: { v in store.updateSettings { $0.weekCard = v } }))
-        }
-    }
-
-    // MARK: 提醒
-
-    private var reminderSection: some View {
-        DomySection(title: "提醒") {
-            DomyToggleRow(label: "收工檢查",
-                          mini: "一天最多一則，記了就不會響；連著三天沒記，就先不響，記了下一節再恢復。預設關閉，開關要在生活裡，不在手機裡。",
-                          isOn: Binding(get: { store.state.settings.check }, set: { setCheck($0) }))
+            toggleRow("leaf", "這週的田", isOn: Binding(get: { store.state.settings.weekCard },
+                                                     set: { v in store.updateSettings { $0.weekCard = v } }))
+            RowSep()
+            toggleRow("checkmark.circle", "收工檢查", isOn: Binding(get: { store.state.settings.check }, set: { setCheck($0) }))
             if store.state.settings.check {
                 RowSep()
-                HStack {
-                    Text("時間").domyType(Ty.body).foregroundStyle(Theme.fg)
-                    Spacer()
-                    DatePicker("時間", selection: checkTimeBinding, displayedComponents: .hourAndMinute)
-                        .labelsHidden()
-                        .tint(Theme.accent)
+                row {
+                    HStack {
+                        Text("時間").domyType(Ty.body).foregroundStyle(Theme.fg)
+                        Spacer()
+                        DatePicker("時間", selection: checkTimeBinding, displayedComponents: .hourAndMinute)
+                            .labelsHidden()
+                            .tint(Theme.accent)
+                    }
+                    .frame(minHeight: Sz.row)
                 }
-                .padding(.horizontal, Sp.s4)
-                .frame(minHeight: Sz.row)
             }
         }
     }
@@ -195,23 +169,109 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: 完整版
+    // MARK: 一般
 
-    private var fullSection: some View {
-        DomySection(title: "完整版", footer: "一次買斷：季稽核、小工具。這週的田和其他功能一直免費。") {
-            RowButton(text: purchases.isFull ? "完整版已解鎖" : "看看完整版",
-                      value: purchases.isFull ? nil : purchases.product?.displayPrice,
-                      tone: purchases.isFull ? .normal : .action) { showPaywall = true }
+    private var generalSection: some View {
+        DomySection(title: VeggieText.general) {
+            menuRow("circle.lefthalf.filled", VeggieText.appearance, options: Appearance.allCases.map(\.rawValue),
+                    selection: $appearanceCode,
+                    name: { (Appearance(rawValue: $0) ?? .system).title })
+                .onChange(of: appearanceCode) { _, _ in Appearance.stored.apply() }
+            RowSep()
+            Button {
+                if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+            } label: {
+                row { VeggieRow(icon: "bell", title: VeggieText.notifications, accessory: .external) }
+            }
+            .buttonStyle(DomyRowPressStyle())
+            RowSep()
+            toggleRow("iphone.radiowaves.left.and.right", VeggieText.haptics, isOn: $hapticsOn)
         }
     }
 
     // MARK: 資料
 
     private var dataSection: some View {
-        DomySection(title: "資料", footer: "資料存在這支手機裡，會跟著 iPhone 的 iCloud 備份走。換手機前自己匯出一份比較穩。") {
-            RowButton(text: "匯出備份") { showExport = true }
+        DomySection(title: VeggieText.data) {
+            pushRow("square.and.arrow.up", VeggieText.exportData) { sheet = .export }
             RowSep()
-            RowButton(text: "從備份還原") { showRestore = true }
+            pushRow("square.and.arrow.down", VeggieText.importData) { sheet = .restore }
+        }
+    }
+
+    // MARK: 購買
+
+    private var purchaseSection: some View {
+        DomySection(title: VeggieText.purchase) {
+            pushRow("star.circle", "完整版", value: purchases.isFull ? "已購買" : purchases.product?.displayPrice) { sheet = .paywall }
+            RowSep()
+            Button { Task { await restore() } } label: {
+                row { VeggieRow(icon: "arrow.clockwise", title: VeggieText.restore) }
+            }
+            .buttonStyle(DomyRowPressStyle())
+            .disabled(restoring)
+        }
+    }
+
+    private func restore() async {
+        restoring = true
+        defer { restoring = false }
+        await purchases.restore()
+        purchases.message = nil
+        store.show(purchases.owned ? VeggieText.restored : VeggieText.restoreNothing)
+    }
+
+    // MARK: 支援
+
+    /// 評分、分享要有 Apple ID 才出現（還沒上架，分享出去也找不到）
+    private var supportSection: some View {
+        DomySection(title: VeggieText.support) {
+            Button { writeFeedback() } label: {
+                row { VeggieRow(icon: "envelope", title: VeggieText.feedback, accessory: .push) }
+            }
+            .buttonStyle(DomyRowPressStyle())
+            if let url = config.writeReviewURL {
+                RowSep()
+                Link(destination: url) {
+                    row { VeggieRow(icon: "star", title: VeggieText.rate, accessory: .external) }
+                }
+                .buttonStyle(.plain)
+                RowSep()
+                ShareLink(item: config.shareText) {
+                    row { VeggieRow(icon: "square.and.arrow.up", title: VeggieText.share, accessory: .external) }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func writeFeedback() {
+        if Feedback.canUseMailSheet {
+            sheet = .mail
+            return
+        }
+        guard let address = config.supportEmail, let url = Feedback(config: config).mailtoURL(to: address) else { return }
+        openURL(url) { accepted in
+            if !accepted { store.show("這支手機沒有可以寄信的 app") }
+        }
+    }
+
+    // MARK: 關於
+
+    private var aboutSection: some View {
+        DomySection(title: VeggieText.about) {
+            pushRow("info.circle", "什麼時候不適合用這個 app") { sheet = .unfit }
+            if !VeggieApp.others(excluding: config.slug).isEmpty {
+                RowSep()
+                pushRow("square.grid.2x2", VeggieText.family) { store.route = [.family] }
+            }
+            if let url = config.privacyURL {
+                RowSep()
+                Link(destination: url) {
+                    row { VeggieRow(icon: "hand.raised", title: VeggieText.privacy, accessory: .external) }
+                }
+                .buttonStyle(.plain)
+            }
         }
     }
 
@@ -256,71 +316,3 @@ struct SettingsView: View {
     #endif
 }
 
-/// 一個「標籤在框外、框在下」的欄位，離開或按完成才交出去。onCommit 回 false 代表退回原值。
-struct CommitField: View {
-    var label: String
-    var helper: String? = nil
-    var placeholder: String
-    var value: String
-    var limit: Int
-    var enabled: Bool
-    var focus: FocusState<SettingsTarget?>.Binding
-    var tag: SettingsTarget
-    var error: String? = nil
-    /// 放在框下面的說明（helper 放在標籤旁邊）
-    var helper2: String? = nil
-    var onCommit: (String) -> Bool
-
-    @State private var text = ""
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Sp.s2) {
-            HStack(alignment: .firstTextBaseline, spacing: Sp.s2) {
-                Text(label)
-                    .domyType(Ty.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Theme.fg)
-                if let helper {
-                    Text(helper)
-                        .domyType(Ty.footnote)
-                        .foregroundStyle(Theme.fg2)
-                }
-            }
-            .padding(.horizontal, Sp.s1)
-            TextField(placeholder, text: $text)
-                .focused(focus, equals: tag)
-                .submitLabel(.done)
-                .disabled(!enabled)
-                .onSubmit { commit() }
-                .onChange(of: text) { _, v in
-                    if v.count > limit { text = String(v.prefix(limit)) }
-                }
-                .onChange(of: focus.wrappedValue) { old, new in
-                    if old == tag && new != tag { commit() }
-                }
-                .domyField(focused: focus.wrappedValue == tag, error: error != nil)
-                .accessibilityLabel(label)
-                .accessibilityHint(error ?? helper ?? "")
-            if let error {
-                HStack(alignment: .top, spacing: Sp.s2) {
-                    Image(systemName: "exclamationmark.circle").accessibilityHidden(true)
-                    Text(error).fixedSize(horizontal: false, vertical: true)
-                }
-                .domyType(Ty.footnote)
-                .foregroundStyle(Theme.danger)
-                .padding(.horizontal, Sp.s1)
-            } else if let helper2 {
-                Foot(helper2)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .opacity(enabled ? 1 : DomyTokens.Motion.pressedOpacity)
-        .onAppear { text = value }
-        .onChange(of: value) { _, v in text = v }
-    }
-
-    private func commit() {
-        let v = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !onCommit(v) { text = value }
-    }
-}

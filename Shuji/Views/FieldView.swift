@@ -3,7 +3,12 @@ import SwiftUI
 /// 田（細查層，.analytics/06）：每一區回答一題。
 /// 長好了嗎（Q6）→ 開始四問（Q4）→ 這幾週記了幾天（Q11）→ 漏掉的日子有沒有規律（Q5）→ 季稽核 → 排隊 → 竹籃（Q12）。
 /// 原本最上面的四個統計數字拿掉了：看完不會改任何事（審查 P1-9）。
+/// 第一層只留「長好了嗎」三條和「開始四問」的線，其他各自推進去（QC-0004：這頁太複雜）。
 struct FieldView: View {
+    enum Part { case grown, weeks, pattern, queue, basket }
+
+    /// nil 是田這一頁；有值就是推進去的那一區
+    var part: Part? = nil
     @Environment(Store.self) private var store
     @State private var queueText = ""
     @FocusState private var queueFocused: Bool
@@ -21,19 +26,7 @@ struct FieldView: View {
     private var t: DayKey { store.today }
 
     var body: some View {
-        DomyScreen(title: "田", sub: store.state.habit.map { "\($0.trigger) → \($0.floor)" } ?? "還沒種東西") {
-            if store.state.habit != nil {
-                grownSection
-                reviewSection
-                weeksSection
-                patternSection
-                if AIClient.shared.isAvailable && store.state.auditReady(today: t) {
-                    auditSection
-                }
-            }
-            queueSection
-            basketSection
-        }
+        screen
         .sheet(item: $week) { start in WeekSheet(start: start) }
         .sheet(isPresented: $showAudit) { AuditSheet() }
         .sheet(isPresented: $showPaywall) { PaywallSheet() }
@@ -44,6 +37,96 @@ struct FieldView: View {
         }
     }
 
+    @ViewBuilder
+    private var screen: some View {
+        if let part {
+            DomyScreen {
+                switch part {
+                case .grown: grownSection
+                case .weeks: weeksSection
+                case .pattern: patternSection
+                case .queue: queueSection
+                case .basket: basketSection
+                }
+            }
+        } else {
+            DomyScreen(title: "田", sub: store.state.habit.map { "\($0.trigger) → \($0.floor)" } ?? "還沒種東西") {
+                if store.state.habit != nil {
+                    grownSummary
+                    reviewSection
+                }
+                moreSection
+            }
+        }
+    }
+
+    // MARK: 第一層
+
+    /// 三條訊號只寫過了沒；怎麼算、要按的都在下一頁
+    private var grownSummary: some View {
+        let sg = store.state.signals(today: t)
+        return DomySection(title: "長好了嗎") {
+            Button { store.route = [.grown] } label: {
+                HStack(spacing: Sp.s3) {
+                    VStack(alignment: .leading, spacing: Sp.s3) {
+                        summaryLine(sg.s1, "曲線走平")
+                        summaryLine(sg.s2, "壓力週還照做")
+                        summaryLine(sg.s3, "不記也照做")
+                    }
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.right")
+                        .font(Ty.footnote.font.weight(.semibold))
+                        .foregroundStyle(Theme.fg3)
+                        .accessibilityHidden(true)
+                }
+                .padding(Sp.s4)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(DomyRowPressStyle())
+            if sg.passCount >= 2 {
+                RowSep()
+                digButton
+            }
+        }
+    }
+
+    private func summaryLine(_ ok: Bool, _ title: String) -> some View {
+        HStack(spacing: Sp.s3) {
+            SignalDot(ok: ok)
+            Text(title).domyType(Ty.body).foregroundStyle(Theme.fg)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var digButton: some View {
+        DomyButton("挖地瓜") {
+            Haptic.bloom()
+            store.route = []
+            store.dig()
+        }
+        .padding(Sp.s4)
+    }
+
+    private var moreSection: some View {
+        DomySection {
+            if store.state.habit != nil {
+                RowButton(text: Copy.t(.d7title)) { store.route = [.weeks] }
+                RowSep()
+                RowButton(text: Copy.t(.d8title)) { store.route = [.pattern] }
+                RowSep()
+                if AIClient.shared.isAvailable && store.state.auditReady(today: t) {
+                    RowButton(text: "做這一季的稽核", value: purchases.isFull ? nil : "完整版", tone: .action) {
+                        if purchases.isFull { showAudit = true } else { showPaywall = true }
+                    }
+                    RowSep()
+                }
+            }
+            RowButton(text: "排隊", value: "\(store.state.queue.count)") { store.route = [.queue] }
+            RowSep()
+            RowButton(text: "竹籃", value: "\(store.state.basket.count)") { store.route = [.basket] }
+        }
+    }
+
     // MARK: 長好了嗎（Q6）
 
     private var grownSection: some View {
@@ -51,7 +134,7 @@ struct FieldView: View {
         let planted = store.state.habit?.planted ?? t
         var footer = Copy.t(.d1, ["date": planted.short, "n": DayKey.days(from: planted, to: t) + 1])
         if let next = store.state.queue.first { footer += Copy.t(.d1next, ["next": next]) }
-        return DomySection(title: "長好了嗎", footer: footer) {
+        return DomySection(footer: footer) {
             signalRow(ok: sg.s1, title: "曲線走平", mini: curveMini(sg))
             RowSep()
             signalRow(ok: sg.s2, title: "壓力週還照做", mini: pressureMini)
@@ -79,7 +162,9 @@ struct FieldView: View {
                         .domyType(Ty.subheadline)
                         .foregroundStyle(Theme.fg2)
                         .fixedSize(horizontal: false, vertical: true)
-                    DomyButton(Copy.t(.d5button), variant: .plain, size: .compact) { goSettings(.trigger) }
+                    DomyButton(Copy.t(.d5button), variant: .plain, size: .compact) {
+                        withAnimation(Feel.transition) { store.openSentence(.trigger) }
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, Sp.s4)
@@ -87,11 +172,7 @@ struct FieldView: View {
             }
             if sg.passCount >= 2 {
                 RowSep()
-                DomyButton("挖地瓜") {
-                    Haptic.bloom()
-                    store.dig()
-                }
-                    .padding(Sp.s4)
+                digButton
             }
         }
     }
@@ -148,9 +229,11 @@ struct FieldView: View {
         let e = store.state.reportWeekEnd(today: t)
         return DomySection(title: "開始四問") {
             if store.state.weekly.isEmpty {
-                DomyEmptyState(icon: "chart.line.uptrend.xyaxis",
-                               title: "還沒有線",
-                               detail: "每週做一次開始四問，這裡會畫出一條線。它會先爬、後來走平，走平就是快長好了。")
+                CardBody {
+                    Text("每週做一次，這裡會畫出一條線。走平就是快長好了。")
+                        .domyType(Ty.subheadline)
+                        .foregroundStyle(Theme.fg2)
+                }
             } else {
                 ChartView(weekly: Array(store.state.weekly.suffix(8)))
                     .padding(.horizontal, Sp.s3)
@@ -165,6 +248,10 @@ struct FieldView: View {
             RowButton(text: Copy.t(.d6week), value: Copy.t(.w0s, ["start": e.adding(-6).short, "end": e.short])) {
                 week = .report
             }
+            if let trial = store.state.runningTrial, t >= trial.end {
+                RowSep()
+                RowButton(text: Copy.t(.d9look), tone: .action) { week = .report }
+            }
         }
     }
 
@@ -174,7 +261,7 @@ struct FieldView: View {
         let rows = store.state.recentWeeks(today: t)
         let planted = store.state.habit?.planted ?? t
         let age = DayKey.days(from: planted, to: t) + 1
-        return DomySection(title: Copy.t(.d7title), footer: age >= 7 ? Copy.t(.d7foot) : nil) {
+        return DomySection(footer: age >= 7 ? Copy.t(.d7foot) : nil) {
             if age < 7 || rows.isEmpty {
                 CardBody { Text(Copy.t(.d7few, ["d": age])).domyType(Ty.subheadline).foregroundStyle(Theme.fg2) }
             } else {
@@ -195,7 +282,7 @@ struct FieldView: View {
         let hasTravel = l.hasTravel(end: e)
         let travel = l.travelSplit(end: e)
         let reasons = l.leaveReasons()
-        return DomySection(title: Copy.t(.d8title)) {
+        return DomySection {
             patternLine(highlight: split.passes) {
                 if split.enough {
                     Text(Copy.t(.d8counts, ["w": split.weeks, "a": split.b.days, "b": split.b.done,
@@ -265,21 +352,10 @@ struct FieldView: View {
             }
     }
 
-    // MARK: 季稽核（完整版，AI）
-
-    private var auditSection: some View {
-        DomySection(title: "季稽核", footer: "種滿一季了。看看這個習慣要維持、加量、換情境，還是退場。") {
-            RowButton(text: "做這一季的稽核", value: purchases.isFull ? nil : "完整版", tone: .action) {
-                if purchases.isFull { showAudit = true } else { showPaywall = true }
-            }
-        }
-    }
-
     // MARK: 排隊
 
     private var queueSection: some View {
-        DomySection(title: "排隊",
-                    footer: "一次種一個。兩個都還在長的時候，會搶同一份注意力。這一個長好、挖出來之後，排第一的會出現在種下一個的畫面。") {
+        DomySection(footer: "一次種一個。兩個都還在長的時候，會搶同一份注意力。這一個長好、挖出來之後，排第一的會出現在種下一個的畫面。") {
             ForEach(queueRows) { row in
                 let i = row.index
                 let q = row.text
@@ -341,7 +417,7 @@ struct FieldView: View {
     // MARK: 竹籃（Q12）
 
     private var basketSection: some View {
-        DomySection(title: "竹籃") {
+        DomySection {
             if store.state.basket.isEmpty {
                 DomyEmptyState(icon: "basket", title: "竹籃還是空的", detail: "長好的習慣會變成一顆地瓜，收在這裡。")
             } else {
@@ -373,10 +449,6 @@ struct FieldView: View {
         }
     }
 
-    private func goSettings(_ target: SettingsTarget) {
-        store.settingsTarget = target
-        withAnimation(Feel.transition) { store.page = 2 }
-    }
 }
 
 extension WeekSheet.Start: Identifiable {

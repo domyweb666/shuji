@@ -4,6 +4,8 @@ import CoreMotion
 /// 地瓜藤：每做一節長一片葉、往下紮一條根；回來那一節開一朵花。
 /// 原型是 canvas 2D，這裡用 Canvas + TimelineView 逐幀畫，數字全部照搬。
 struct VineView: View {
+    /// 土面離畫布底多高
+    var soilDepth: CGFloat = 150
     @Environment(Store.self) private var store
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -13,6 +15,7 @@ struct VineView: View {
     var body: some View {
         TimelineView(.animation) { timeline in
             Canvas { context, size in
+                model.soilDepth = soilDepth
                 model.step(now: timeline.date, size: size, reduce: reduceMotion)
                 model.draw(in: &context, size: size, garden: Theme.garden(scheme), now: timeline.date, reduce: reduceMotion)
             }
@@ -108,7 +111,9 @@ final class VineModel {
 
     // MARK: 幾何
 
-    private func soilY() -> Double { max(height * 0.5, height - 150) }
+    var soilDepth = 150.0
+
+    private func soilY() -> Double { max(60, height - soilDepth) }
 
     private func nodePos(_ i: Int) -> (Double, Double) {
         (40 + Double(i) * VineModel.spacing - cam, soilY() - 4 + sin(Double(i) * 0.9) * 5)

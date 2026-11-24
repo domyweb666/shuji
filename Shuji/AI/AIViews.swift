@@ -520,7 +520,7 @@ struct PaywallSheet: View {
     private let purchases = Purchases.shared
 
     var body: some View {
-        SheetFrame {
+        SheetFrame(full: true) {
             VStack(spacing: Sp.s3) {
                 PotatoView(width: 96) // domy-ignore: 插畫尺寸
                 SheetTitle("薯記完整版")

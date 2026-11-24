@@ -230,9 +230,6 @@ struct SwitchCard: View {
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: Rd.xl, style: .continuous)
         VStack(alignment: .leading, spacing: Sp.s2) {
-            Text("開關")
-                .domyType(Ty.caption)
-                .foregroundStyle(Theme.strong)
             (Text("如果") + Text(trigger).bold() + Text("，我就") + Text(floor).bold() + Text("。"))
                 .font(.system(Ty.title2.textStyle))
                 .lineSpacing(Ty.title2.lineSpacing)

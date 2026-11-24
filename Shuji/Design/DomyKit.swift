@@ -168,7 +168,7 @@ struct DomyScreen<Trailing: View, Content: View>: View {
                 content
             }
             .padding(.horizontal, Sz.screenMargin)
-            .padding(.top, Sp.s2)
+            .padding(.top, title == nil ? Sp.s2 : Theme.pageTop)
             .padding(.bottom, bottomInset)
             .frame(maxWidth: Theme.contentMaxWidth)
             .frame(maxWidth: .infinity)

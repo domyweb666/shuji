@@ -315,9 +315,8 @@ struct FindingCard: View {
 
     private func toSettings(_ target: SettingsTarget) {
         store.pendingVia = .week
-        store.settingsTarget = target
         close()
-        withAnimation(Feel.transition) { store.page = 2 }
+        withAnimation(Feel.transition) { store.openSentence(target) }
     }
 }
 

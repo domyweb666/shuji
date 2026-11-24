@@ -4,6 +4,8 @@ import UniformTypeIdentifiers
 
 /// 底部彈出卡共用的外框：畫布色、左右 20、區塊之間 16
 struct SheetFrame<Content: View>: View {
+    /// true：一打開就是整頁，不先停在一半
+    var full = false
     @ViewBuilder var content: Content
 
     var body: some View {
@@ -11,12 +13,13 @@ struct SheetFrame<Content: View>: View {
             VStack(alignment: .leading, spacing: Sp.s4) { content }
                 .padding(.horizontal, Sz.screenMargin)
                 .padding(.top, Sp.s6)
-                .padding(.bottom, Sp.s8)
+                .padding(.bottom, full ? Sp.s4 : Sp.s8)
                 .frame(maxWidth: Theme.contentMaxWidth)
                 .frame(maxWidth: .infinity)
         }
         .scrollDismissesKeyboard(.interactively)
-        .presentationDetents([.medium, .large])
+        .scrollBounceBehavior(.basedOnSize)
+        .presentationDetents(full ? [.large] : [.medium, .large])
         .presentationDragIndicator(.visible)
         .presentationCornerRadius(Rd.xxl)
         .presentationBackground(Theme.canvas)
@@ -155,7 +158,7 @@ struct TipsSheet: View {
 
 struct UnfitSheet: View {
     var body: some View {
-        SheetFrame {
+        SheetFrame(full: true) {
             SheetTitle("什麼時候不適合用這個 app")
             SheetNote("這個 app 幫你把一個新行為接到生活裡的固定瞬間。下面這些情況，單靠習慣設計不夠，先找專業的人看：")
             Card {
@@ -170,11 +173,11 @@ struct UnfitSheet: View {
                 RowLabel(text: "兩週以上對大部分事情都提不起勁")
             }
             Card {
-                hotline("安心專線（24 小時、免付費）", number: "1925")
+                hotline("安心專線", number: "1925")
                 RowSep()
-                hotline("戒菸專線（免付費）", number: "0800-63-63-63")
+                hotline("戒菸專線", number: "0800-63-63-63")
             }
-            SheetNote("也可以掛精神科、身心科，或找臨床心理師。")
+            SheetNote("兩支都免付費，安心專線 24 小時有人接。也可以掛精神科、身心科，或找臨床心理師。")
         }
     }
 
@@ -186,6 +189,7 @@ struct UnfitSheet: View {
                 .domyType(Ty.headline)
                 .foregroundStyle(Theme.strong)
                 .monospacedDigit()
+                .fixedSize()
                 .textSelection(.enabled)
         }
         .padding(.horizontal, Sp.s4)

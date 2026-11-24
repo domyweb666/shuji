@@ -10,8 +10,10 @@ struct TodayView: View {
     /// 「這週有被打斷過嗎？」點過就不再出現（記的是哪個習慣，換習慣會重新出現一次）
     @AppStorage("shuji.ai.obstaclePromptSeen") private var obstaclePromptSeen = ""
 
-    /// 地瓜藤畫布的高度（插畫，不是介面代號）
-    private static let vineHeight: CGFloat = 230 // domy-ignore: 插畫畫布高度
+    /// 土面以上：一片葉子加捲鬚的高度
+    private static let vineAbove: CGFloat = 64 // domy-ignore: 插畫畫布高度
+    /// 土面到分頁列上緣：根最長 74，整條露在分頁列上面
+    private static let vineBelow: CGFloat = 84 // domy-ignore: 插畫畫布高度
 
     enum TodaySheet: String, Identifiable {
         case more
@@ -56,12 +58,12 @@ struct TodayView: View {
                     // 按滿、請假、撤銷：大鈕和狀態章淡入淡出換場，不要瞬間跳
                     .animation(Feel.transition, value: store.state.log(on: t)?.t)
                     .padding(.horizontal, Sz.screenMargin)
-                    .padding(.top, Sp.s2)
+                    .padding(.top, Theme.pageTop)
                     .frame(maxWidth: Theme.contentMaxWidth)
                     Spacer(minLength: Sp.s4)
                     // 藤往下多長一段，讓分頁列浮在土上，不蓋到葉子
-                    VineView()
-                        .frame(height: TodayView.vineHeight + bottomInset)
+                    VineView(soilDepth: TodayView.vineBelow + bottomInset)
+                        .frame(height: TodayView.vineAbove + TodayView.vineBelow + bottomInset)
                 }
                 .frame(minHeight: geo.size.height)
             }
@@ -73,8 +75,16 @@ struct TodayView: View {
     private var header: some View {
         let st = store.state.stats(today: t)
         return DomyHeader(title: "今天", sub: GlanceCopy.todaySub(date: t.long, nodes: st.nodes)) {
-            if store.state.travel { Chip("旅行中") }
+            HStack(spacing: Sp.s2) {
+                if store.state.travel { Chip("旅行中") }
+                if canOpenMore { MoreButton { sheet = .more } }
+            }
         }
+    }
+
+    /// 還沒記的時候，昨天忘了記、今天請假收在右上角。記好之後走狀態章下面那顆膠囊
+    private var canOpenMore: Bool {
+        store.state.habit != nil && store.state.log(on: t) == nil && store.state.letgoDaysLeft(today: t) == nil
     }
 
     @ViewBuilder
@@ -113,9 +123,9 @@ struct TodayView: View {
                 }
                 VStack(spacing: Sp.s2) {
                     Card {
-                        RowButton(text: "開關有出現嗎？") { goSettings(.trigger) }
+                        RowButton(text: "開關有出現嗎？") { goSentence(.trigger) }
                         RowSep()
-                        RowButton(text: "最小一步太大嗎？") { goSettings(.floor) }
+                        RowButton(text: "最小一步太大嗎？") { goSentence(.floor) }
                         RowSep()
                         RowButton(text: "旁邊有更近的東西搶走了嗎？") { sheet = .tips }
                     }
@@ -158,10 +168,10 @@ struct TodayView: View {
                 SwitchCard(trigger: h.trigger, floor: floor)
                 let missed = store.state.consecutiveMissed(today: t)
                 let cameHome = store.state.travelEndedOn == t.adding(-1)
-                holdBlock(hint: "做完最小一步，按住一下") {
+                holdBlock(hint: "做完最小一步，按住一下", showsHint: false) {
                     if missed >= 2 {
                         DomyButton("卡住的話，看看開關有沒有出現，或最小一步太大", variant: .plain, size: .compact, fullWidth: true) {
-                            goSettings(nil)
+                            goSentence(nil)
                         }
                         if !h.backup.isEmpty {
                             DomyInfoStrip(text: "不順的時候：\(h.backup)")
@@ -185,11 +195,10 @@ struct TodayView: View {
         holdBlock(hint: hint) { EmptyView() }
     }
 
-    private func holdBlock<Extra: View>(hint: String, @ViewBuilder extra: () -> Extra) -> some View {
+    private func holdBlock<Extra: View>(hint: String, showsHint: Bool = true, @ViewBuilder extra: () -> Extra) -> some View {
         stage {
-            HoldButton(hint: hint) { recordNode() }
+            HoldButton(hint: hint, showsHint: showsHint) { recordNode() }
             extra()
-            DomyButton("昨天忘了記 · 今天請假", variant: .quiet, size: .compact) { sheet = .more }
         }
     }
 
@@ -206,9 +215,26 @@ struct TodayView: View {
         }
     }
 
-    private func goSettings(_ target: SettingsTarget?) {
-        store.settingsTarget = target
-        withAnimation(Feel.transition) { store.page = 2 }
+    private func goSentence(_ target: SettingsTarget?) {
+        withAnimation(Feel.transition) { store.openSentence(target) }
+    }
+}
+
+/// 標題右邊的 ⋯
+struct MoreButton: View {
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "ellipsis")
+                .font(Ty.headline.font)
+                .foregroundStyle(Theme.fg)
+                .frame(width: Sz.iconButton, height: Sz.iconButton)
+                .background(Theme.surface, in: Circle())
+                .contentShape(Circle())
+        }
+        .buttonStyle(DomyPressStyle())
+        .accessibilityLabel("昨天忘了記、今天請假")
     }
 }
 

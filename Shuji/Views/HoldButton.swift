@@ -5,6 +5,8 @@ import SwiftUI
 /// 外觀照 Domy 的核心大鈕：待機是亮色底＋深字，按著變產品色實心，外圈跟著跑進度。
 struct HoldButton: View {
     var hint: String
+    /// false：畫面上不寫，只給讀屏
+    var showsHint = true
     var onComplete: () -> Void
 
     @GestureState private var pressing = false
@@ -78,11 +80,13 @@ struct HoldButton: View {
             .accessibilityAddTraits(.isButton)
             .accessibilityAction { complete() }
 
-            Text(hint)
-                .domyType(Ty.subheadline)
-                .foregroundStyle(Theme.fg2)
-                .multilineTextAlignment(.center)
-                .frame(minHeight: Sp.s5)
+            if showsHint {
+                Text(hint)
+                    .domyType(Ty.subheadline)
+                    .foregroundStyle(Theme.fg2)
+                    .multilineTextAlignment(.center)
+                    .frame(minHeight: Sp.s5)
+            }
         }
     }
 

@@ -10,6 +10,17 @@ enum SettingsTarget: Hashable {
     case travelFloor
 }
 
+/// 從三個分頁推進去的第二層
+enum Route: Hashable {
+    case sentence
+    case grown
+    case weeks
+    case pattern
+    case queue
+    case basket
+    case family
+}
+
 /// 整個 app 唯一的狀態容器。動作都在這裡，畫面只負責畫。
 /// 存檔是 Application Support/Shuji/state.json（v2，.analytics/04-資料結構.md）。
 /// 每個動作都是「加一筆紀錄」：撤銷是標記，挖地瓜不清紀錄，改開關句留一筆改版。
@@ -18,7 +29,11 @@ enum SettingsTarget: Hashable {
 final class Store {
     var state: AppState
     /// 0 田、1 今天、2 設定
-    var page: Int = 1
+    var page: Int = 1 {
+        didSet { if page != oldValue { route = [] } }
+    }
+    /// 推進去的頁。換分頁就清掉
+    var route: [Route] = []
     var toast: String? = nil
     /// 剛記了一節，下次畫藤要播長出來的動畫
     var vineGrow = false
@@ -326,6 +341,13 @@ final class Store {
     }
 
     // MARK: 設定
+
+    /// 從今天、田、這週的田過來改開關句：切到設定，直接推進開關句那頁
+    func openSentence(_ target: SettingsTarget?) {
+        settingsTarget = target
+        page = 2
+        route = [.sentence]
+    }
 
     /// 改開關句：每個改到的欄位留一筆改版（原值、新值、從哪裡改）
     func updateHabit(via: HabitChange.Via = .settings, _ change: (inout Habit) -> Void) {

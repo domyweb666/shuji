@@ -56,6 +56,8 @@ enum Theme {
     static let bright = brand.bright
     static let onBright = brand.onBright
 
+    /// 分頁頁大標題離安全區上緣（多米 iOS 開發準則 3-46 的 pageTop）
+    static let pageTop: CGFloat = 40 // domy-ignore: 1.6.0 的 Layout.pageTop，升複本時換掉
     /// 懸浮分頁列底下要讓出來的高度（不含安全區，ScrollView 自己會算）
     static let tabBarClearance = Sz.tabBarBottom + Sz.tabBar + Sp.s4
     /// 內容最寬多少（iPad、橫放時不要拉滿）
