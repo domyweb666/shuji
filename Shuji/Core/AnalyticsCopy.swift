@@ -126,6 +126,8 @@ enum CopyID: String, CaseIterable {
     case f1same = "F-1="
     case f1days = "F-1 天數"
     case f1none = "F-1e"
+    case f1soFar = "F-1 到現在"
+    case f1notYet = "F-1 到現在 沒有"
     case f1from = "F-1 軸"
     case f1now = "F-1 軸這週"
     case f2q = "F-2"
@@ -278,6 +280,8 @@ enum Copy {
         .f1same: "{n}，平常 {lo} 天",
         .f1days: "{n} 天",
         .f1none: "還沒記",
+        .f1soFar: "這週到現在 {n} 天",
+        .f1notYet: "這週還沒記",
         .f1from: "{k}週前",
         .f1now: "這週",
         .f2q: "哪幾天常漏掉？",

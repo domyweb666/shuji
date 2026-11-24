@@ -66,7 +66,18 @@ final class FieldReportTests: XCTestCase {
         var p = everyDay()
         XCTAssertEqual(p.cards.week?.answer, "6 天，平常 7 天", "今天還沒記")
         p.done(T)
-        XCTAssertEqual(p.s.fieldCards(today: T.adding(1)).week?.answer, "還沒記，平常 7 天", "新的一週第一天不寫 0")
+        XCTAssertEqual(p.s.fieldCards(today: T.adding(1)).week?.answer, "這週還沒記", "新的一週第一天不寫 0")
+    }
+
+    /// 這週還沒過完只講到現在幾天，回顧日當天才跟平常比
+    func testWeekCardMidWeek() {
+        var p = everyDay()
+        for i in 1...2 { p.done(T.adding(i)) }
+        XCTAssertEqual(p.s.fieldCards(today: T.adding(2)).week?.answer, "這週到現在 2 天")
+        for i in 3...5 { p.done(T.adding(i)) }
+        XCTAssertEqual(p.s.fieldCards(today: T.adding(6)).week?.answer, "這週到現在 5 天", "星期六還沒過完")
+        p.done(T.adding(7))
+        XCTAssertEqual(p.s.fieldCards(today: T.adding(7)).week?.answer, "6 天，平常 6 到 7 天")
     }
 
     func testWeekCardShortHistory() {

@@ -141,14 +141,20 @@ extension AppState {
         return c
     }
 
-    /// M3 對 M4。放手的週、回來的週不比較
+    /// M3 對 M4，這週過完（回顧日當天）才比。放手的週、回來的週不比較
     private func weekCard(_ l: Ledger, today t: DayKey) -> WeekCard? {
         let e = currentWeekEnd(today: t)
         let w = l.week(end: e)
         guard w.letgo == 0, !l.isReturnWeek(end: e), let u = l.usualRange(before: e) else { return nil }
-        // 沒有任何紀錄的週是空窗，不寫 0
-        let n = w.hasRecord ? Copy.t(.f1days, ["n": w.done]) : Copy.t(.f1none)
-        let answer = u.lo == u.hi ? Copy.t(.f1same, ["n": n, "lo": u.lo]) : Copy.t(.f1a, ["n": n, "lo": u.lo, "hi": u.hi])
+        let answer: String
+        if e == t {
+            // 沒有任何紀錄的週是空窗，不寫 0
+            let n = w.hasRecord ? Copy.t(.f1days, ["n": w.done]) : Copy.t(.f1none)
+            answer = u.lo == u.hi ? Copy.t(.f1same, ["n": n, "lo": u.lo]) : Copy.t(.f1a, ["n": n, "lo": u.lo, "hi": u.hi])
+        } else {
+            // 還沒到回顧日，跟一整週比一定偏少：只講到現在幾天
+            answer = w.done > 0 ? Copy.t(.f1soFar, ["n": w.done]) : Copy.t(.f1notYet)
+        }
         let rows = weekBars(today: t)
         let digits = ["一", "二", "三", "四", "五", "六", "七", "八"]
         let from = digits.indices.contains(rows.count - 1) ? digits[rows.count - 1] : "\(rows.count)"
