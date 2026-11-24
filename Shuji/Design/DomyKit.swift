@@ -173,7 +173,7 @@ struct DomyScreen<Trailing: View, Content: View>: View {
             .frame(maxWidth: Theme.contentMaxWidth)
             .frame(maxWidth: .infinity)
         }
-        .scrollDismissesKeyboard(.interactively)
+        .scrollDismissesKeyboard(UserDefaults.standard.integer(forKey: "qcpager") == 3 ? .automatic : .interactively)
         .background(Theme.canvas)
     }
 }

@@ -4,6 +4,8 @@ import VeggieKit
 /// 三頁：田｜今天｜設定。下面一條懸浮膠囊分頁列，手指也照樣可以左右滑。還沒種的時候只有首次設定這一頁。
 struct RootView: View {
     @Environment(Store.self) private var store
+    /// 暫時：比對三種翻頁做法，量完就拿掉
+    private var qcPager: Int { UserDefaults.standard.integer(forKey: "qcpager") }
     @State private var bottomSafe: CGFloat = 0
     /// 畫面上停在哪一頁，跟 store.page 互相同步
     @State private var shown: Int? = 1
@@ -48,7 +50,25 @@ struct RootView: View {
                 OnboardingView()
                     .transition(.opacity)
             } else {
-                pager(page: page)
+                if qcPager == 2 {
+                    TabView(selection: page) {
+                        FieldView().tag(0)
+                        TodayView().tag(1)
+                        SettingsView().tag(2)
+                    }
+                    .tabViewStyle(.page(indexDisplayMode: .never))
+                    .environment(\.domyBottomInset, Theme.tabBarClearance)
+                } else if qcPager == 1 {
+                    pager(page: page)
+                        .simultaneousGesture(DragGesture(minimumDistance: 20).onEnded { g in // domy-ignore: 暫時
+                            let w = g.translation.width
+                            guard abs(w) > 80, abs(w) > abs(g.translation.height) * 2 else { return }
+                            let to = min(2, max(0, (shown ?? 1) + (w < 0 ? 1 : -1)))
+                            withAnimation(Feel.transition) { shown = to }
+                        })
+                } else {
+                    pager(page: page)
+                }
             }
         }
         .overlay(alignment: .top) {
