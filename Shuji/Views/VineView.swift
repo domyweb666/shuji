@@ -8,6 +8,8 @@ struct VineView: View {
     var soilTop: CGFloat
     /// 地瓜頂端的位置，最後一節的根連到這裡（地瓜在正中間）
     var potatoTop: CGFloat
+    /// 烤好剝開：外圈沒了、上面冒煙，根改接到地瓜左端
+    var baked = false
     @Environment(Store.self) private var store
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -20,6 +22,7 @@ struct VineView: View {
             Canvas { context, size in
                 model.soilTop = soilTop
                 model.potatoTop = potatoTop
+                model.baked = baked
                 model.step(now: timeline.date, size: size, reduce: reduceMotion)
                 model.draw(in: &context, size: size, garden: Theme.garden(scheme), now: timeline.date, reduce: reduceMotion)
             }
@@ -120,6 +123,9 @@ final class VineModel {
 
     var soilTop = 60.0
     var potatoTop = 150.0
+    var baked = false
+    /// 根接到哪：0 地瓜頂、1 地瓜左端，慢慢移過去
+    private var linkP = 0.0
 
     private func soilY() -> Double { soilTop }
 
@@ -163,6 +169,8 @@ final class VineModel {
             pendingGrow = false
         }
         let dt = min(0.05, lastTime.map { now.timeIntervalSince($0) } ?? 0.016)
+        let linkT = baked ? 1.0 : 0.0
+        linkP = lastTime == nil || reduce ? linkT : linkP + (linkT - linkP) * min(1, dt * 5)
         lastTime = now
         frameDt = dt
         cam += (camT - cam) * (reduce ? 1 : min(1, dt * 3))
@@ -237,13 +245,15 @@ final class VineModel {
             rx = px + (rx - px) * p
             ry = py + (ry - py) * p
         }
-        let depth = potatoTop - ry
+        let endX = W * 0.5 - 98 * linkP
+        let endY = potatoTop + 72 * linkP
+        let depth = endY - ry
         if depth > 0 {
             var link = Path()
             link.move(to: CGPoint(x: rx, y: ry + 2))
-            link.addCurve(to: CGPoint(x: W * 0.5, y: potatoTop),
-                          control1: CGPoint(x: rx, y: ry + depth * 0.6),
-                          control2: CGPoint(x: W * 0.5, y: potatoTop - depth * 0.5))
+            link.addCurve(to: CGPoint(x: endX, y: endY),
+                          control1: CGPoint(x: rx, y: ry + depth * (0.6 - 0.35 * linkP)),
+                          control2: CGPoint(x: endX, y: endY - depth * (0.5 + 0.2 * linkP)))
             gc.stroke(link, with: .color(garden.root), style: StrokeStyle(lineWidth: 2.2, lineCap: .round))
         }
 

@@ -219,6 +219,64 @@ final class LogicTests: XCTestCase {
         XCTAssertFalse(d.reviewPending(today: T))
     }
 
+    /// 四問與長好了嗎：打開 app 自動問（AutoAsk）
+    func testAutoAsk() {
+        var d = demo
+        d.settings.reviewDay = 6
+        d.setWeekly([])
+        d.marks = []
+        XCTAssertEqual(d.autoAsk(today: T), .review)
+        // 這一段不看停了多久：補一筆最近的紀錄
+        d.put(T.adding(5).string, .done)
+        XCTAssertEqual(d.autoAsk(today: T.adding(5)), .review, "過了三天也照樣問")
+
+        func weeks(_ v: Double) -> [WeeklyReview] {
+            (0..<6).map { WeeklyReview(date: T.adding(-7 * (5 - $0)), scores: [v, v, v, v]) }
+        }
+        d.setWeekly(weeks(5))
+        XCTAssertEqual(d.autoAsk(today: T), .pressure, "曲線走平，先問壓力週")
+        d.mark(.pressureNotYet, T)
+        XCTAssertEqual(d.autoAsk(today: T), .letgo)
+        d.mark(.pressureYes, T)
+        XCTAssertEqual(d.autoAsk(today: T), .dig, "兩個訊號過了")
+        d.marks = []
+        d.mark(.letgoStart, T, prior: 12)
+        XCTAssertNil(d.autoAsk(today: T), "放手中不問")
+        d.marks = []
+        d.setWeekly(weeks(2))
+        XCTAssertNil(d.autoAsk(today: T), "走平在低處，不問長好了嗎")
+        d.habit?.planted = T.adding(-6)
+        d.setWeekly([])
+        XCTAssertNil(d.autoAsk(today: T), "種不到一週不問")
+        d.habit = nil
+        XCTAssertNil(d.autoAsk(today: T))
+    }
+
+    /// 田的報表
+    func testFieldReport() {
+        var d = demo
+        d.settings.reviewDay = 0
+        d.marks = []
+        d.habit?.planted = DayKey("2026-10-20")!
+        d.keepOnly(["2026-10-20": .done, "2026-11-01": .done, "2026-11-02": .done,
+                    "2026-11-03": .leave("出門"), "2026-11-04": .done])
+        let m = d.monthReport(today: T, back: 0)
+        XCTAssertEqual(m?.days.count, 30)
+        XCTAssertEqual(m?.lead, 0, "2026-11-01 是星期日")
+        XCTAssertEqual(m?.done, 3)
+        XCTAssertEqual(m?.back, 1, "11/1 是漏了之後回來；請假隔天不算回來")
+        XCTAssertEqual(m?.leave, 1)
+        XCTAssertEqual(m?.days[0].kind, .back)
+        XCTAssertEqual(m?.days[2].kind, .leave)
+        XCTAssertEqual(d.monthReport(today: T, back: 1)?.days.count, 31)
+        XCTAssertNil(d.monthReport(today: T, back: 2), "種下去之前")
+
+        let bars = d.weekBars(today: T)
+        XCTAssertEqual(bars.map(\.done), [1, 1, 2], "週回顧日是星期日：10/19、10/26、11/2 起")
+        XCTAssertEqual(bars.last?.current, true)
+        XCTAssertEqual(d.weekdayTally(today: T), [1, 1, 1, 1, 0, 0, 0])
+    }
+
     func testObstacleMigratesIntoBackup() {
         var d = demo
         d.habit?.backup = ""
@@ -487,7 +545,7 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(s.state.letgoResult?.pass, true, "11 >= 13 - 2 算過")
         XCTAssertEqual(s.state.letgoResult?.start, T)
         XCTAssertEqual(s.state.letgoResult?.end, T.adding(14))
-        XCTAssertEqual(s.page, 0)
+        XCTAssertEqual(s.page, 1)
         XCTAssertTrue(s.state.signals(today: s.today).s3)
         s.resetOffset()
 

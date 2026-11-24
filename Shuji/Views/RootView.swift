@@ -7,10 +7,14 @@ struct RootView: View {
     @State private var bottomSafe: CGFloat = 0
     /// 畫面上停在哪一頁，跟 store.page 互相同步
     @State private var shown: Int? = 1
+    /// 打開 app 自動跳出來的那一張
+    @State private var ask: AutoAsk? = nil
+    @State private var lastAsk: AutoAsk? = nil
+    @Environment(\.scenePhase) private var scenePhase
     private static let minute = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
 
     private static let tabs: [DomyTabBar.Item] = [
-        .init(title: "田", icon: "leaf"),
+        .init(title: "田", icon: "chart.bar"),
         .init(title: "今天", icon: "sun.max"),
         .init(title: "設定", icon: "gearshape"),
     ]
@@ -39,6 +43,27 @@ struct RootView: View {
         .animation(Feel.transition, value: store.state.habit == nil)
         .onReceive(RootView.minute) { _ in store.refreshToday() }
         .onAppear { Appearance.stored.apply() }
+        .task(id: scenePhase) {
+            // 先讓今天頁畫好再問；放手測試結束、換日回來也會再看一次
+            guard scenePhase == .active else { return }
+            try? await Task.sleep(for: .seconds(0.8))
+            guard !Task.isCancelled, ask == nil, store.page == 1, store.route.isEmpty else { return }
+            ask = store.nextAsk()
+        }
+        .sheet(item: $ask, onDismiss: afterAsk) { which in
+            AskSheet(ask: which)
+                .onAppear {
+                    lastAsk = which
+                    store.markAsked(which)
+                }
+        }
+    }
+
+    /// 四問答完、壓力週答完，剛好長好了就接著問要不要挖；其他的等下次打開
+    private func afterAsk() {
+        guard let next = store.nextAsk() else { return }
+        if next == .dig || lastAsk == .review { ask = next }
+        lastAsk = nil
     }
 
     private func tabs(page: Binding<Int>) -> some View {
@@ -114,11 +139,7 @@ struct RouteView: View {
     var body: some View {
         switch route {
         case .sentence: SentenceView()
-        case .grown: FieldView(part: .grown).navigationTitle("長好了嗎")
-        case .weeks: FieldView(part: .weeks).navigationTitle(Copy.t(.d7title))
-        case .pattern: FieldView(part: .pattern).navigationTitle(Copy.t(.d8title))
-        case .queue: FieldView(part: .queue).navigationTitle("排隊")
-        case .basket: FieldView(part: .basket).navigationTitle("竹籃")
+        case .basket: BasketView().navigationTitle("竹籃")
         case .family: VeggieFamilyView(config: .shuji)
         }
     }

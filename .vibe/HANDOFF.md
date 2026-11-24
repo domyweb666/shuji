@@ -1,41 +1,38 @@
-# Handoff: QC-0004 已併 main、TestFlight 1.0（8）已上傳，等多米真機回饋
+# Handoff: 今天頁烤好剝開、田改報表、四問自動跳（done-shape，等多米點頭併 main）
 
 > 產出時間：2026-11-24
 > repo：`E:\習慣地瓜\shuji`（外層 `E:\習慣地瓜` 不是 git repo）
-> 分支：`main`（bc33a7d 是 1.0（8）那一版；`qc-0004` 已整條併進來）
+> 分支：`done-shape`（從 main 60a97ea 開，已 push，沒開 PR、沒併）；CI run 45413022270 全綠
 
 ## ✅ 這次完成了什麼
 
-- 包 A：d81b094 編得過；最後一版程式 CI run 45318252766 全綠、106 個測試過。
-- 包 B：今天頁十一個狀態、淺深各一輪在模擬器看過，都不用捲、地瓜不被遮、字不壓土、根連到地瓜、外圈從正上方順時針。
-- 包 C：設定頁下半圖示、家族頁、完整版、不適合頁都從列點進去看過。
-- 看圖時修的四件：久停頁三張卡改成兩行字加一張卡；兩句都長就再小一級字；按滿不再閃空圈；連地瓜的根跟著新節長。
-- 土到地瓜的距離 36 到 76 點，字多先縮這裡，地瓜位置不動。
-- `tools/limrun/states.mjs`：把存檔塞進 app 再拍，一趟約 5 分鐘。
+- 今天頁記好後只剩開關句；多米選 C：地瓜烤好剝開（`HoldButton.swift` 的 `done`、`BakedFlesh`、`Steam`；`VineView` 的 `baked`／`linkP` 把根移到左端）。按住、完成、撤銷、再按，淺深色都在模擬器看過。
+- 田改成「月曆｜分析」（`FieldView.swift`，數字在 `Core/FieldReport.swift`）；竹籃＋排隊收在右上角。
+- 開始四問、壓力週、放手、挖地瓜改成打開 app 自動問（`AppState.autoAsk`、`Store.nextAsk`、`RootView`、`AskSheet`）。四問四題走完在模擬器看過。
+- 選項畫布：https://claude.ai/artifact/YGYgSPzPEMFESfPjbvrJYD ；截圖在 `E:\習慣地瓜\完成形狀`。
 
 ## 🚧 還沒做完 / 待決定
 
-- 2027 年 4 月起 Apple 要更新的 SDK（上傳時的警告），現在是 iOS 26.5 SDK，還不急。
-- 只能真機判：左右滑、按住手感與震動、記好那一刻順不順（模擬器錄影停格約 0.6 秒，沒偵測到主執行緒卡住，原因沒確認）。左右滑備案：外層加 DragGesture。
-- 沒看過：比 402×874 小的手機、放大字級。AI 打開後久停頁多一顆按鈕，會要捲一點。
-- 等多米：Anthropic 金鑰（`npx wrangler secret put ANTHROPIC_API_KEY`，多米自己跑）；放好後才把 `ShujiAIBaseURL` 填進 Info.plist（值在 deploy-server 分支），多米點頭才做。
-- 等多米：Apple ID（評分、分享列）、隱私權政策網址；準則要「清除所有資料」，但 2026-11-07 定過正式版不給，沒加。
+- 多米點頭才併 main、出 TestFlight。
+- 沒在模擬器走過：挖地瓜那張、放手那張（只有單元測試）；比 402×874 小的手機、放大字級。裂開那一下順不順要真機看。
+- 田 A 已做；多米若選 B 再改。「這週的田」兩行字還在，設定可關。
+- `tools/limrun/test.mjs` 還是舊流程，要改寫；看畫面用 `states.mjs`。AnalyticsCopy 的 D-1 到 D-9 大多沒人用，還沒清。
+- AI 四個新用途（講一句話請假補記、請假原因歸類、下一個該種哪個、挖出來的回顧）等多米選。
+- 舊待辦：Anthropic 金鑰（多米自己跑 `npx wrangler secret put ANTHROPIC_API_KEY`）、ShujiAIBaseURL、內購商品、Apple ID、隱私權政策網址、iCloud 同步、鎖定畫面一按就記、真機手感。
 
 ## 📌 關鍵決策
 
-- 今天頁：方向 C。沒有「今天」大標題，日期一行＋開關句當標題；字都在土面上，土裡只有地瓜上的字；撤銷、請假、補記都在右上角 ⋯。
-- 按著地瓜脹大 8%、外圈跑滿 1.5 秒；減少動態時不脹。
-
-## 📂 下個會話最重要的檔案
-
-- `Shuji/Views/TodayView.swift`、`HoldButton.swift`、`VineView.swift`
-- `tools/limrun/states.mjs`、`.uiux/閘門紀錄.md`；截圖在 `E:\習慣地瓜\QC-0004-截圖`
+- 四問沿用週回顧日：過了那天第一次打開就問，「晚點再說」隔天再問；長好了嗎的三張跳過隔 14 天。
+- 月曆推翻舊的「田不做月曆」；完成率、連續天數照舊不做。
+- 按住與記好用同一個 view，變形才沒有殘影。
 
 ## ⏭️ 下一步從哪繼續
 
-1. 多米真機回饋 → 從 main 開新分支照改，CI 綠、模擬器看過（`node tools/limrun/states.mjs`）再問要不要併。
-2. 出版：`gh workflow run testflight.yml --ref main`。
+1. 多米說可以 → 併 main、push → `gh workflow run testflight.yml --ref main`。
+2. 真機回饋 → 開新分支照改。
 
 ## 🧩 剩下的工作（工作包）
 
-- [x] A、B、C
+- [x] 完成的樣子變形
+- [ ] 併 main 出 TestFlight（等多米）
+- [ ] AI 打開與新用途（等多米選與金鑰）

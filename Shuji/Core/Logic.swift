@@ -209,6 +209,22 @@ extension AppState {
                        n: w.count, stale: stale, spread: spread)
     }
 
+    /// 打開 app 要自動問什麼（2026-11-24 多米定：四問和長好了嗎都不擺在田，時間到自己跳）。
+    /// 種滿一週才開始問；放手中、剛挖出來、停了一陣子都不問。
+    /// 四問：過了週回顧日、這週還沒做。長好了嗎照原本三個訊號，過兩個問要不要挖；
+    /// 曲線走平之後才問壓力週，沒遇到就問要不要放手兩週。
+    func autoAsk(today t: DayKey) -> AutoAsk? {
+        guard let h = habit, justDug == nil, letgo == nil, !longAbsence(today: t),
+              DayKey.days(from: h.planted, to: t) >= 7 else { return nil }
+        if !reviewedThisWeek(today: t) { return .review }
+        let sg = signals(today: t)
+        if sg.passCount >= 2 { return .dig }
+        guard sg.s1, !sg.flatLow else { return nil }
+        if pressureDay.map({ DayKey.days(from: $0, to: t) >= AutoAsk.pressure.cooldown }) ?? true { return .pressure }
+        if letgoResult?.end.map({ DayKey.days(from: $0, to: t) >= AutoAsk.letgo.cooldown }) ?? true { return .letgo }
+        return nil
+    }
+
     /// 放手測試開始前 14 天做了幾天
     func doneInLast14Days(today t: DayKey) -> Int {
         let l = ledger(today: t)
@@ -245,6 +261,15 @@ extension AppState {
         if log(on: t) != nil { return true }
         return consecutiveMissed(today: t) < 3
     }
+}
+
+/// 打開 app 自動跳出來的那一張
+enum AutoAsk: String, Identifiable {
+    case review, dig, pressure, letgo
+
+    var id: String { rawValue }
+    /// 跳過之後隔幾天再問
+    var cooldown: Int { self == .review ? 1 : 14 }
 }
 
 /// 一次放手測試

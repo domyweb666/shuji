@@ -1,45 +1,29 @@
 import SwiftUI
 
 /// 週回顧：開始四問 → 這週的田（.analytics/06 回顧層、07 字串表、08 T-1 到 T-3）。
+/// 時間到了打開 app 自動跳出來（AutoAsk），田裡沒有入口。
 /// 這週的田只說現象；有原因的觀察由她選原因、選做法；試兩週由她答應、結論由她下。
 struct WeekSheet: View {
-    enum Start { case review, report }
-
-    var start: Start
     @Environment(Store.self) private var store
     @Environment(\.dismiss) private var dismiss
-    @State private var showingReport = false
     @State private var report: WeekReport? = nil
 
     var body: some View {
-        Group {
-            if showingReport, let report {
-                WeekReportView(report: report, close: { dismiss() }, goField: goField)
-            } else {
-                ReviewQuestions(onSubmit: submitted)
-            }
-        }
-        .onAppear {
-            let t = store.today
-            if start == .report || store.state.reviewedThisWeek(today: t) {
-                open(from: start == .report ? "field" : "review")
-            }
+        if let report {
+            WeekReportView(report: report, close: { dismiss() }, goField: goField)
+        } else {
+            ReviewQuestions(onSubmit: submitted, later: { dismiss() })
         }
     }
 
     private func submitted(_ scores: [Double]) {
         store.recordReview(scores: scores)
-        if store.state.settings.weekCard {
-            open(from: "review")
+        if store.state.settings.weekCard, let r = store.openReport(from: "review") {
+            withAnimation(Feel.transition) { report = r }
         } else {
             store.show(Copy.t(.done))
             dismiss()
         }
-    }
-
-    private func open(from: String) {
-        report = store.openReport(from: from)
-        showingReport = report != nil
     }
 
     private func goField() {
@@ -48,48 +32,147 @@ struct WeekSheet: View {
     }
 }
 
-// MARK: - 開始四問
-
-/// 四句自動化量表。沒有預設分數，四題都點過才能記（原型預設 4，很多人直接送出）
-struct ReviewQuestions: View {
+/// 打開 app 自動跳出來的那一張
+struct AskSheet: View {
+    var ask: AutoAsk
     @Environment(Store.self) private var store
-    var onSubmit: ([Double]) -> Void
-    @State private var scores: [Int] = [0, 0, 0, 0]
-    private var allPicked: Bool { scores.allSatisfy { $0 >= 1 } }
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        switch ask {
+        case .review:
+            WeekSheet()
+        case .dig:
+            AskCard(potato: true, title: "「\(floor)」長好了", yes: "挖地瓜", no: "再種一陣子", onYes: {
+                Haptic.bloom()
+                dismiss()
+                store.route = []
+                store.dig()
+            }, onNo: { dismiss() })
+        case .pressure:
+            AskCard(title: "最近有特別忙或累的一週嗎？那週也照做了嗎？", yes: "有，照做了", no: "還沒遇到，或那週掉了", onYes: {
+                store.setPressure(true)
+                dismiss()
+            }, onNo: {
+                store.setPressure(false)
+                dismiss()
+            })
+        case .letgo:
+            AskCard(title: "試試看，接下來兩週照常做，不用記", yes: "試兩週", no: "先不要", onYes: {
+                store.startLetGo()
+                dismiss()
+            }, onNo: { dismiss() })
+        }
+    }
+
+    private var floor: String { store.state.habit?.floor ?? "" }
+}
+
+/// 一句話、兩顆按鈕
+private struct AskCard: View {
+    var potato = false
+    var title: String
+    var yes: String
+    var no: String
+    var onYes: () -> Void
+    var onNo: () -> Void
 
     var body: some View {
         SheetFrame {
-            SheetTitle("開始四問")
-            SheetNote("只問開始那一下，不問做得好不好。1 是完全不像，7 是完全就是。")
-            let questions = Phrases.reviewQuestions(floor: store.state.habit?.floor ?? "")
-            ForEach(0..<4, id: \.self) { i in
-                Card {
-                    CardBody(spacing: Sp.s3) {
-                        Text("\(i + 1)／4")
-                            .domyType(Ty.caption)
-                            .foregroundStyle(Theme.strong)
-                        Text(questions[i])
-                            .domyType(Ty.body)
-                            .foregroundStyle(Theme.fg)
-                            .fixedSize(horizontal: false, vertical: true)
-                        ScalePicker(title: questions[i], selection: $scores[i])
-                            .accessibilityIdentifier("review-q\(i + 1)")
-                        HStack {
-                            Text("完全不像")
-                            Spacer()
-                            Text("完全就是")
-                        }
-                        .domyType(Ty.caption)
-                        .foregroundStyle(Theme.fg2)
-                        .accessibilityHidden(true)
-                    }
-                }
+            if potato {
+                PotatoView(width: 140) // domy-ignore: 插畫尺寸
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, Sp.s4)
             }
-            DomyButton(allPicked ? "記下這週" : "四題都點一下才能記", disabled: !allPicked) {
-                guard allPicked else { return }
-                onSubmit(scores.map(Double.init))
+            Text(title)
+                .domyType(Ty.title2)
+                .foregroundStyle(Theme.fg)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, Sp.s4)
+                .accessibilityAddTraits(.isHeader)
+            VStack(spacing: Sp.s2) {
+                DomyButton(yes) { onYes() }
+                DomyButton(no, variant: .secondary) { onNo() }
             }
         }
+    }
+}
+
+// MARK: - 開始四問
+
+/// 四句自動化量表，一題一頁，點了就到下一題。沒有預設分數
+struct ReviewQuestions: View {
+    @Environment(Store.self) private var store
+    var onSubmit: ([Double]) -> Void
+    var later: () -> Void
+    @State private var scores: [Int] = [0, 0, 0, 0]
+    @State private var step = 0
+    /// 點了分數、還沒換到下一題
+    @State private var moving = false
+
+    var body: some View {
+        let questions = Phrases.reviewQuestions(floor: store.state.habit?.floor ?? "")
+        SheetFrame {
+            HStack(spacing: Sp.s2) {
+                ForEach(0..<4, id: \.self) { i in
+                    Capsule()
+                        .fill(i <= step ? Theme.accent : Theme.surfaceMuted)
+                        .frame(height: Sp.s1)
+                }
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("第 \(step + 1) 題，共 4 題")
+            HStack {
+                if step > 0 {
+                    DomyButton("上一題", variant: .quiet, size: .compact) {
+                        guard !moving else { return }
+                        withAnimation(Feel.transition) { step -= 1 }
+                    }
+                }
+                Spacer(minLength: 0)
+                DomyButton("晚點再說", variant: .quiet, size: .compact) { later() }
+            }
+            Text(questions[step])
+                .domyType(Ty.title2)
+                .foregroundStyle(Theme.fg)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.bottom, Sp.s4)
+                .id(step)
+                .transition(.opacity)
+            VStack(spacing: Sp.s2) {
+                ScalePicker(title: questions[step], selection: picked)
+                    .accessibilityIdentifier("review-q\(step + 1)")
+                HStack {
+                    Text("完全不像")
+                    Spacer()
+                    Text("完全就是")
+                }
+                .domyType(Ty.footnote)
+                .foregroundStyle(Theme.fg2)
+                .accessibilityHidden(true)
+            }
+        }
+    }
+
+    private var picked: Binding<Int> {
+        Binding(get: { scores[step] }, set: { v in
+            guard !moving else { return }
+            scores[step] = v
+            moving = true
+            Task {
+                // 讓選到的那顆看得見再換題
+                try? await Task.sleep(for: .seconds(0.3))
+                moving = false
+                if step < 3 {
+                    withAnimation(Feel.transition) { step += 1 }
+                } else if scores.allSatisfy({ $0 >= 1 }) {
+                    onSubmit(scores.map(Double.init))
+                }
+            }
+        })
     }
 }
 
@@ -106,7 +189,8 @@ struct WeekReportView: View {
             SheetTitle(Copy.t(.w0))
             SheetNote(Copy.t(.w0s, ["start": report.start.short, "end": report.end.short]))
             Card {
-                ForEach(Array(report.lines.enumerated()), id: \.offset) { i, line in
+                // 第三行是「長好了嗎」過了幾個訊號，收在後台不給看
+                ForEach(Array(report.lines.prefix(2).enumerated()), id: \.offset) { i, line in
                     if i > 0 { RowSep() }
                     Text(line)
                         .domyType(Ty.body)
