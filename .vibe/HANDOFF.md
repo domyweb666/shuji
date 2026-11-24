@@ -1,10 +1,12 @@
-# Handoff: AI 對答、重新規劃、週報都做進 app 了，等多米看圖、真機試
+# Handoff: 懶人化、AI 對答、週報已併 main，TestFlight 1.0（10）已上傳，等多米真機回饋
 
-> 2026-11-25 凌晨。repo `E:\習慣地瓜\shuji`，分支 `lazy-1125`（沒併 main、沒出 TestFlight）。上一份見 `.vibe/handoff/archive/2026-11-25-lazy-round2.md`
+> 2026-11-25 凌晨。repo `E:\習慣地瓜\shuji`，`main` 017d3c9（併了 `lazy-1125`）。上一份見 `.vibe/handoff/archive/2026-11-25-lazy-round2.md`
 
 ## ✅ 現況
 - 程式：第一輪懶人化、跳過 A、田 B、設定 A、地瓜對答（Onboarding 與「重新規劃習慣」）、週報 B、任務 8／9、離題防線、`estimatedDays`。
-- CI：程式最後一版 8b876c8，run 45467034042 三個工作全綠。
+- CI：main 017d3c9，run 45476607688 三個工作全綠。
+- TestFlight 1.0（10）：run 45476614373，Upload succeeded（2026-11-25）。Apple 處理完沒有查。
+- 週報進度列改成「做了 {n} 天／大概 {月}{日}長好」（6e64375，圖還是舊字）。
 - 圖：`E:\習慣地瓜\懶人化-1125\`（對答、對答-深色、週報、其他、其他-2）。淺深色都看過。
 - 電腦轉接：`npm run bridge` 真 CLI 打過任務 8 三步、離題一次、任務 9 一次，都 200，2.5 到 7 秒，欄位跟 app 的 Decodable 對得上。
 
@@ -24,8 +26,8 @@
 5. 畫布「先試幾天」選單、page `ai` 兩個入口作廢。
 
 ## 🚧 等多米
-- 看 `懶人化-1125` 的圖，說哪裡要改。
-- 要不要併 main、出 TestFlight。
+- 真機跑一次「掃 QR → 對答 → 種下去 → 四問 → 週報」。
+- 我看了還不滿意、他沒表態的：AI 設定頁下面很空、跳過單底部留白多、田分析第一屏第三張圖被分頁列蓋住。
 
 ## ⚠️ 沒驗
 - 真機：掃 QR、區網授權、防火牆、手感、旁白、字級放大。
@@ -35,6 +37,5 @@
 - 週回顧日在 Limrun 是 UTC 日期，跟台灣差一天內，沒影響。
 
 ## ⏭️ 下一步
-1. 照多米的回饋改圖。
-2. 他說好就併 main、出 TestFlight，真機跑一次「掃 QR → 對答 → 種下去 → 四問 → 週報」。
-3. Limrun 拍圖：`node tools/limrun/states.mjs <zip> <輸出> talk,lazy,field,done,leave,long40`、`node tools/limrun/week.mjs <zip> <輸出>`。macOS runner 常排不到，看到 job was not acquired 就 `gh run rerun <id> --failed`。
+1. 照多米真機的回饋開新分支改。2027 年 4 月起 Apple 只收 iOS 27 SDK，出版流程要改選 Xcode 27。
+2. Limrun 拍圖：`node tools/limrun/states.mjs <zip> <輸出> talk,lazy,field,done,leave,long40`、`node tools/limrun/week.mjs <zip> <輸出>`。macOS runner 常排不到，看到 job was not acquired 就 `gh run rerun <id> --failed`。
