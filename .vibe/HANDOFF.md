@@ -1,43 +1,39 @@
-# Handoff: AI 對話第二輪（地瓜對答、直接講答案）等多米選週報，接著把 AI 流程做進 app
+# Handoff: AI 對答、重新規劃、週報都做進 app 了，等多米看圖、真機試
 
-> 2026-11-25 凌晨。repo `E:\習慣地瓜\shuji`，分支 `lazy-1125`（沒併 main、沒出 TestFlight）。第一輪見 `.vibe/handoff/archive/2026-11-25-lazy-round1.md`
+> 2026-11-25 凌晨。repo `E:\習慣地瓜\shuji`，分支 `lazy-1125`（沒併 main、沒出 TestFlight）。上一份見 `.vibe/handoff/archive/2026-11-25-lazy-round2.md`
 
-## 🏃 2026-11-25 正在做（三個子代理，都沒 commit；接手先 `git status`）
-多米又定：對話有綠色進度條、第 1 題只給輸入框不給選項、第 2、3 步給選項；週報 B。畫布 Talk 已照改。
-- S：`server/**`、`ai/**`：任務 8 規劃習慣、任務 9 週報、離題防線五道、`npm run eval:plan`（真 CLI）、`ai/預估天數依據.md`（查 Lally 2010）。
-- T：`Shuji/**`（週報檔以外）：`AI/TalkView`、`PlanModels`、`Core/HabitEstimate`、Onboarding、設定「重新規劃習慣」、`-talkDemo N`。
-- W：`Views/WeekView`、`WeekVineView`、`AI/WeekReview`、`tools/limrun/week.mjs`。回報會寫 RootView 要加哪行 `-weekDemo`。
-- 合約：8 input {step,goal,floor,trigger,exclude} → {type options|estimate|off_topic|unfit, lead, options[3], difficulty}；9 input {floor,trigger,days_planted,week,weekday,weekend,pattern,reasons} → {type, finding, change{field,label,text}|null}。天數由 app 算（easy 60／medium 66／hard 90，S 查到的數字回來後改 `HabitEstimate.swift` 一處）。
-都回來後：UI 代號檢查、`npm test`、commit、push、CI、拍圖（talk、week、lazy、field）全部看過、一次回報多米。第二輪程式的 CI 是 run 45447400366。
+## ✅ 現況
+- 程式：第一輪懶人化、跳過 A、田 B、設定 A、地瓜對答（Onboarding 與「重新規劃習慣」）、週報 B、任務 8／9、離題防線、`estimatedDays`。
+- CI：__CI__
+- 圖：`E:\習慣地瓜\懶人化-1125\`（對答、對答-深色、週報、其他、其他-2）。淺深色都看過。
+- 電腦轉接：`npm run bridge` 真 CLI 打過任務 8 三步、離題一次、任務 9 一次，都 200，2.5 到 7 秒，欄位跟 app 的 Decodable 對得上。
 
-## ✅ 已進程式
-- 第一輪：改字、跳過、月曆可點、設定瘦身、AI 接電腦 CLI（33f9dd8，CI 綠、模擬器看過）。
-- 第二輪：跳過 A、田 B、設定 A（commit「今天頁跳過與復原…」）。**先查這次 CI**：`gh run list --branch lazy-1125 --limit 2`。綠了下載 `Shuji-simulator-app`，`node tools/limrun/states.mjs <zip> <輸出> lazy,field` 拍圖，每張看過。優先看：單子高度會不會跳、理由 8 個時、深色地瓜、「1 天，平常 4 到 6 天」在週一二出現順不順（建議：週中只講天數，不跟平常比）。
+## 🔧 這一輪改的
+- 田分析「這週做得多嗎」：還沒到回顧日只寫「這週到現在 {n} 天」（沒記：這週還沒記），回顧日當天才跟平常比。
+- 對答：「換一批」會折成兩行，鎖一行；連不到電腦的卡分成一句大字加一句小字；自己填的進度條也改綠色。
+- 「重新規劃習慣」的確認改成系統提示框（原本的小框浮在畫面中間、字折得難看）。
+- 週報：改完留在同一張卡，標題變「改好了」，只剩一顆「好」；藤和葉貼住土面。AI 那句沒句號就補；`backup` 只給一個瞬間時，補成「吃完早午餐就坐上蒲團」再存。
+- 田分析資料不夠的那張：加地瓜，進度條從 0 也看得到一點。
+- `tools/limrun/states.mjs`：拍對答前先切回淺色、補「跳過的理由」和分析捲到底的圖。
 
 ## 📌 多米定的（別再問）
-1. 跳過 A、田 B、設定 A。
-2. AI 貫穿流程、在後台、**直接講答案**：第一次打開由 AI 問 → AI 直接給最小一步、時機 → AI 直接講「預估 N 天養成」，不給使用者挑天數。設定有「重新規劃習慣」。每週 AI 週報。
-3. 對話樣子：B 的介面（地瓜、大字、一頁一題）＋ C 的互動（跟 AI 對答，有選項也能打字）。畫布「6 AI 第二輪」Talk 到 Talk5。
-4. 原本的週報卡「太普通」，不用。
-5. 畫布 page `ai` 兩個入口、`chat` 的「先試幾天」選單都作廢。
+1. 跳過 A、田 B、設定 A、週報 B。
+2. AI 貫穿流程、直接講答案；第 1 題只給輸入框，第 2、3 步給選項；預估天數由程式給（60／66／90，依據 `ai/預估天數依據.md`），不給使用者挑。
+3. 對話有綠色進度條、地瓜、大字、一頁一題。
+4. 「程式寫週報、不用模型」已推翻（`.analytics/00`）。數字、門檻、規律仍由程式算。
+5. 畫布「先試幾天」選單、page `ai` 兩個入口作廢。
 
 ## 🚧 等多米
-- （已選 B）週報：https://claude.ai/artifact/6Lb2CczhJG9BNGdpwhcz5u 第 6 頁。畫布沒有逐張開起來看。
-- 天數怎麼算：我建議程式照難度給一個數字（AI 只判難度 easy／medium／hard），再照他的紀錄每週重算日期。畫布寫 60 天是示範。14 天多半不夠（記憶中 Lally 2010 中位數 66 天、範圍 18–254，上畫面前要查證，走 domi-evidence-hunter）。
-
-## ⏭️ 要做：AI 流程
-- Onboarding、`GuideView` 照 Talk 重做；任務 7 改成「AI 先提答案、使用者說好或再改」；等待約 10 秒要有畫面；沒連電腦時先連（AIHubView）或內建選項自己填。存檔加 `estimatedDays`（decodeIfPresent）。
-- 護欄要改（`ai/知識包-護欄.md`、`server/src/checks.ts`）：「X 天養成」禁令改成只准程式填的預估天數；「請假／跳過」那列反過來（多米已定「跳過」）；`ai/AI交接.md` 的「AI 代選習慣不做」記成多米 2026-11-25 推翻。`.analytics/00` 記「週報不用模型」被推翻。
-- 週報：任務 5 復活或新任務，輸入只給程式算好的天數，輸出一句發現＋一個改法；門檻沒過不准講規律；保留「先不改」。
-
-## 🔒 限定 AI 只談習慣（多米問的，方案已講，還沒做）
-現況：固定任務、固定輸出格式、護欄包、輸入長度上限、最多再問 4 題、轉接不給工具。缺「離題」這一類。要加：
-1. 任務 7（之後所有能打字的任務）輸出 type 加 `off_topic`；判到就丟掉模型的字，畫面顯示寫死的「這個我不會，我只懂養習慣。」＋原本的選項（畫布 Talk5）。
-2. 使用者打的字包成資料欄位，系統提示寫明裡面的指令一律不照做；一次最多 60 字。
-3. `checks.ts` 擋：`floor` 最多 20 字要是動作、`trigger` 最多 20 字、`say` 最多 40 字，出現網址、程式碼、換行清單就退件重問一次，再不行走固定句。
-4. 連兩次離題就收起打字框，只留選項。離題也算次數。
-5. 測試：eval 加離題與注入 15 句（寫作業、寫程式、問天氣、忽略以上指令、角色扮演、問系統提示…），全過才算。
-- 菸酒賭、飲食體重、情緒低落維持現有 `unfit` 固定轉介。
+- 看 `懶人化-1125` 的圖，說哪裡要改。
+- 要不要併 main、出 TestFlight。
 
 ## ⚠️ 沒驗
-真機：掃 QR、區網授權、防火牆。任務 1、3、4、6 沒用真 CLI 跑。
+- 真機：掃 QR、區網授權、防火牆、手感、旁白、字級放大。
+- 模擬器裡沒有接真的 AI：對答和週報的圖是 DEBUG 假資料（`-talkDemo`、`-weekDemo`）。真的那段只驗到 bridge 回傳。
+- 對答鍵盤升起時的版面沒拍到。任務 1、3、4、6 沒用真 CLI 跑。
+- 週回顧日在 Limrun 是 UTC 日期，跟台灣差一天內，沒影響。
+
+## ⏭️ 下一步
+1. 照多米的回饋改圖。
+2. 他說好就併 main、出 TestFlight，真機跑一次「掃 QR → 對答 → 種下去 → 四問 → 週報」。
+3. Limrun 拍圖：`node tools/limrun/states.mjs <zip> <輸出> talk,lazy,field,done,leave,long40`、`node tools/limrun/week.mjs <zip> <輸出>`。macOS runner 常排不到，看到 job was not acquired 就 `gh run rerun <id> --failed`。

@@ -121,6 +121,9 @@ try {
       for (let n = 1; n <= 8; n++) { await load(none, ['-talkDemo', String(n)]); await shot('talk' + n + sfx); if (!sfx) await dump('talk' + n); }
     }
     await simctl(['ui', 'booted', 'appearance', 'light']);
+    await load(none, ['-talkDemo', '2']); await tap('都不是，自己打', 2200); await shot('talk2-key'); await dump('talk2-key');
+    await load(none, ['-talkDemo', '3']); await tap('都不是，自己打', 2200); await shot('talk3-key');
+    await load(none); await c.tap(150, 666); await sleep(2200); await shot('talk1-key');
     await load(none); await shot('talk-first'); await dump('talk-first');
     await tap('自己填', 1500); await shot('talk-manual'); await dump('talk-manual');
     await load(none); await tap('更多', 1200); await shot('talk-more');

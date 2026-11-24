@@ -23,6 +23,7 @@ struct TalkView: View {
     @AccessibilityFocusState private var reading: Bool
     private let ai = AIClient.shared
 
+    private static let inputID = "input"
     private static let potato: CGFloat = 150 // domy-ignore: 插畫尺寸
     private static let potatoBig: CGFloat = 180 // domy-ignore: 插畫尺寸
     private static let barHeight = Sp.s1 + Sp.s1 / 2
@@ -33,18 +34,27 @@ struct TalkView: View {
         VStack(spacing: 0) {
             topBar
             GeometryReader { geo in
-                ScrollView {
-                    Group {
-                        if model.phase == .waiting { waiting } else { talk }
+                ScrollViewReader { reader in
+                    ScrollView {
+                        Group {
+                            if model.phase == .waiting { waiting } else { talk }
+                        }
+                        .padding(.horizontal, Sz.screenMargin)
+                        .padding(.bottom, Sp.s6)
+                        .frame(maxWidth: Theme.contentMaxWidth)
+                        .frame(maxWidth: .infinity, minHeight: geo.size.height, alignment: .top)
+                        .contentShape(Rectangle())
+                        .onTapGesture { writing = false }
                     }
-                    .padding(.horizontal, Sz.screenMargin)
-                    .padding(.bottom, Sp.s6)
-                    .frame(maxWidth: Theme.contentMaxWidth)
-                    .frame(maxWidth: .infinity, minHeight: geo.size.height, alignment: .top)
+                    .scrollIndicators(.hidden)
+                    .scrollBounceBehavior(.basedOnSize)
+                    .scrollDismissesKeyboard(.interactively)
+                    // 鍵盤升起來之後，輸入框整條露出來
+                    .onChange(of: geo.size.height) { _, _ in
+                        guard writing else { return }
+                        withAnimation(Feel.transition) { reader.scrollTo(TalkView.inputID, anchor: UnitPoint(x: 0.5, y: 0.96)) }
+                    }
                 }
-                .scrollIndicators(.hidden)
-                .scrollBounceBehavior(.basedOnSize)
-                .scrollDismissesKeyboard(.interactively)
             }
         }
         .background(Theme.canvas.ignoresSafeArea())
@@ -222,7 +232,7 @@ struct TalkView: View {
                          big: "你想養成什麼？", foot: "")
         case .floor:
             return Words(lead: model.floorOffer.lead.isEmpty ? "最累那天也做得到的是？" : model.floorOffer.lead,
-                         big: model.floorOffer.options.isEmpty ? "打一個最小的" : "挑一個最小的", foot: "")
+                         big: model.showsInput ? "打一個最小的" : "挑一個最小的", foot: "")
         case .trigger:
             return Words(lead: model.triggerOffer.lead.isEmpty ? "每天一定會做的是？" : model.triggerOffer.lead,
                          big: "接在它後面", foot: "")
@@ -267,7 +277,7 @@ struct TalkView: View {
     private var goalControls: some View {
         if model.showsInput {
             inputRow
-            if !ai.isAvailable {
+            if !ai.isAvailable, !writing {
                 DomyButton("連電腦的 Claude", variant: .secondary) { connecting = true }
                 DomyButton(queueOnly ? "自己打" : "自己填", variant: .plain) { manual() }
             }
@@ -281,15 +291,16 @@ struct TalkView: View {
 
     @ViewBuilder
     private var pickControls: some View {
-        ForEach(model.offer.options, id: \.self) { o in
-            option(o) { pick(o) }
-        }
+        // 自己打的時候收起選項，鍵盤才不會蓋住輸入框；上一步就回到選項
         if model.showsInput {
-            inputRow
             if model.draftNegative {
                 WarnBox { Text(Wording.negativeWarning) }
             }
+            inputRow
         } else {
+            ForEach(model.offer.options, id: \.self) { o in
+                option(o) { pick(o) }
+            }
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: Sp.s5) { pickLinks }
                 VStack(spacing: 0) { pickLinks }
@@ -357,6 +368,7 @@ struct TalkView: View {
             .disabled(!model.canSend)
             .accessibilityLabel("送出")
         }
+        .id(TalkView.inputID)
     }
 
     // MARK: 等 AI
