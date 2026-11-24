@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 import VeggieKit
 
-/// 設定。順序照多米 iOS 開發準則 3-3：app 專屬 → 一般 → 資料 → 購買 → 支援 → 關於 → 頁尾。
+/// 設定（2026-11-25 多米選 A）：四張卡都不放標題，app 專屬 → 一般 → 資料與購買 → 支援與關於 → 頁尾。
 /// 列一律是「圖示＋名稱＋右邊的狀態或箭頭」（VeggieKit），不放常駐說明（3-4）。
 /// 開關句要打字的欄位收進 SentenceView。
 struct SettingsView: View {
@@ -28,12 +28,9 @@ struct SettingsView: View {
     var body: some View {
         DomyScreen(title: "設定") {
             habitSection
-            rhythmSection
             generalSection
             dataSection
-            purchaseSection
             supportSection
-            aboutSection
             #if DEBUG
             debugSection
             #endif
@@ -97,30 +94,28 @@ struct SettingsView: View {
             pushRow("text.quote", "我的習慣") { store.route = [.sentence] }
                 .disabled(habit == nil)
             RowSep()
-            pushRow("forward", "跳過的理由") { store.route = [.skipReasons] }
+            pushRow("forward", "跳過的理由", value: "\(store.state.settings.skipReasons.count) 個") { store.route = [.skipReasons] }
             RowSep()
-            pushRow("sparkles", "AI") { store.route = [.ai] }
-        }
-    }
-
-    // MARK: 節奏
-
-    private var rhythmSection: some View {
-        DomySection {
             toggleRow("alarm", "每天提醒", isOn: Binding(get: { store.state.settings.check }, set: { setCheck($0) }))
             if store.state.settings.check {
                 RowSep()
-                row {
-                    HStack {
-                        Text("時間").domyType(Ty.body).foregroundStyle(Theme.fg)
-                        Spacer()
-                        DatePicker("時間", selection: checkTimeBinding, displayedComponents: .hourAndMinute)
-                            .labelsHidden()
-                            .tint(Theme.accent)
-                    }
-                    .frame(minHeight: Sz.row)
-                }
+                timeRow
             }
+            RowSep()
+            pushRow("sparkles", "AI", value: AIClient.shared.bridge == nil ? nil : "已連電腦") { store.route = [.ai] }
+        }
+    }
+
+    private var timeRow: some View {
+        row {
+            HStack {
+                Text("時間").domyType(Ty.body).foregroundStyle(Theme.fg)
+                Spacer()
+                DatePicker("時間", selection: checkTimeBinding, displayedComponents: .hourAndMinute)
+                    .labelsHidden()
+                    .tint(Theme.accent)
+            }
+            .frame(minHeight: Sz.row)
         }
     }
 
@@ -160,7 +155,7 @@ struct SettingsView: View {
     // MARK: 一般
 
     private var generalSection: some View {
-        DomySection(title: VeggieText.general) {
+        DomySection {
             menuRow("circle.lefthalf.filled", VeggieText.appearance, options: Appearance.allCases.map(\.rawValue),
                     selection: $appearanceCode,
                     name: { (Appearance(rawValue: $0) ?? .system).title })
@@ -177,20 +172,14 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: 資料
+    // MARK: 資料與購買
 
     private var dataSection: some View {
-        DomySection(title: VeggieText.data) {
+        DomySection {
             pushRow("square.and.arrow.up", VeggieText.exportData) { sheet = .export }
             RowSep()
             pushRow("square.and.arrow.down", VeggieText.importData) { sheet = .restore }
-        }
-    }
-
-    // MARK: 購買
-
-    private var purchaseSection: some View {
-        DomySection(title: VeggieText.purchase) {
+            RowSep()
             pushRow("star.circle", "完整版", value: purchases.isFull ? "已購買" : purchases.product?.displayPrice) { sheet = .paywall }
             RowSep()
             Button { Task { await restore() } } label: {
@@ -209,11 +198,11 @@ struct SettingsView: View {
         store.show(purchases.owned ? VeggieText.restored : VeggieText.restoreNothing)
     }
 
-    // MARK: 支援
+    // MARK: 支援與關於
 
     /// 評分、分享要有 Apple ID 才出現（還沒上架，分享出去也找不到）
     private var supportSection: some View {
-        DomySection(title: VeggieText.support) {
+        DomySection {
             Button { writeFeedback() } label: {
                 row { VeggieRow(icon: "envelope", title: VeggieText.feedback, accessory: .push) }
             }
@@ -230,6 +219,24 @@ struct SettingsView: View {
                 }
                 .buttonStyle(.plain)
             }
+            RowSep()
+            aboutRows
+        }
+    }
+
+    @ViewBuilder
+    private var aboutRows: some View {
+        pushRow("info.circle", "什麼時候不適合用這個 app") { sheet = .unfit }
+        if !VeggieApp.others(excluding: config.slug).isEmpty {
+            RowSep()
+            pushRow("square.grid.2x2", VeggieText.family) { store.route = [.family] }
+        }
+        if let url = config.privacyURL {
+            RowSep()
+            Link(destination: url) {
+                row { VeggieRow(icon: "hand.raised", title: VeggieText.privacy, accessory: .external) }
+            }
+            .buttonStyle(.plain)
         }
     }
 
@@ -241,25 +248,6 @@ struct SettingsView: View {
         guard let address = config.supportEmail, let url = Feedback(config: config).mailtoURL(to: address) else { return }
         openURL(url) { accepted in
             if !accepted { store.show("這支手機沒有可以寄信的 app") }
-        }
-    }
-
-    // MARK: 關於
-
-    private var aboutSection: some View {
-        DomySection(title: VeggieText.about) {
-            pushRow("info.circle", "什麼時候不適合用這個 app") { sheet = .unfit }
-            if !VeggieApp.others(excluding: config.slug).isEmpty {
-                RowSep()
-                pushRow("square.grid.2x2", VeggieText.family) { store.route = [.family] }
-            }
-            if let url = config.privacyURL {
-                RowSep()
-                Link(destination: url) {
-                    row { VeggieRow(icon: "hand.raised", title: VeggieText.privacy, accessory: .external) }
-                }
-                .buttonStyle(.plain)
-            }
         }
     }
 

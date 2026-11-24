@@ -522,7 +522,6 @@ final class MetricTests: XCTestCase {
         XCTAssertEqual(lv.reason, "加班")
         XCTAssertEqual(lv.count, 2)
         XCTAssertEqual(lv.total, 3)
-        XCTAssertEqual(f.s.leaveReasonCount("加班", today: T), 2, "請假卡：前面請過 2 次")
         XCTAssertEqual(Copy.t(.p2, ["k": 3]), "這個理由第 3 次了。")
         guard case .finding(let x)? = f.s.weekObservation(today: T) else { return XCTFail("同一個請假原因排在平日／週末前面") }
         XCTAssertEqual(f.s.findingText(x), "最近 8 週跳過 3 次，其中 2 次是「加班」。")

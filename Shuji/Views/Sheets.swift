@@ -6,7 +6,11 @@ import UniformTypeIdentifiers
 struct SheetFrame<Content: View>: View {
     /// true：一打開就是整頁，不先停在一半
     var full = false
+    /// true：高度跟著內容走（跳過單、月曆點一天）
+    var fit = false
     @ViewBuilder var content: Content
+    /// 量到內容之前先給一個差不多的高度
+    @State private var fitHeight: CGFloat = 320 // domy-ignore: 量到之前的起始值
 
     var body: some View {
         ScrollView {
@@ -16,14 +20,24 @@ struct SheetFrame<Content: View>: View {
                 .padding(.bottom, full ? Sp.s4 : Sp.s8)
                 .frame(maxWidth: Theme.contentMaxWidth, alignment: .leading)
                 .frame(maxWidth: .infinity)
+                .background {
+                    GeometryReader { geo in
+                        Color.clear.onChange(of: geo.size.height, initial: true) { _, v in fitHeight = v }
+                    }
+                }
         }
         .scrollDismissesKeyboard(.interactively)
         .scrollBounceBehavior(.basedOnSize)
-        .presentationDetents(full ? [.large] : [.medium, .large])
+        .presentationDetents(detents)
         .presentationDragIndicator(.visible)
         .presentationCornerRadius(Rd.xxl)
         .presentationBackground(Theme.canvas)
         .tint(Theme.accent)
+    }
+
+    private var detents: Set<PresentationDetent> {
+        if full { return [.large] }
+        return fit ? [.height(fitHeight)] : [.medium, .large]
     }
 }
 
@@ -53,70 +67,72 @@ struct SheetNote: View {
 
 // MARK: 跳過一次
 
-/// 今天頁的跳過單：不預選理由，也可以不選。昨天忘了記、撤銷今天也在這裡
+/// 今天頁的跳過單：點一個理由就記好
 struct SkipSheet: View {
     @Environment(Store.self) private var store
     @Environment(\.dismiss) private var dismiss
 
-    private var t: DayKey { store.today }
-    private var logged: Bool { store.state.log(on: t) != nil }
-
     var body: some View {
-        SheetFrame {
-            SheetTitle(logged ? "今天" : "跳過一次")
-            if !logged {
-                SkipForm(day: t, button: "跳過今天") { dismiss() }
-            }
-            if logged || store.canBackfillYesterday {
-                Card { otherRows }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var otherRows: some View {
-        if store.canBackfillYesterday {
-            RowButton(text: "昨天做了，忘了記", chevron: false) {
-                store.backfillYesterday()
-                dismiss()
-            }
-        }
-        if logged && store.canBackfillYesterday { RowSep() }
-        if logged {
-            RowButton(text: "撤銷今天", chevron: false, tone: .danger) {
-                Haptic.remove()
-                store.undoToday()
-                dismiss()
-            }
+        SheetFrame(fit: true) {
+            SkipPicker(day: store.today, title: "今天跳過，因為") { dismiss() }
         }
     }
 }
 
-/// 一排理由＋一顆跳過。點一下選，再點一下取消
-struct SkipForm: View {
+/// 兩欄理由，點一下就記；最下面「不說理由」也是點了就記
+struct SkipPicker: View {
     var day: DayKey
-    var button: String
+    var title: String
     var done: () -> Void
     @Environment(Store.self) private var store
-    @State private var reason: String? = nil
 
-    /// 這個習慣跳過幾次同一個理由（M9，比全部，不只上一次）
-    private var sameCount: Int { store.state.leaveReasonCount(reason ?? "", today: day) }
+    private var rows: [[String]] {
+        let all = store.state.settings.skipReasons
+        return stride(from: 0, to: all.count, by: 2).map { Array(all[$0..<min($0 + 2, all.count)]) }
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Sp.s4) {
-            if !store.state.settings.skipReasons.isEmpty {
-                ChipFlow(items: store.state.settings.skipReasons, selected: reason) { r in
-                    Haptic.select()
-                    reason = reason == r ? nil : r
+        VStack(spacing: Sp.s5) {
+            Text(title)
+                .domyType(Ty.title2)
+                .foregroundStyle(Theme.fg)
+                .multilineTextAlignment(.center)
+                .accessibilityAddTraits(.isHeader)
+            if !rows.isEmpty {
+                VStack(spacing: Sp.s3) {
+                    ForEach(rows, id: \.self) { row in
+                        HStack(spacing: Sp.s3) {
+                            ForEach(row, id: \.self) { r in reasonButton(r) }
+                            if row.count == 1 { Color.clear.frame(maxWidth: .infinity, maxHeight: 0) } // domy-ignore: 單數格補空位
+                        }
+                    }
                 }
             }
-            if sameCount > 0 { Foot(Copy.t(.p2, ["k": sameCount + 1])) }
-            DomyButton(button) {
-                store.skip(day: day, reason: reason ?? "")
-                done()
-            }
+            DomyButton("不說理由", variant: .plain, fullWidth: true) { skip("") }
         }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func reasonButton(_ r: String) -> some View {
+        let shape = RoundedRectangle(cornerRadius: Rd.xl, style: .continuous)
+        return Button { skip(r) } label: {
+            Text(r)
+                .domyType(Ty.headline)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .foregroundStyle(Theme.fg)
+                .padding(.horizontal, Sp.s3)
+                .frame(maxWidth: .infinity, minHeight: Sp.s8 * 2)
+                .background(Theme.surface, in: shape)
+                .contentShape(shape)
+        }
+        .buttonStyle(DomyPressStyle())
+    }
+
+    private func skip(_ reason: String) {
+        Haptic.select()
+        store.skip(day: day, reason: reason)
+        done()
     }
 }
 
@@ -196,19 +212,33 @@ struct DaySheet: View {
         }
         if log.t == .done { return "記了" }
         let reason = log.reason ?? ""
-        return reason.isEmpty ? "跳過" : "跳過：\(reason)"
+        return reason.isEmpty ? "跳過" : "跳過，\(reason)"
+    }
+
+    private var dayName: String {
+        if isToday { return "今天" }
+        return day == store.today.adding(-1) ? "昨天" : day.long
     }
 
     var body: some View {
-        SheetFrame {
-            SheetTitle(day.long)
-            SheetNote(status)
-            if store.canEdit(day: day) {
-                if skipping {
-                    SkipForm(day: day, button: isToday ? "跳過今天" : "那天跳過") { dismiss() }
-                } else {
-                    Card { actions }
+        SheetFrame(fit: true) {
+            if skipping {
+                SkipPicker(day: day, title: "\(dayName)跳過，因為") { dismiss() }
+            } else {
+                VStack(spacing: Sp.s5) {
+                    VStack(spacing: Sp.s1) {
+                        Text(dayName)
+                            .domyType(Ty.subheadline)
+                            .foregroundStyle(Theme.fg2)
+                        Text(status)
+                            .domyType(Ty.title2)
+                            .foregroundStyle(Theme.fg)
+                            .multilineTextAlignment(.center)
+                            .accessibilityAddTraits(.isHeader)
+                    }
+                    if store.canEdit(day: day) { actions }
                 }
+                .frame(maxWidth: .infinity)
             }
         }
     }
@@ -216,22 +246,23 @@ struct DaySheet: View {
     @ViewBuilder
     private var actions: some View {
         if log != nil {
-            RowButton(text: "撤銷", chevron: false, tone: .danger) {
+            DomyButton("復原", variant: .secondary) {
                 Haptic.remove()
                 store.undo(day: day)
                 dismiss()
             }
         } else {
-            // 今天有做要回今天頁按住，這裡不給記
-            if !isToday {
-                RowButton(text: "那天有做", chevron: false) {
-                    store.backfill(day: day)
-                    dismiss()
+            HStack(spacing: Sp.s3) {
+                // 今天有做要回今天頁按住，這裡不給記
+                if !isToday {
+                    DomyButton("有做") {
+                        store.backfill(day: day)
+                        dismiss()
+                    }
                 }
-                RowSep()
-            }
-            RowButton(text: isToday ? "今天跳過" : "那天跳過", chevron: false) {
-                withAnimation(Feel.transition) { skipping = true }
+                DomyButton("跳過", variant: .secondary) {
+                    withAnimation(Feel.transition) { skipping = true }
+                }
             }
         }
     }

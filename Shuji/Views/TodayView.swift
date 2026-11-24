@@ -1,9 +1,9 @@
 import SwiftUI
 
 /// 主畫面「今天」。狀態照原型 renderMain 的順序：
-/// 挖出來了 → 放手測試 → 停了超過兩週 → 今天做了 → 今天請假 → 還沒做（按住）。
-/// 版面（Claude Design 方向 C，QC-0004 多米選的）：日期一行 → 開關句當大標題 → 土面的藤 → 土裡那顆地瓜。
-/// 地瓜就是核心大鈕，記好、請假、放手時同一個位置換樣子。要讀的字都在土面上，土裡只有地瓜上的字。
+/// 挖出來了 → 放手測試 → 停了超過兩週 → 今天做了 → 今天跳過 → 還沒做（按住）。
+/// 版面（Claude Design 方向 C，QC-0004 多米選的）：日期一行（右邊跳過／復原）→ 習慣那句當大標題 → 土面的藤 → 土裡那顆地瓜。
+/// 地瓜就是核心大鈕，記好、跳過、放手時同一個位置換樣子。要讀的字都在土面上，土裡只有地瓜上的字。
 struct TodayView: View {
     @Environment(Store.self) private var store
     @Environment(\.domyBottomInset) private var bottomInset
@@ -18,7 +18,7 @@ struct TodayView: View {
     private static let ringInset: CGFloat = 20 // domy-ignore: 插畫尺寸
 
     enum TodaySheet: String, Identifiable {
-        case more
+        case skip
         case tips
         case diagnose
         var id: String { rawValue }
@@ -36,7 +36,7 @@ struct TodayView: View {
         }
         .sheet(item: $sheet) { which in
             switch which {
-            case .more: SkipSheet()
+            case .skip: SkipSheet()
             case .tips: TipsSheet()
             case .diagnose: DiagnoseSheet()
             }
@@ -78,18 +78,22 @@ struct TodayView: View {
                 .animation(Feel.change, value: st.nodes)
                 .accessibilityAddTraits(.isHeader)
             Spacer(minLength: 0)
-            if canOpenMore { MoreButton(label: moreLabel) { sheet = .more } }
+            if store.state.habit != nil && store.state.letgo == nil { corner }
         }
         .frame(minHeight: Sz.iconButton)
     }
 
-    /// 昨天忘了記、今天請假、撤銷都收在右上角 ⋯
-    private var canOpenMore: Bool {
-        store.state.habit != nil && store.state.letgoDaysLeft(today: t) == nil
-    }
-
-    private var moreLabel: String {
-        store.state.log(on: t) == nil ? "跳過今天、昨天忘了記" : "更多選項，可以撤銷今天"
+    /// 還沒記是「跳過」，記了或跳過了是「復原」
+    @ViewBuilder
+    private var corner: some View {
+        if store.state.log(on: t) == nil {
+            HeaderPill(title: "跳過") { sheet = .skip }
+        } else {
+            HeaderPill(title: "復原") {
+                Haptic.remove()
+                store.undoToday()
+            }
+        }
     }
 
     // MARK: 土面上的字
@@ -97,19 +101,15 @@ struct TodayView: View {
     @ViewBuilder
     private var words: some View {
         if let h = store.state.habit {
-            let log = store.state.log(on: t)
             let floor = store.state.activeFloor
             if let left = store.state.letgoDaysLeft(today: t) {
                 Sentence(trigger: h.trigger, floor: floor)
                 note("放手測試中，照常做就好，不用記。還有 \(left) 天。")
             } else if store.state.longAbsence(today: t) {
                 absence(h)
-            } else if let log, log.t == .done {
+            } else if store.state.log(on: t) != nil {
+                // 記好、跳過之後只留這句，今天的樣子交給地瓜
                 Sentence(trigger: h.trigger, floor: floor)
-                // 記好之後只留開關句，完成的樣子交給地瓜
-            } else if let log, log.t == .leave {
-                Sentence(trigger: h.trigger, floor: floor)
-                note("今天跳過。\(log.reason ?? "")")
             } else {
                 Sentence(trigger: h.trigger, floor: floor)
                 if store.state.consecutiveMissed(today: t) >= 2 {
@@ -203,7 +203,7 @@ struct TodayView: View {
         if store.state.letgoDaysLeft(today: t) != nil {
             PotatoSeal(icon: "hourglass", title: "放手中")
         } else if let log, log.t == .leave {
-            PotatoSeal(icon: "moon.zzz", title: "跳過")
+            PotatoSkip(reason: log.reason ?? "")
         } else {
             HoldButton(hint: store.state.longAbsence(today: t) ? "從這一節接上" : "做完最小一步，按住一下",
                        done: log?.t == .done) { recordNode() }
@@ -228,22 +228,22 @@ struct TodayView: View {
     }
 }
 
-/// 標題右邊的 ⋯
-struct MoreButton: View {
-    var label: String
+/// 標題右邊的文字膠囊
+struct HeaderPill: View {
+    var title: String
     var action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: "ellipsis")
-                .font(Ty.headline.font)
-                .foregroundStyle(Theme.fg)
-                .frame(width: Sz.iconButton, height: Sz.iconButton)
-                .background(Theme.surface, in: Circle())
-                .contentShape(Circle())
+            Text(title)
+                .domyType(Ty.callout)
+                .foregroundStyle(Theme.strong)
+                .padding(.horizontal, Sp.s4)
+                .frame(height: Sz.touch)
+                .background(Theme.surface, in: Capsule())
+                .contentShape(Capsule())
         }
         .buttonStyle(DomyPressStyle())
-        .accessibilityLabel(label)
     }
 }
 

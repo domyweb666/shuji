@@ -59,7 +59,7 @@ async function states(sfx) {
   await t('empty', make({ empty: true }));
   await t('todo', make());
   if (want('hold')) { await load(make()); await holdShot('hold' + sfx); }
-  if (want('undo') && !sfx) { await load(make({ log: { t: 'done' } })); await tap('更多選項，可以撤銷今天', 1500); await tap('撤銷今天', 2000); await shot('undo'); await holdShot('undo-hold'); }
+  if (want('undo') && !sfx) { await load(make({ log: { t: 'done' } })); await tap('復原', 2000); await shot('undo'); await holdShot('undo-hold'); }
   await t('done', make({ log: { t: 'done' } }));
   await t('leave', make({ log: { t: 'leave', reason: '出遠門' } }));
   await t('letgo', make({ letgo: true }));
@@ -71,7 +71,6 @@ async function states(sfx) {
   // 四問同一天只跳一次，所以只在淺色那輪走
   if (want('review') && !sfx) { await load(make({ log: { t: 'done' }, lastReview: -9 })); await shot('review'); await dump('review'); for (let i = 1; i <= 4; i++) { const f = (await nodes()).find(x => x.frame?.height > 36 && x.frame?.height < 46 && x.frame?.width > 300 && x.frame?.y > 500 && x.AXLabel)?.frame; if (!f) { log('no scale', i); break; } await c.tap(f.x + f.width * 4.5 / 7, f.y + f.height / 2); await sleep(1100); if (i === 1) await shot('review-q2' + sfx); } await shot('review-after' + sfx); await dump('review-after' + sfx); }
   if (want('field')) { await load(make({ log: { t: 'done' } })); await tap('田', 1500); await shot('field-month' + sfx); await dump('field-month' + sfx); await tap('分析', 1200); await shot('field-charts' + sfx); await tap('竹籃與排隊', 1500); await shot('field-basket' + sfx); await load(make({ empty: true })); await tap('田', 1500); await shot('field-empty' + sfx); await tap('分析', 1200); await shot('field-empty-charts' + sfx); }
-  if (want('more')) { await load(make({ log: { t: 'done' } })); if (await tap('更多選項，可以撤銷今天', 1500)) { await shot('more-done' + sfx); } await load(make({ skipLast: 1 })); if (await tap('昨天忘了記、今天請假', 1500)) await shot('more-todo' + sfx); }
 }
 try {
   const asset = await lim.assets.getOrUpload({ path: process.argv[2], name: 'shuji-sim-' + Date.now() + '.zip', platform: 'ios', kind: 'App', ttl: '2h' });
@@ -104,14 +103,14 @@ try {
   // 2026-11-25：跳過、月曆可點、設定瘦身、AI 頁
   if (want('lazy')) {
     const cal = async (off, name) => { const d = new Date(TODAY.getTime() + off * 864e5); const re = new RegExp('^' + (d.getUTCMonth() + 1) + '月' + d.getUTCDate() + '日'); const f = (await nodes()).find(x => re.test(x.AXLabel || '') && x.frame.x >= 0 && x.frame.x < 402 && x.frame.y > 200); if (!f) { log('cal not found', name); return; } log('cal', f.AXLabel); await c.tap(f.frame.x + f.frame.width / 2, f.frame.y + f.frame.height / 2); await sleep(1500); await shot(name); await dump(name); };
-    await load(make()); await shot('z-today'); await tap('跳過今天、昨天忘了記', 1500); await shot('z-skip'); await dump('z-skip');
-    if (await tap('旅行', 700)) { await shot('z-skip-picked'); await tap('跳過今天', 1800); await shot('z-skipped'); await dump('z-skipped'); }
+    await load(make()); await shot('z-today'); await tap('跳過', 1500); await shot('z-skip'); await dump('z-skip');
+    if (await tap('旅行', 1800)) { await shot('z-skipped'); await dump('z-skipped'); }
     await load(make({ skipLast: 1 })); await tap('田', 1500); await shot('z-month'); await cal(-1, 'z-day-yesterday');
     await load(make()); await tap('田', 1500); await cal(-6, 'z-day-past');
     await load(make()); await tap('設定', 1500); await shot('z-set'); await dump('z-set'); await tap('跳過的理由', 1500); await shot('z-reasons'); await dump('z-reasons');
     await load(make()); await tap('設定', 1500); await tap('AI', 1500); await shot('z-ai'); await dump('z-ai');
     await load(make()); await tap('設定', 1500); await tap('我的習慣', 1500); await shot('z-habit');
-    await simctl(['ui', 'booted', 'appearance', 'dark']); await load(make()); await tap('跳過今天、昨天忘了記', 1500); await shot('z-skip-dark'); await load(make()); await tap('設定', 1500); await tap('AI', 1500); await shot('z-ai-dark');
+    await simctl(['ui', 'booted', 'appearance', 'dark']); await load(make()); await tap('跳過', 1500); await shot('z-skip-dark'); if (await tap('旅行', 1800)) await shot('z-skipped-dark'); await load(make()); await tap('設定', 1500); await tap('AI', 1500); await shot('z-ai-dark');
   }
   log('DONE');
 } catch (e) { log('ERROR', e.stack || e); process.exitCode = 1; }

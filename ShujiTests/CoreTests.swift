@@ -274,7 +274,6 @@ final class LogicTests: XCTestCase {
         let bars = d.weekBars(today: T)
         XCTAssertEqual(bars.map(\.done), [1, 1, 2], "週回顧日是星期日：10/19、10/26、11/2 起")
         XCTAssertEqual(bars.last?.current, true)
-        XCTAssertEqual(d.weekdayTally(today: T), [1, 1, 1, 1, 0, 0, 0])
     }
 
     func testObstacleMigratesIntoBackup() {
