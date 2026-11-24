@@ -192,8 +192,8 @@ struct WeekVineView: View {
     private var estimate: some View {
         if let p = store.state.estimateProgress(today: store.today), p.total > 0,
            let d = store.state.estimateDate(today: store.today) {
-            let walked = Text("走到第 \(p.done) 天")
-            let grown = Text(verbatim: "\(d.month)月\(d.day)日長好")
+            let walked = Text("做了 \(p.done) 天")
+            let grown = Text(verbatim: "大概 \(d.month)月\(d.day)日長好")
             VStack(alignment: .leading, spacing: Sp.s3) {
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: Sp.s3) {
