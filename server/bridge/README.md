@@ -49,7 +49,7 @@ $env:CLAUDE_MODEL="sonnet"; npm run bridge
 
 ## 擋了什麼
 
-拿到網址的人可以用你的額度跑薯記的七個任務，拿不到電腦上的檔案：
+拿到網址的人可以用你的額度跑薯記的九個任務，拿不到電腦上的檔案：
 
 - 半形 `@` 換成全形，CLI 不會把檔案附進去；CLI 自己的附檔功能也關掉。
 - 沒有工具、沒有 MCP、不讀 `~/.claude` 的設定和 `CLAUDE.md`、不存對話。
@@ -71,7 +71,7 @@ $env:CLAUDE_MODEL="sonnet"; npm run bridge
 每個請求都帶 `?t=<密碼>`，不對就 401 `bad_token`。
 
 - `GET /ping`：`{"ok":true,"name":"<電腦名>","cli":"2.1.81 (Claude Code)"}`
-- `POST /v1/task/{1-7}`：body 和回傳跟正式伺服器一樣（`src/app.ts`），不用 App Attest，也不數次數。
+- `POST /v1/task/{1-9}`：body 和回傳跟正式伺服器一樣（`src/app.ts`），不用 App Attest，也不數次數。
 
 出錯一律 `{"ok":false,"error":"…","message":"給人看的一句"}`：`bad_request`（400、404、405、413）、`rate_limited`（429）、`cli_login`、`bad_output`（502）、`timeout`（504）、`unavailable`（500）。
 

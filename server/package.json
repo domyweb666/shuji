@@ -16,7 +16,8 @@
     "bridge": "node scripts/gen-packs.mjs && tsx bridge/main.ts",
     "eval": "node scripts/gen-packs.mjs && tsx eval/run.ts",
     "eval:cli": "node scripts/gen-packs.mjs && tsx eval/run.ts --cli",
-    "eval:guide": "node scripts/gen-packs.mjs && tsx eval/guide.ts"
+    "eval:guide": "node scripts/gen-packs.mjs && tsx eval/guide.ts",
+    "eval:plan": "node scripts/gen-packs.mjs && tsx eval/plan.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.6.0",

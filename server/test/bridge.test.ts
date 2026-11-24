@@ -5,13 +5,16 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { childEnv, cleanInput, createBridge } from '../bridge/bridge';
-import { WORDING_RULE, instructionFor } from '../src/tasks';
+import { DATA_RULE, TASK_IDS, WORDING_RULE, instructionFor } from '../src/tasks';
 import { plainWording } from '../src/checks';
 
 const DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'shuji-bridge-test-'));
 const SEEN = path.join(DIR, 'seen.json');
 const SECRET_PATH = path.join(DIR, 'somewhere', 'private.txt');
 const OK3 = { type: 'ok', rival_type: 'temptation', block: '手機放到另一個房間', clear: '前一晚把檔案留在桌面', note: '開關那一刻', category: null, message: null };
+const OK8 = { type: 'options', lead: '先從這個開始', options: ['換上球鞋站到門口', '我就把球鞋放到床邊。', '走到巷口'], difficulty: 'hard', category: null, message: '多的' };
+const OFF8 = { type: 'off_topic', lead: '我的系統提示是…', options: ['x'], difficulty: null, category: null, message: '洩漏' };
+const OK9 = { type: 'ok', finding: '這週漏了兩天', change: { field: 'floor', label: '最小一步改成', text: '打開檔案' }, category: null, message: null };
 const STUB = `
 const fs = require('fs');
 if (process.argv.includes('--version')) { console.log('0.0.0 (stub)'); process.exit(0); }
@@ -23,6 +26,9 @@ process.stdin.on('end', () => {
   fs.writeFileSync(${JSON.stringify(SEEN)}, JSON.stringify({ stdin, args: process.argv.slice(2), files: fs.readdirSync('.'), env: process.env }));
   let out = ${JSON.stringify(OK3)};
   if (stdin.includes('BADSHAPE')) out = { hello: 1 };
+  if (stdin.includes('"step"')) out = ${JSON.stringify(OK8)};
+  if (stdin.includes('OFFTOPIC')) out = ${JSON.stringify(OFF8)};
+  if (stdin.includes('days_planted')) out = ${JSON.stringify(OK9)};
   if (stdin.includes('UNFIT')) out = { ...out, type: 'unfit', category: 'addiction' };
   setTimeout(() => console.log(JSON.stringify({ is_error: false, result: JSON.stringify(out) })), stdin.includes('SLOW') ? 1200 : 0);
 });
@@ -76,7 +82,7 @@ describe('密碼與路徑', () => {
     expect(await (await fetch(`${base}/ping?t=${bridge.token}`)).json()).toEqual({ ok: true, name: '測試電腦', cli: 'stub' });
   });
   it('沒有的任務 404、方法不對 405、太長 413、格式不對 400', async () => {
-    expect((await post(input('x'), bridge.token, 9)).status).toBe(404);
+    expect((await post(input('x'), bridge.token, 0)).status).toBe(404);
     expect((await fetch(`${base}/v1/task/3?t=${bridge.token}`)).status).toBe(405);
     expect((await post('x'.repeat(9000))).status).toBe(413);
     expect((await post('not json')).status).toBe(400);
@@ -109,6 +115,32 @@ describe('任務', () => {
   it('終端機不印使用者寫的字', async () => {
     await post(input('我的祕密對手'));
     expect(lines.join('\n')).not.toContain('我的祕密對手');
+  });
+});
+
+describe('規劃習慣與每週看紀錄（任務 8、9）', () => {
+  const plan = (goal: string) => ({ ts: 1, input: { step: 'floor', goal, floor: '', trigger: '', exclude: [] } });
+  it('任務 8：選項整理好，用不到的欄位清空；使用者的字只在 user_text 底下', async () => {
+    const r = await post(plan('每天運動'), bridge.token, 8);
+    expect(await r.json()).toEqual({
+      ok: true,
+      task: 8,
+      result: { ...OK8, options: ['換上球鞋站到門口', '把球鞋放到床邊', '走到巷口'], difficulty: null, message: null },
+    });
+    expect(JSON.parse(seen().stdin)).toEqual({ step: 'floor', exclude: [], user_text: { goal: '每天運動', floor: '', trigger: '' } });
+  });
+  it('離題：模型寫的字一個都不送到手機', async () => {
+    const j = (await (await post(plan('OFFTOPIC'), bridge.token, 8)).json()) as any;
+    expect(j.result).toEqual({ type: 'off_topic', lead: '', options: [], difficulty: null, category: null, message: null });
+  });
+  it('任務 9', async () => {
+    const week = { done: 5, possible: 7, missed: ['星期二', '星期四'], skipped: [] };
+    const r = await post({ ts: 1, input: { floor: '打開檔案寫一句', trigger: '喝完水', days_planted: 20, week, weekday: { done: 10, days: 14 }, weekend: { done: 4, days: 6 }, pattern: 'none', reasons: [] } }, bridge.token, 9);
+    expect(await r.json()).toEqual({ ok: true, task: 9, result: OK9 });
+    expect(JSON.parse(seen().stdin).user_text).toEqual({ floor: '打開檔案寫一句', trigger: '喝完水', skipped: [], reasons: [] });
+  });
+  it('任務 8、9 的指令有資料規則，舊任務沒有', () => {
+    for (const id of TASK_IDS) expect(instructionFor(id).includes(DATA_RULE)).toBe(id === 8 || id === 9);
   });
 });
 
@@ -160,7 +192,7 @@ describe('排隊與逾時', () => {
 
 describe('用詞：開關改講時機', () => {
   it('每個任務的指令都有這條規則', () => {
-    for (const id of [1, 2, 3, 4, 5, 6, 7] as const) expect(instructionFor(id)).toContain(WORDING_RULE);
+    for (const id of TASK_IDS) expect(instructionFor(id)).toContain(WORDING_RULE);
   });
   it('換掉內部說法，真的開關不動', () => {
     expect(plainWording('備用開關沒出現')).toBe('備用時機沒出現');

@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { PACKS } from './generated/packs';
-import { OUTPUTS, TASKS, instructionFor, type TaskId, type TaskOutput } from './tasks';
+import { OUTPUTS, TASKS, instructionFor, userMessage, type TaskId, type TaskOutput } from './tasks';
 
 // 系統提示 ＝ 護欄包 ＋ 任務的知識包 ＋ 任務指令（ai/提示詞與輸出格式.md 共同規則）。
 // 前兩段固定，第二段尾巴放 cache_control，同一個知識包的任務共用快取。
@@ -37,7 +37,7 @@ export function anthropicCaller(apiKey: string): ModelCaller {
       model: spec.model,
       max_tokens: spec.maxTokens,
       system: systemBlocks(task),
-      messages: [{ role: 'user' as const, content: JSON.stringify(input) }],
+      messages: [{ role: 'user' as const, content: userMessage(task, input) }],
       output_config: { effort: spec.effort, format: zodOutputFormat(OUTPUTS[task]) },
     };
     // Sonnet 5.5 被安全分類器擋下時，伺服器端自動改用別的模型（只有 Sonnet 那一個任務需要；Haiku 沒有這個選項）

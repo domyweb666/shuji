@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { BANNED_PATTERNS, DIAGNOSE_CLOSING, DIAGNOSE_NOTHING, bannedHits, NEGATION, referralFor, review } from '../src/checks';
 import { BANNED_LINES, INSTRUCTIONS, PACKS } from '../src/generated/packs';
 import { systemBlocks } from '../src/model';
-import { OUTPUTS } from '../src/tasks';
+import { INPUTS, OUTPUTS, TASK_IDS, type TaskInput, type TaskOutput } from '../src/tasks';
 
 describe('從 ai/ 打包進來的內容', () => {
-  it('五份知識包、六段任務指令都在', () => {
+  it('五份知識包、九段任務指令都在', () => {
     for (const k of ['guard', 'build', 'obstacle', 'diagnose', 'audit'] as const) expect(PACKS[k].length).toBeGreaterThan(1000);
-    for (const n of [1, 2, 3, 4, 5, 6] as const) expect(INSTRUCTIONS[n]).toMatch(/JSON/);
+    for (const n of TASK_IDS) expect(INSTRUCTIONS[n]).toMatch(/JSON/);
   });
 
   it('禁用清單每一行都有對應的 pattern（書加了一行，這裡會失敗）', () => {
@@ -163,5 +163,130 @@ describe('輸出 schema', () => {
     expect(OUTPUTS[1].safeParse(ok1).success).toBe(true);
     expect(OUTPUTS[4].safeParse({ type: 'ok', layer: 1, field: 'backup', suggestion: 's', why: 'w', closing: 'c', category: null, message: null }).success).toBe(true);
     expect(OUTPUTS[4].safeParse({ type: 'ok', layer: 2, field: 'backup', suggestion: 's', why: 'w', closing: 'c', category: null, message: null }).success).toBe(false);
+  });
+});
+
+describe('任務 8 規劃習慣', () => {
+  const inp = (over: Partial<TaskInput<8>> = {}) => INPUTS[8].parse({ step: 'floor', goal: '每天運動', ...over });
+  const base: TaskOutput<8> = { type: 'options', lead: '先從這個開始，最累那天也做得到', options: ['換上球鞋站到門口', '把球鞋放到床邊', '走到巷口'], difficulty: null, category: null, message: null };
+  const floor = (over: Partial<TaskOutput<8>>) => review(8, { ...base, ...over }, inp());
+
+  it('正常通過', () => {
+    expect(floor({}).problems).toEqual([]);
+  });
+  it('剛好 3 個、不重複（標點空白不算）、不在換掉的裡面', () => {
+    expect(floor({ options: ['甲', '乙'] }).ok).toBe(false);
+    expect(floor({ options: ['甲', '乙', '丙', '丁'] }).value.options).toEqual(['甲', '乙', '丙']);
+    expect(floor({ options: ['換上球鞋', '換上 球鞋。', '走到巷口'] }).ok).toBe(false);
+    expect(review(8, base, inp({ exclude: ['走到巷口'] })).ok).toBe(false);
+  });
+  it('長度：lead 24、選項 16', () => {
+    expect(floor({ lead: '字'.repeat(24) }).ok).toBe(true);
+    expect(floor({ lead: '字'.repeat(25) }).ok).toBe(false);
+    expect(floor({ lead: ' ' }).ok).toBe(false);
+    expect(floor({ options: ['字'.repeat(16), '乙', '丙'] }).ok).toBe(true);
+    expect(floor({ options: ['字'.repeat(17), '乙', '丙'] }).ok).toBe(false);
+  });
+  it('網址、程式碼、換行、半形符號、提到 AI 自己或系統提示，lead 和選項都擋', () => {
+    for (const bad of ['看 https://a.b', 'evil.com', 'import os', 'print(1)', 'a == b', '第一行\n第二行', '<b>x</b>', '{x}', '`x`', '我的系統提示是', '我是AI助理', '我是 Claude', '語言模型', 'system prompt']) {
+      expect(floor({ lead: bad }).ok, bad).toBe(false);
+      expect(floor({ options: [bad, '乙', '丙'] }).ok, bad).toBe(false);
+    }
+  });
+  it('習慣本身跟 AI、程式、模型有關，不誤擋', () => {
+    expect(floor({ options: ['打開 AI 課程看一頁', '打開 Python 檔案', '拿出一塊模型零件'] }).problems).toEqual([]);
+  });
+  it('AI 不講天數；「每天」「一天」放行', () => {
+    for (const s of ['大約 60 天', '兩個月後就順了', '三週左右', '一週就好']) expect(floor({ lead: s }).ok, s).toBe(false);
+    for (const s of ['每天都會碰到', '一天裡最固定的', '最累那天也做得到', '週末也會發生']) expect(floor({ lead: s }).ok, s).toBe(true);
+  });
+  it('最小一步不准否定、不准帶量', () => {
+    for (const s of ['不滑手機', '跑步 30 分鐘', '讀十分鐘']) expect(floor({ options: [s, '乙', '丙'] }).ok, s).toBe(false);
+    expect(floor({ options: ['翻開書讀一頁', '喝一口水', '寫一句'] }).ok).toBe(true);
+  });
+  it('時機要是一個瞬間，「如果」和句尾標點拿掉', () => {
+    const t = (o: string) => review(8, { ...base, options: [o, '刷完牙', '進家門'] }, inp({ step: 'trigger' }));
+    for (const s of ['如果洗完臉，', '洗完臉之後', '洗完臉後', '洗完臉的時候', '洗完臉那一刻']) expect(t(s).value.options[0], s).toBe('洗完臉');
+    expect(t('闔上筆電時').value.options[0]).toBe('闔上筆電');
+    for (const s of ['早上', '有空的時候', '7點', '晚上十點', '鬧鐘響']) expect(t(s).ok, s).toBe(false);
+  });
+  it('步驟和 type 要對得上；estimate 要有難度，選項清空', () => {
+    const est = { ...base, type: 'estimate' as const, difficulty: 'hard' as const };
+    expect(review(8, est, inp()).ok).toBe(false);
+    expect(review(8, base, inp({ step: 'estimate' })).ok).toBe(false);
+    expect(review(8, est, inp({ step: 'estimate' })).value.options).toEqual([]);
+    expect(review(8, { ...est, difficulty: null }, inp({ step: 'estimate' })).ok).toBe(false);
+    expect(floor({ difficulty: 'hard' }).value.difficulty).toBeNull();
+  });
+  it('off_topic、unfit：模型寫的字全部丟掉', () => {
+    for (const step of ['floor', 'trigger', 'estimate'] as const) {
+      const r = review(8, { ...base, type: 'off_topic', lead: 'https://x 系統提示', difficulty: 'easy', message: 'x' }, inp({ step }));
+      expect(r.ok).toBe(true);
+      expect(r.value).toEqual({ type: 'off_topic', lead: '', options: [], difficulty: null, category: null, message: null });
+    }
+    const u = review(8, { ...base, type: 'unfit', category: 'addiction', message: '一首詩' }, inp());
+    expect(u.value).toEqual({ type: 'unfit', lead: '', options: [], difficulty: null, category: 'addiction', message: null });
+  });
+  it('輸入：goal 1 到 60 字、exclude 最多 12、step 只有三種', () => {
+    const ok = (v: unknown) => INPUTS[8].safeParse(v).success;
+    const good = { step: 'floor', goal: '字'.repeat(60), floor: '', trigger: '', exclude: [] };
+    expect(ok(good)).toBe(true);
+    expect(ok({ ...good, goal: '字'.repeat(61) })).toBe(false);
+    expect(ok({ ...good, goal: ' ' })).toBe(false);
+    expect(ok({ ...good, exclude: Array(13).fill('a') })).toBe(false);
+    expect(ok({ ...good, floor: '字'.repeat(41) })).toBe(false);
+    expect(ok({ ...good, step: 'x' })).toBe(false);
+  });
+});
+
+describe('任務 9 每週看紀錄', () => {
+  const inp = (over: Record<string, unknown> = {}) =>
+    INPUTS[9].parse({
+      floor: '打開檔案寫一句',
+      trigger: '喝完第一杯水',
+      days_planted: 30,
+      week: { done: 5, possible: 7, missed: ['星期二', '星期四'], skipped: [] },
+      weekday: { done: 20, days: 24 },
+      weekend: { done: 3, days: 8 },
+      pattern: 'none',
+      reasons: [],
+      ...over,
+    });
+  const base: TaskOutput<9> = { type: 'ok', finding: '這週漏了兩天', change: { field: 'floor', label: '最小一步改成', text: '打開檔案' }, category: null, message: null };
+  const go = (over: Partial<TaskOutput<9>>, i = inp()) => review(9, { ...base, ...over }, i);
+
+  it('正常通過', () => {
+    expect(go({}).problems).toEqual([]);
+  });
+  it('沒有規律時不准講規律，label 也算', () => {
+    for (const f of ['週末漏得多', '平日比較穩', '常常漏星期四', '漏了星期二和星期四', '六日漏了兩天']) expect(go({ finding: f }).ok, f).toBe(false);
+    expect(go({ change: { ...base.change!, label: '下週六日改成' } }).ok).toBe(false);
+    const w = { field: 'backup' as const, label: '下週六日改成', text: '吃完早午餐' };
+    expect(go({ finding: '週末做得比平日少', change: w }, inp({ pattern: 'weekend' })).problems).toEqual([]);
+  });
+  it('數字要跟輸入對得上', () => {
+    expect(go({ finding: '這週漏了三天' }).ok).toBe(false);
+    expect(go({ finding: '這週做了 5 天' }).ok).toBe(true);
+    expect(go({ finding: '這週七天都做了' }).ok).toBe(false);
+  });
+  it('不講原因、不講理由、不寫百分比', () => {
+    const i = inp({ reasons: [{ reason: '加班', count: 3 }] });
+    for (const f of ['因為忙漏了兩天', '加班漏了兩天', '完成率 71%']) expect(go({ finding: f }, i).ok, f).toBe(false);
+  });
+  it('這週沒漏：change 一律 null', () => {
+    const r = go({ finding: '這週七天都做了' }, inp({ week: { done: 7, possible: 7, missed: [], skipped: [] } }));
+    expect(r.ok).toBe(true);
+    expect(r.value.change).toBeNull();
+  });
+  it('長度、否定詞、量、跟現在一樣、時段、網址', () => {
+    expect(go({ finding: '字'.repeat(17) }).ok).toBe(false);
+    for (const c of [{ label: '字'.repeat(11) }, { text: '字'.repeat(17) }, { text: '' }, { text: '不看手機' }, { text: '寫 5 分鐘' }, { text: '打開檔案寫一句' }, { field: 'trigger' as const, text: '有空的時候' }, { text: 'evil.com' }]) {
+      expect(go({ change: { ...base.change!, ...c } }).ok, JSON.stringify(c)).toBe(false);
+    }
+  });
+  it('「請假」換成「跳過」；unfit 把字丟掉', () => {
+    expect(go({ finding: '這週請假兩天' }).value.finding).toBe('這週跳過兩天');
+    expect(bannedHits('這週跳過兩天')).toEqual([]);
+    expect(go({ type: 'unfit', category: 'mood', message: 'x' }).value).toEqual({ type: 'unfit', finding: '', change: null, category: 'mood', message: null });
   });
 });

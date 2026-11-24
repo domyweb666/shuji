@@ -21,7 +21,7 @@ const packs = {
 // 每個任務的「任務指令」：## 任務 N 底下，**任務指令** 後面的第一個 ``` 區塊
 const prompts = read('提示詞與輸出格式.md');
 const instructions = {};
-const LAST = 7;
+const LAST = 9;
 for (let n = 1; n <= LAST; n++) {
   const start = prompts.indexOf(`## 任務 ${n}｜`);
   if (start < 0) throw new Error(`提示詞檔裡找不到「## 任務 ${n}｜」`);
@@ -46,7 +46,7 @@ if (banned.length < 8) throw new Error('護欄包第四節禁用清單讀不出�
 mkdirSync(OUT, { recursive: true });
 const body = `// 由 scripts/gen-packs.mjs 從 ai/ 產生，不要手改。
 export const PACKS = ${JSON.stringify(packs, null, 2)} as const;
-export const INSTRUCTIONS: Record<1 | 2 | 3 | 4 | 5 | 6 | 7, string> = ${JSON.stringify(instructions, null, 2)};
+export const INSTRUCTIONS: Record<1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9, string> = ${JSON.stringify(instructions, null, 2)};
 export const REFERRAL = ${JSON.stringify(quote[1].trim())};
 export const REFERRAL_EATING = ${JSON.stringify(eating[1].trim())};
 export const BANNED_LINES: string[] = ${JSON.stringify(banned, null, 2)};

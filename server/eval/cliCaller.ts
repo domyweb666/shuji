@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
 import * as z from 'zod/v4';
 import { systemBlocks, type ModelCaller, type ModelResult } from '../src/model';
-import { OUTPUTS, TASKS, type TaskId } from '../src/tasks';
+import { OUTPUTS, TASKS, userMessage, type TaskId } from '../src/tasks';
 
 const TIMEOUT_MS = 180_000;
 
@@ -182,7 +182,7 @@ export function cliCaller(options: CliOptions = {}): ModelCaller {
           reject(e as Error);
         }
       });
-      const text = JSON.stringify(input);
+      const text = userMessage(task, input);
       child.stdin.end(options.clean ? options.clean(text) : text, 'utf8');
     });
   };
