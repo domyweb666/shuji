@@ -1,8 +1,8 @@
-# Handoff: QC-0004 做完也驗完，等多米點頭併 main、出 TestFlight
+# Handoff: QC-0004 已併 main、TestFlight 1.0（8）已上傳，等多米真機回饋
 
 > 產出時間：2026-11-24
 > repo：`E:\習慣地瓜\shuji`（外層 `E:\習慣地瓜` 不是 git repo）
-> 分支：`qc-0004`，從 origin/main 3243e9a 開，未併 main、沒開 PR、沒出 TestFlight
+> 分支：`main`（bc33a7d 是 1.0（8）那一版；`qc-0004` 已整條併進來）
 
 ## ✅ 這次完成了什麼
 
@@ -15,7 +15,7 @@
 
 ## 🚧 還沒做完 / 待決定
 
-- 等多米：要不要併 main 出 TestFlight。
+- 2027 年 4 月起 Apple 要更新的 SDK（上傳時的警告），現在是 iOS 26.5 SDK，還不急。
 - 只能真機判：左右滑、按住手感與震動、記好那一刻順不順（模擬器錄影停格約 0.6 秒，沒偵測到主執行緒卡住，原因沒確認）。左右滑備案：外層加 DragGesture。
 - 沒看過：比 402×874 小的手機、放大字級。AI 打開後久停頁多一顆按鈕，會要捲一點。
 - 等多米：Anthropic 金鑰（`npx wrangler secret put ANTHROPIC_API_KEY`，多米自己跑）；放好後才把 `ShujiAIBaseURL` 填進 Info.plist（值在 deploy-server 分支），多米點頭才做。
@@ -33,8 +33,8 @@
 
 ## ⏭️ 下一步從哪繼續
 
-1. 多米說可以出 → 併 main、`gh workflow run testflight.yml --ref main`。
-2. 多米真機回饋 → 開新分支照改。
+1. 多米真機回饋 → 從 main 開新分支照改，CI 綠、模擬器看過（`node tools/limrun/states.mjs`）再問要不要併。
+2. 出版：`gh workflow run testflight.yml --ref main`。
 
 ## 🧩 剩下的工作（工作包）
 
