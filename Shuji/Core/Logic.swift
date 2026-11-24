@@ -221,7 +221,7 @@ extension AppState {
         if sg.passCount >= 2 { return .dig }
         guard sg.s1, !sg.flatLow else { return nil }
         if pressureDay.map({ DayKey.days(from: $0, to: t) >= AutoAsk.pressure.cooldown }) ?? true { return .pressure }
-        if letgoResult.map({ DayKey.days(from: $0.end, to: t) >= AutoAsk.letgo.cooldown }) ?? true { return .letgo }
+        if letgoResult?.end.map({ DayKey.days(from: $0, to: t) >= AutoAsk.letgo.cooldown }) ?? true { return .letgo }
         return nil
     }
 
