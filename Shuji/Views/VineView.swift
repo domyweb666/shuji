@@ -13,7 +13,8 @@ struct VineView: View {
     @State private var model = VineModel()
 
     var body: some View {
-        TimelineView(.animation) { timeline in
+        // 三頁都一直在，沒看著這頁就不畫
+        TimelineView(.animation(paused: store.page != 1)) { timeline in
             Canvas { context, size in
                 model.soilDepth = soilDepth
                 model.step(now: timeline.date, size: size, reduce: reduceMotion)
@@ -25,12 +26,15 @@ struct VineView: View {
         .accessibilityLabel("地瓜藤，共 \(store.state.doneKeys.count) 節")
         .onAppear {
             sync()
-            model.startMotion()
+            if store.page == 1 { model.startMotion() }
+        }
+        .onChange(of: store.page) { _, page in
+            if page == 1 { model.startMotion() } else { model.stopMotion() }
         }
         .onDisappear { model.stopMotion() }
         .onChange(of: store.state.records) { _, _ in sync() }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { model.startMotion() } else { model.stopMotion() }
+            if phase == .active && store.page == 1 { model.startMotion() } else { model.stopMotion() }
         }
     }
 

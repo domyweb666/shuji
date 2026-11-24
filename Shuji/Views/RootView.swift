@@ -4,6 +4,7 @@ import VeggieKit
 /// 三頁：田｜今天｜設定。下面一條懸浮膠囊分頁列，手指也照樣可以左右滑。還沒種的時候只有首次設定這一頁。
 struct RootView: View {
     @Environment(Store.self) private var store
+    @State private var bottomSafe: CGFloat = 0
     private static let minute = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
 
     private static let tabs: [DomyTabBar.Item] = [
@@ -45,16 +46,15 @@ struct RootView: View {
                 OnboardingView()
                     .transition(.opacity)
             } else {
-                TabView(selection: page) {
-                    FieldView().tag(0)
-                    TodayView().tag(1)
-                    SettingsView().tag(2)
-                }
-                .tabViewStyle(.page(indexDisplayMode: .never))
-                .environment(\.domyBottomInset, Theme.tabBarClearance)
-                // 內容鋪到螢幕最底，土不會在手勢條上面斷掉
-                .ignoresSafeArea(.container, edges: .bottom)
+                pager(page: page)
             }
+        }
+        .background {
+            // 不算鍵盤，只要手勢條那一段
+            GeometryReader { geo in
+                Color.clear.onChange(of: geo.safeAreaInsets.bottom, initial: true) { _, v in bottomSafe = v }
+            }
+            .ignoresSafeArea(.keyboard)
         }
         .overlay(alignment: .bottom) {
             if store.state.habit != nil {
@@ -63,6 +63,35 @@ struct RootView: View {
                     .ignoresSafeArea(.keyboard)
             }
         }
+    }
+
+    /// 左右滑的三頁。不用 TabView(.page)：它的頁面只有安全區那麼高，忽略安全區之後內容會上下置中、標題跑掉，
+    /// 切深色之後點分頁列也不換頁
+    private func pager(page: Binding<Int>) -> some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: 0) {
+                pageBox(0, page.wrappedValue) { FieldView() }
+                pageBox(1, page.wrappedValue) { TodayView() }
+                pageBox(2, page.wrappedValue) { SettingsView() }
+            }
+            .scrollTargetLayout()
+        }
+        .scrollTargetBehavior(.paging)
+        .scrollPosition(id: Binding<Int?>(
+            get: { page.wrappedValue },
+            set: { v in if let v, v != page.wrappedValue { page.wrappedValue = v } }
+        ))
+        .scrollIndicators(.hidden)
+        .environment(\.domyBottomInset, Theme.tabBarClearance + bottomSafe)
+        // 內容鋪到螢幕最底，土不會在手勢條上面斷掉
+        .ignoresSafeArea(.container, edges: .bottom)
+    }
+
+    private func pageBox<Content: View>(_ tag: Int, _ current: Int, @ViewBuilder _ content: () -> Content) -> some View {
+        content()
+            .containerRelativeFrame(.horizontal)
+            .accessibilityHidden(tag != current)
+            .id(tag)
     }
 }
 
