@@ -229,7 +229,14 @@ final class VineModel {
         }
 
         // 連到地瓜的那條根：從最後一節往下彎到地瓜頂
-        let (rx, ry) = n > 0 ? nodePos(n - 1) : (W * 0.5, sy)
+        var (rx, ry) = n > 0 ? nodePos(n - 1) : (W * 0.5, sy)
+        if let g = grow, n > 0, g.index == n - 1 {
+            // 新的一節長到哪，根就跟到哪
+            let p = ease(min(1, a / 0.6))
+            let (px, py) = n > 1 ? nodePos(n - 2) : (rx - 40, ry)
+            rx = px + (rx - px) * p
+            ry = py + (ry - py) * p
+        }
         let depth = potatoTop - ry
         if depth > 0 {
             var link = Path()

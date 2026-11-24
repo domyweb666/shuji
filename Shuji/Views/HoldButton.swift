@@ -107,6 +107,8 @@ struct HoldButton: View {
     @State private var startTime: Date? = nil
     @State private var releaseTime: Date? = nil
     @State private var releaseProgress: CGFloat = 0
+    /// 按滿了：換成「記好了」之前外圈停在滿的，不閃回空圈
+    @State private var full = false
     @State private var resetTask: Task<Void, Never>? = nil
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var scheme
@@ -139,6 +141,7 @@ struct HoldButton: View {
         .onChange(of: pressing) { _, isPressing in
             if isPressing {
                 resetTask?.cancel()
+                full = false
                 releaseTime = nil
                 startTime = Date()
                 Haptic.press()
@@ -159,6 +162,7 @@ struct HoldButton: View {
     }
 
     private func progress(at date: Date) -> CGFloat {
+        if full { return 1 }
         if let s = startTime {
             return min(1, CGFloat(date.timeIntervalSince(s) / duration))
         }
@@ -175,6 +179,7 @@ struct HoldButton: View {
             try? await Task.sleep(for: .seconds(resetDuration + 0.05))
             guard !Task.isCancelled else { return }
             releaseTime = nil
+            full = false
         }
     }
 
@@ -183,6 +188,9 @@ struct HoldButton: View {
         startTime = nil
         releaseTime = nil
         releaseProgress = 0
+        full = true
         onComplete()
+        // 沒記成（按鈕還在）就放回去
+        scheduleResetEnd()
     }
 }
