@@ -184,7 +184,7 @@ struct TodayView: View {
         let fixed = TodayView.vineAbove + PotatoBody<EmptyView>.frameSize.height + Sp.s2 + bottomInset
         return GeometryReader { geo in
             let top = TodayView.vineAbove + geo.size.height - fixed
-            VineView(soilTop: TodayView.vineAbove, potatoTop: top + TodayView.ringInset)
+            VineView(soilTop: TodayView.vineAbove, potatoTop: top + TodayView.ringInset, baked: baked)
                 .overlay(alignment: .top) {
                     potato
                         .padding(.top, top)
@@ -195,17 +195,21 @@ struct TodayView: View {
         .layoutPriority(1)
     }
 
+    /// 今天記好了，地瓜烤好剝開
+    private var baked: Bool {
+        store.state.letgoDaysLeft(today: t) == nil && store.state.log(on: t)?.t == .done
+    }
+
     @ViewBuilder
     private var potato: some View {
         let log = store.state.log(on: t)
         if store.state.letgoDaysLeft(today: t) != nil {
-            PotatoSeal(icon: "hourglass", title: "放手中", style: .quiet)
-        } else if let log, log.t == .done {
-            PotatoSeal(icon: "checkmark", title: "今天記好了", style: .done)
+            PotatoSeal(icon: "hourglass", title: "放手中")
         } else if let log, log.t == .leave {
-            PotatoSeal(icon: "moon.zzz", title: "請假", style: .quiet)
+            PotatoSeal(icon: "moon.zzz", title: "請假")
         } else {
-            HoldButton(hint: store.state.longAbsence(today: t) ? "從這一節接上" : "做完最小一步，按住一下") { recordNode() }
+            HoldButton(hint: store.state.longAbsence(today: t) ? "從這一節接上" : "做完最小一步，按住一下",
+                       done: log?.t == .done) { recordNode() }
         }
     }
 

@@ -59,6 +59,7 @@ async function states(sfx) {
   await t('empty', make({ empty: true }));
   await t('todo', make());
   if (want('hold')) { await load(make()); await holdShot('hold' + sfx); }
+  if (want('undo') && !sfx) { await load(make({ log: { t: 'done' } })); await tap('更多選項，可以撤銷今天', 1500); await tap('撤銷今天', 2000); await shot('undo'); await holdShot('undo-hold'); }
   await t('done', make({ log: { t: 'done' } }));
   await t('leave', make({ log: { t: 'leave', reason: '出遠門' } }));
   await t('letgo', make({ letgo: true }));

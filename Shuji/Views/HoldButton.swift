@@ -6,6 +6,8 @@ struct PotatoBody<Label: View>: View {
     /// 外圈跑到哪（0 到 1）
     var ring: CGFloat
     var ringColor: Color
+    /// 記好了：1 是烤好剝開，0 是原本的樣子
+    var open: CGFloat = 0
     @ViewBuilder var label: Label
 
     /// 地瓜本體、外圈、整塊佔的大小（插畫，不走代號）
@@ -18,12 +20,14 @@ struct PotatoBody<Label: View>: View {
         let size = Self.bodySize
         ZStack {
             ZStack {
-                PotatoRing(progress: 1)
-                    .stroke(ringColor.opacity(0.45), lineWidth: Sz.heroRingWidth)
-                    .frame(width: Self.ringSize.width, height: Self.ringSize.height)
-                PotatoRing(progress: ring)
-                    .stroke(ringColor, style: StrokeStyle(lineWidth: Sz.heroRingWidth * 2, lineCap: .round))
-                    .frame(width: Self.ringSize.width, height: Self.ringSize.height)
+                Group {
+                    PotatoRing(progress: 1)
+                        .stroke(ringColor.opacity(0.45), lineWidth: Sz.heroRingWidth)
+                    PotatoRing(progress: ring)
+                        .stroke(ringColor, style: StrokeStyle(lineWidth: Sz.heroRingWidth * 2, lineCap: .round))
+                }
+                .frame(width: Self.ringSize.width, height: Self.ringSize.height)
+                .opacity(1 - open)
                 Ellipse()
                     .fill(fill)
                     .frame(width: size.width, height: size.height)
@@ -31,11 +35,22 @@ struct PotatoBody<Label: View>: View {
                     .fill(Color.white.opacity(0.16))
                     .frame(width: size.width * 0.38, height: size.height * 0.22)
                     .offset(x: -size.width * 0.18, y: -size.height * 0.26)
+                    .opacity(1 - open)
                 PotatoMarks()
                     .stroke(Color.black.opacity(0.18), style: StrokeStyle(lineWidth: Sz.heroRingWidth, lineCap: .round))
                     .frame(width: size.width, height: size.height)
+                    .opacity(1 - open)
+                // 從中間裂開：先一條縫，再往上下張開
+                BakedFlesh()
+                    .frame(width: size.width, height: size.height)
+                    .scaleEffect(x: 0.6 + 0.4 * open, y: max(0.01, open))
+                    .opacity(open > 0.02 ? 1 : 0)
             }
             .rotationEffect(tilt)
+            Steam()
+                .stroke(ringColor, style: StrokeStyle(lineWidth: Sz.heroRingWidth * 1.5, lineCap: .round))
+                .offset(y: Sp.s3 * (1 - open))
+                .opacity(open)
             label
         }
         .frame(width: Self.frameSize.width, height: Self.frameSize.height)
@@ -73,27 +88,81 @@ private struct PotatoMarks: Shape {
     }
 }
 
-/// 今天的狀態：記好了是產品色實心加滿圈，請假、放手是安靜的淡色
+/// 請假、放手：安靜的淡色
 struct PotatoSeal: View {
-    enum Style { case done, quiet }
-
     var icon: String
     var title: String
-    var style: Style
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
-        let done = style == .done
-        PotatoBody(fill: done ? Theme.accent : Theme.soft, ring: done ? 1 : 0, ringColor: Theme.potatoRing(scheme)) {
+        PotatoBody(fill: Theme.soft, ring: 0, ringColor: Theme.potatoRing(scheme)) {
             VStack(spacing: Sp.s1) {
-                // 記好了只打勾，不寫字（讀屏照樣唸 title）
-                Image(systemName: icon).font(done ? Ty.largeTitle.font : Ty.title2.font)
-                if !done { Text(title).domyType(Ty.headline) }
+                Image(systemName: icon).font(Ty.title2.font)
+                Text(title).domyType(Ty.headline)
             }
-            .foregroundStyle(done ? Theme.onAccent : Theme.strong)
+            .foregroundStyle(Theme.strong)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(title)
+    }
+}
+
+/// 烤好剝開的切口（插畫，座標照 Claude Design 選項 C）
+private struct BakedFlesh: View {
+    var body: some View {
+        Canvas { ctx, size in
+            var g = ctx
+            g.translateBy(x: size.width / 2, y: size.height / 2)
+            g.fill(BakedFlesh.blob([
+                (-92, 0), (-67, -32), (-54, -21), (-36, -34), (-17, -47), (4, -28), (23, -38),
+                (48, -47), (69, -28), (94, -2), (71, 25), (56, 21), (35, 32),
+                (13, 43), (-6, 26), (-29, 36), (-54, 42), (-73, 23), (-92, 0),
+            ]), with: .color(Theme.bakedRim))
+            g.fill(BakedFlesh.blob([
+                (-84, 0), (-63, -26), (-52, -15), (-35, -28), (-17, -40), (4, -23), (23, -32),
+                (46, -40), (65, -25), (86, -2), (67, 19), (54, 15), (33, 26),
+                (13, 36), (-6, 21), (-27, 30), (-50, 36), (-67, 19), (-84, 0),
+            ]), with: .color(Theme.bakedFlesh))
+            g.fill(BakedFlesh.blob([
+                (-60, 0), (-42, -17), (-29, -9), (-13, -17), (6, -24), (27, -17), (58, -2),
+                (33, 13), (17, 9), (0, 17), (-21, 23), (-42, 13), (-60, 0),
+            ]), with: .color(Theme.bakedCore))
+            var lines = Path()
+            lines.move(to: CGPoint(x: -29, y: -2))
+            lines.addQuadCurve(to: CGPoint(x: -8, y: 0), control: CGPoint(x: -19, y: 4))
+            lines.move(to: CGPoint(x: 13, y: 6))
+            lines.addQuadCurve(to: CGPoint(x: 33, y: 2), control: CGPoint(x: 25, y: 0))
+            g.stroke(lines, with: .color(Theme.bakedLine.opacity(0.6)), style: StrokeStyle(lineWidth: Sz.heroRingWidth, lineCap: .round))
+        }
+    }
+
+    /// 起點，之後每三點一段曲線
+    private static func blob(_ p: [(Double, Double)]) -> Path {
+        var path = Path()
+        func pt(_ i: Int) -> CGPoint { CGPoint(x: p[i].0, y: p[i].1) }
+        path.move(to: pt(0))
+        var i = 1
+        while i + 2 < p.count {
+            path.addCurve(to: pt(i + 2), control1: pt(i), control2: pt(i + 1))
+            i += 3
+        }
+        path.closeSubpath()
+        return path
+    }
+}
+
+/// 地瓜上面的三道煙
+private struct Steam: Shape {
+    func path(in rect: CGRect) -> Path {
+        var p = Path()
+        for (dx, y) in [(-38.0, -62.0), (0.0, -68.0), (38.0, -62.0)] {
+            let x = rect.midX + dx
+            let b = rect.midY + y
+            p.move(to: CGPoint(x: x, y: b))
+            p.addQuadCurve(to: CGPoint(x: x, y: b - 15), control: CGPoint(x: x - 10, y: b - 8))
+            p.addQuadCurve(to: CGPoint(x: x, y: b - 30), control: CGPoint(x: x + 10, y: b - 22))
+        }
+        return p
     }
 }
 
@@ -102,6 +171,8 @@ struct PotatoSeal: View {
 struct HoldButton: View {
     /// 只給讀屏
     var hint: String
+    /// 今天記好了：同一顆地瓜烤好剝開，按了沒反應。用同一個 view，變形才接得起來
+    var done = false
     var onComplete: () -> Void
 
     @GestureState private var pressing = false
@@ -124,19 +195,22 @@ struct HoldButton: View {
     var body: some View {
         TimelineView(.animation(paused: startTime == nil && releaseTime == nil)) { timeline in
             let p = progress(at: timeline.date)
-            PotatoBody(fill: pressing ? Theme.strong : Theme.accent, ring: p, ringColor: Theme.potatoRing(scheme)) {
+            PotatoBody(fill: pressing && !done ? Theme.strong : Theme.accent, ring: done ? 1 : p,
+                       ringColor: Theme.potatoRing(scheme), open: done ? 1 : 0) {
                 Text("按住")
                     .domyType(Ty.title1)
                     .tracking(2)
                     .foregroundStyle(Theme.onAccent)
+                    .opacity(done ? 0 : 1)
             }
-            .scaleEffect(reduceMotion ? 1 : 1 + HoldButton.swell * p)
+            .scaleEffect(reduceMotion || done ? 1 : 1 + HoldButton.swell * p)
+            .animation(reduceMotion ? nil : Feel.open, value: done)
         }
         .animation(Feel.press, value: pressing)
         .contentShape(Ellipse())
         .gesture(
             LongPressGesture(minimumDuration: duration, maximumDistance: 40)
-                .updating($pressing) { value, state, _ in state = value }
+                .updating($pressing) { value, state, _ in state = value && !done }
                 .onEnded { _ in complete() }
         )
         .onChange(of: pressing) { _, isPressing in
@@ -156,9 +230,9 @@ struct HoldButton: View {
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("按住一秒半，記一節")
-        .accessibilityHint(hint)
-        .accessibilityAddTraits(.isButton)
+        .accessibilityLabel(done ? "今天記好了" : "按住一秒半，記一節")
+        .accessibilityHint(done ? "" : hint)
+        .accessibilityAddTraits(done ? [] : .isButton)
         .accessibilityAction { complete() }
     }
 
@@ -185,6 +259,7 @@ struct HoldButton: View {
     }
 
     private func complete() {
+        guard !done else { return }
         resetTask?.cancel()
         startTime = nil
         releaseTime = nil

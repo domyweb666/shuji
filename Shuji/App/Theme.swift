@@ -29,6 +29,8 @@ enum Feel {
     static let change = Animation.snappy
     /// 換頁、提示條進出、今天的狀態換場
     static let transition = Animation.smooth
+    /// 記好之後地瓜裂開
+    static let open = Animation.bouncy
 }
 
 enum Theme {
@@ -91,6 +93,12 @@ enum Theme {
         root: Color(red: 1, green: 226 / 255, blue: 196 / 255).opacity(0.45),
         flower: hex(0xD7A3BB), flowerCore: hex(0x74485D)
     )
+
+    /// 烤好剝開的地瓜（插畫，淺深同色）：皮的切邊、肉、肉心、肉上的紋
+    static let bakedRim = hex(0xFFECD6)
+    static let bakedFlesh = hex(0xF0A23A)
+    static let bakedCore = hex(0xFFD27A)
+    static let bakedLine = hex(0xC97A1E)
 
     /// 地瓜外圈：土裡的根色，不透明
     static func potatoRing(_ scheme: ColorScheme) -> Color {
