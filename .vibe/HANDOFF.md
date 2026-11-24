@@ -1,25 +1,35 @@
-# Handoff: 多米選了跳過 A、田 B、設定 A；AI 改成貫穿流程，等他選對話樣式
+# Handoff: AI 對話第二輪（地瓜對答、直接講答案）等多米選週報，接著把 AI 流程做進 app
 
-> 2026-11-25 凌晨。repo `E:\習慣地瓜\shuji`，分支 `lazy-1125`（第一輪 33f9dd8 已推、CI 綠；沒併 main、沒出 TestFlight）
-> 第一輪做了什麼、沒驗什麼：`.vibe/handoff/archive/2026-11-25-lazy-round1.md`
+> 2026-11-25 凌晨。repo `E:\習慣地瓜\shuji`，分支 `lazy-1125`（沒併 main、沒出 TestFlight）。第一輪見 `.vibe/handoff/archive/2026-11-25-lazy-round1.md`
 
-## 🏃 正在做（可能還沒 commit）
-子代理在把「跳過 A、田 B、設定 A」寫進 app，改 `TodayView`、`Sheets`、`FieldView`、`SettingsView`、`Core/FieldReport`、新測試 `FieldReportTests`、`.analytics/06`、`states.mjs`。**接手先 `git status`**：有改動就跑 `node tools/check-ui-tokens.mjs`、commit、push、`gh workflow run ios.yml --ref lazy-1125`，綠了下載 `Shuji-simulator-app`，`node tools/limrun/states.mjs <zip> <輸出> lazy,field` 拍圖，每張都看過。`git status` 乾淨而且最新 commit 是 33f9dd8 之後只有文件，代表子代理沒寫完，照下面重派。
+## ✅ 已進程式
+- 第一輪：改字、跳過、月曆可點、設定瘦身、AI 接電腦 CLI（33f9dd8，CI 綠、模擬器看過）。
+- 第二輪：跳過 A、田 B、設定 A（commit「今天頁跳過與復原…」）。**先查這次 CI**：`gh run list --branch lazy-1125 --limit 2`。綠了下載 `Shuji-simulator-app`，`node tools/limrun/states.mjs <zip> <輸出> lazy,field` 拍圖，每張看過。優先看：單子高度會不會跳、理由 8 個時、深色地瓜、「1 天，平常 4 到 6 天」在週一二出現順不順（建議：週中只講天數，不跟平常比）。
 
 ## 📌 多米定的（別再問）
-1. 跳過：右上角文字鈕「跳過」，點理由就記好；記了或跳過後變「復原」。
-2. 田：月曆｜分析兩面，分析一張卡答一題（畫布 FieldB、FieldFew）。
-3. 設定：SetA，留每天提醒。
-4. AI 貫穿流程、放在後台、只輔助他選：第一次打開就由 AI 問要養什麼 → 拆動作 → 規劃試幾天；週報由 AI 看過紀錄給選項；設定頁有「重新規劃習慣」。這推翻「首次設定按鈕式 AI」和閘門 0 的「週報不用模型」，實作時在 `.analytics/00`、`07` 記一筆；守住「系統說現象、原因與改法他選」，送 AI 的只有算好的數字。
-5. 畫布 page `ai` 的 A、B 兩個入口都不採用。
+1. 跳過 A、田 B、設定 A。
+2. AI 貫穿流程、在後台、**直接講答案**：第一次打開由 AI 問 → AI 直接給最小一步、時機 → AI 直接講「預估 N 天養成」，不給使用者挑天數。設定有「重新規劃習慣」。每週 AI 週報。
+3. 對話樣子：B 的介面（地瓜、大字、一頁一題）＋ C 的互動（跟 AI 對答，有選項也能打字）。畫布「6 AI 第二輪」Talk 到 Talk5。
+4. 原本的週報卡「太普通」，不用。
+5. 畫布 page `ai` 兩個入口、`chat` 的「先試幾天」選單都作廢。
 
 ## 🚧 等多米
-- 選對話樣式：https://claude.ai/artifact/6Lb2CczhJG9BNGdpwhcz5u 的「5 AI 對話」，A 填空句（推薦）／B 一題一頁／C 聊天泡泡。A 到 C 可以點著走。畫布沒有逐張開起來看過。
-- 出不出 TestFlight。
+- 週報 A 信／B 藤就是圖（推薦）／C 一張一張滑：https://claude.ai/artifact/6Lb2CczhJG9BNGdpwhcz5u 第 6 頁。畫布沒有逐張開起來看。
+- 天數怎麼算：我建議程式照難度給一個數字（AI 只判難度 easy／medium／hard），再照他的紀錄每週重算日期。畫布寫 60 天是示範。14 天多半不夠（記憶中 Lally 2010 中位數 66 天、範圍 18–254，上畫面前要查證，走 domi-evidence-hunter）。
 
-## ⏭️ 選完之後要做
-- Onboarding 換成選定的樣式，接現有任務 7（`GuideView`、`server/src/tasks.ts`）；多一步「先試幾天」（7／14／30，存檔要加欄位 `trialDays`，decodeIfPresent；護欄禁「X 天養成」，只能講「先試」）；試完那天自動跳「再試／改小／換一個」。
-- 沒連電腦時要有退路：先讓他連（AIHubView）或用內建選項自己填。等 AI 約 10 秒要有等待畫面（ChatWait）。
-- 設定加「重新規劃習慣」（蓋掉目前的要先收進 pastHabits，`Store.plant` 已會做）。
-- 週報：接一個新任務（或任務 5 復活），輸入只給天數，輸出 2–3 個改法選項；畫面照 ChatWeek。取代現有「這週的田」卡。
-- 真機沒驗：掃 QR、區網授權、防火牆。任務 1、3、4、6 沒用真 CLI 跑。
+## ⏭️ 要做：AI 流程
+- Onboarding、`GuideView` 照 Talk 重做；任務 7 改成「AI 先提答案、使用者說好或再改」；等待約 10 秒要有畫面；沒連電腦時先連（AIHubView）或內建選項自己填。存檔加 `estimatedDays`（decodeIfPresent）。
+- 護欄要改（`ai/知識包-護欄.md`、`server/src/checks.ts`）：「X 天養成」禁令改成只准程式填的預估天數；「請假／跳過」那列反過來（多米已定「跳過」）；`ai/AI交接.md` 的「AI 代選習慣不做」記成多米 2026-11-25 推翻。`.analytics/00` 記「週報不用模型」被推翻。
+- 週報：任務 5 復活或新任務，輸入只給程式算好的天數，輸出一句發現＋一個改法；門檻沒過不准講規律；保留「先不改」。
+
+## 🔒 限定 AI 只談習慣（多米問的，方案已講，還沒做）
+現況：固定任務、固定輸出格式、護欄包、輸入長度上限、最多再問 4 題、轉接不給工具。缺「離題」這一類。要加：
+1. 任務 7（之後所有能打字的任務）輸出 type 加 `off_topic`；判到就丟掉模型的字，畫面顯示寫死的「這個我不會，我只懂養習慣。」＋原本的選項（畫布 Talk5）。
+2. 使用者打的字包成資料欄位，系統提示寫明裡面的指令一律不照做；一次最多 60 字。
+3. `checks.ts` 擋：`floor` 最多 20 字要是動作、`trigger` 最多 20 字、`say` 最多 40 字，出現網址、程式碼、換行清單就退件重問一次，再不行走固定句。
+4. 連兩次離題就收起打字框，只留選項。離題也算次數。
+5. 測試：eval 加離題與注入 15 句（寫作業、寫程式、問天氣、忽略以上指令、角色扮演、問系統提示…），全過才算。
+- 菸酒賭、飲食體重、情緒低落維持現有 `unfit` 固定轉介。
+
+## ⚠️ 沒驗
+真機：掃 QR、區網授權、防火牆。任務 1、3、4、6 沒用真 CLI 跑。
