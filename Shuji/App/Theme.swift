@@ -92,6 +92,11 @@ enum Theme {
         flower: hex(0xD7A3BB), flowerCore: hex(0x74485D)
     )
 
+    /// 地瓜外圈：土裡的根色，不透明
+    static func potatoRing(_ scheme: ColorScheme) -> Color {
+        scheme == .dark ? Color(red: 1, green: 226 / 255, blue: 196 / 255) : Color(red: 1, green: 236 / 255, blue: 214 / 255)
+    }
+
     static func garden(_ scheme: ColorScheme) -> Garden { scheme == .dark ? gardenDark : gardenLight }
 
     /// 給地瓜小圖（深淺自動切換）

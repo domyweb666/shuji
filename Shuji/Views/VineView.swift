@@ -4,8 +4,10 @@ import CoreMotion
 /// 地瓜藤：每做一節長一片葉、往下紮一條根；回來那一節開一朵花。
 /// 原型是 canvas 2D，這裡用 Canvas + TimelineView 逐幀畫，數字全部照搬。
 struct VineView: View {
-    /// 土面離畫布底多高
-    var soilDepth: CGFloat = 150
+    /// 土面離畫布頂多高
+    var soilTop: CGFloat
+    /// 地瓜頂端的位置，最後一節的根連到這裡（地瓜在正中間）
+    var potatoTop: CGFloat
     @Environment(Store.self) private var store
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -16,7 +18,8 @@ struct VineView: View {
         // 三頁都一直在，沒看著這頁就不畫
         TimelineView(.animation(paused: store.page != 1)) { timeline in
             Canvas { context, size in
-                model.soilDepth = soilDepth
+                model.soilTop = soilTop
+                model.potatoTop = potatoTop
                 model.step(now: timeline.date, size: size, reduce: reduceMotion)
                 model.draw(in: &context, size: size, garden: Theme.garden(scheme), now: timeline.date, reduce: reduceMotion)
             }
@@ -115,9 +118,10 @@ final class VineModel {
 
     // MARK: 幾何
 
-    var soilDepth = 150.0
+    var soilTop = 60.0
+    var potatoTop = 150.0
 
-    private func soilY() -> Double { max(60, height - soilDepth) }
+    private func soilY() -> Double { soilTop }
 
     private func nodePos(_ i: Int) -> (Double, Double) {
         (40 + Double(i) * VineModel.spacing - cam, soilY() - 4 + sin(Double(i) * 0.9) * 5)
@@ -187,7 +191,7 @@ final class VineModel {
                                       startPoint: CGPoint(x: 0, y: sy), endPoint: CGPoint(x: 0, y: H)))
         var grain = Path()
         let span = W + 20
-        for i in 0..<90 {
+        for i in 0..<max(90, Int((H - sy) * 0.35)) {
             let raw = seeded(i) * W * 2 - cam * 0.6
             let gx = ((raw.truncatingRemainder(dividingBy: span) + span).truncatingRemainder(dividingBy: span)) - 10
             let gy = sy + 12 + seeded(i + 99) * (H - sy - 16)
@@ -222,6 +226,18 @@ final class VineModel {
             side.move(to: CGPoint(x: x + 1, y: y + len * 0.4 * p + 2))
             side.addLine(to: CGPoint(x: x + (seeded(L.index + 7) - 0.5) * 26 * p, y: y + len * 0.6 * p + 6))
             gc.stroke(side, with: .color(garden.root), style: StrokeStyle(lineWidth: 1, lineCap: .round))
+        }
+
+        // 連到地瓜的那條根：從最後一節往下彎到地瓜頂
+        let (rx, ry) = n > 0 ? nodePos(n - 1) : (W * 0.5, sy)
+        let depth = potatoTop - ry
+        if depth > 0 {
+            var link = Path()
+            link.move(to: CGPoint(x: rx, y: ry + 2))
+            link.addCurve(to: CGPoint(x: W * 0.5, y: potatoTop),
+                          control1: CGPoint(x: rx, y: ry + depth * 0.6),
+                          control2: CGPoint(x: W * 0.5, y: potatoTop - depth * 0.5))
+            gc.stroke(link, with: .color(garden.root), style: StrokeStyle(lineWidth: 2.2, lineCap: .round))
         }
 
         // 藤
