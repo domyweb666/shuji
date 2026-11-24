@@ -167,11 +167,18 @@ final class WeekReviewTests: XCTestCase {
             WeekChange(WeekReviewOutput.Change(field: field, label: "下週六日改成", text: text), habit: h)
         }
         XCTAssertEqual(make("backup", " 起床就坐上去 ")?.text, "起床就坐上去")
+        XCTAssertEqual(make("backup", "吃完早午餐")?.text, "吃完早午餐就坐上蒲團", "只給瞬間就補成整句")
         XCTAssertEqual(make("trigger", "吃完早餐")?.field, .trigger)
         XCTAssertNil(make("trigger", "刷完牙"), "跟現在一樣")
         XCTAssertNil(make("floor", "  "))
         XCTAssertNil(make("why", "為了健康"), "這一格不給改")
         XCTAssertNil(WeekChange(nil, habit: h))
+    }
+
+    func testFindingEndsWithAFullStop() {
+        XCTAssertEqual(WeekWords.sentence("這週週末兩天都漏了 "), "這週週末兩天都漏了。")
+        XCTAssertEqual(WeekWords.sentence("漏的都在週末。"), "漏的都在週末。")
+        XCTAssertEqual(WeekWords.sentence(""), "")
     }
 
     @MainActor

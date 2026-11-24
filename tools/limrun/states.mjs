@@ -70,7 +70,7 @@ async function states(sfx) {
   await t('ask-grown', make({ log: { t: 'done' }, flat: true }));
   // 四問同一天只跳一次，所以只在淺色那輪走
   if (want('review') && !sfx) { await load(make({ log: { t: 'done' }, lastReview: -9 })); await shot('review'); await dump('review'); for (let i = 1; i <= 4; i++) { const f = (await nodes()).find(x => x.frame?.height > 36 && x.frame?.height < 46 && x.frame?.width > 300 && x.frame?.y > 500 && x.AXLabel)?.frame; if (!f) { log('no scale', i); break; } await c.tap(f.x + f.width * 4.5 / 7, f.y + f.height / 2); await sleep(1100); if (i === 1) await shot('review-q2' + sfx); } await shot('review-after' + sfx); await dump('review-after' + sfx); }
-  if (want('field')) { await load(make({ log: { t: 'done' } })); await tap('田', 1500); await shot('field-month' + sfx); await dump('field-month' + sfx); await tap('分析', 1200); await shot('field-charts' + sfx); await tap('竹籃與排隊', 1500); await shot('field-basket' + sfx); await load(make({ empty: true })); await tap('田', 1500); await shot('field-empty' + sfx); await tap('分析', 1200); await shot('field-empty-charts' + sfx); }
+  if (want('field')) { await load(make({ log: { t: 'done' } })); await tap('田', 1500); await shot('field-month' + sfx); await dump('field-month' + sfx); await tap('分析', 1200); await shot('field-charts' + sfx); await tap('竹籃與排隊', 1500); await shot('field-basket' + sfx); await load(make({ log: { t: 'done' } })); await tap('田', 1500); await tap('分析', 1200); try { await c.scroll('down', 620); } catch {} await sleep(1000); await shot('field-charts2' + sfx); await load(make({ empty: true })); await tap('田', 1500); await shot('field-empty' + sfx); await tap('分析', 1200); await shot('field-empty-charts' + sfx); }
 }
 try {
   const asset = await lim.assets.getOrUpload({ path: process.argv[2], name: 'shuji-sim-' + Date.now() + '.zip', platform: 'ios', kind: 'App', ttl: '2h' });
@@ -107,7 +107,7 @@ try {
     if (await tap('旅行', 1800)) { await shot('z-skipped'); await dump('z-skipped'); }
     await load(make({ skipLast: 1 })); await tap('田', 1500); await shot('z-month'); await cal(-1, 'z-day-yesterday');
     await load(make()); await tap('田', 1500); await cal(-6, 'z-day-past');
-    await load(make()); await tap('設定', 1500); await shot('z-set'); await dump('z-set'); await tap('跳過的理由', 1500); await shot('z-reasons'); await dump('z-reasons');
+    await load(make()); await tap('設定', 1500); await shot('z-set'); await dump('z-set'); await tap('跳過的理由, 4 個', 1500); await shot('z-reasons'); await dump('z-reasons');
     await load(make()); await tap('設定', 1500); await tap('AI', 1500); await shot('z-ai'); await dump('z-ai');
     await load(make()); await tap('設定', 1500); await tap('我的習慣', 1500); await shot('z-habit');
     await simctl(['ui', 'booted', 'appearance', 'dark']); await load(make()); await tap('跳過', 1500); await shot('z-skip-dark'); if (await tap('旅行', 1800)) await shot('z-skipped-dark'); await load(make()); await tap('設定', 1500); await tap('AI', 1500); await shot('z-ai-dark');
@@ -115,6 +115,7 @@ try {
   // 2026-11-25：跟地瓜對答。-talkDemo N 只有 DEBUG 建置認得：1 到 4 步，5 離題，6 等待，7 連兩次離題，8 連不到
   if (want('talk')) {
     const none = { logs: {}, weekly: [], queue: [], basket: [], settings: {} };
+    await simctl(['ui', 'booted', 'appearance', 'light']);
     for (const sfx of ['', '-dark']) {
       if (sfx) await simctl(['ui', 'booted', 'appearance', 'dark']);
       for (let n = 1; n <= 8; n++) { await load(none, ['-talkDemo', String(n)]); await shot('talk' + n + sfx); if (!sfx) await dump('talk' + n); }

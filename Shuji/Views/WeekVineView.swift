@@ -154,17 +154,9 @@ struct WeekVineView: View {
     @ViewBuilder
     private var answer: some View {
         if finding != nil {
-            if let change, !changed {
+            if let change {
                 changeCard(change)
             } else {
-                if changed {
-                    Text("改好了")
-                        .domyType(Ty.headline)
-                        .foregroundStyle(Theme.fg)
-                        .frame(maxWidth: .infinity)
-                        .padding(Sp.s4)
-                        .background(Theme.surface, in: RoundedRectangle(cornerRadius: Rd.xl, style: .continuous))
-                }
                 DomyButton("好", variant: .secondary) { close() }
             }
         }
@@ -173,7 +165,7 @@ struct WeekVineView: View {
     private func changeCard(_ c: WeekChange) -> some View {
         VStack(alignment: .leading, spacing: Sp.s4) {
             VStack(alignment: .leading, spacing: Sp.s2) {
-                Text(c.label)
+                Text(changed ? "改好了" : c.label)
                     .domyType(Ty.subheadline)
                     .foregroundStyle(Theme.fg2)
                 Text(c.text)
@@ -182,9 +174,13 @@ struct WeekVineView: View {
             }
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityElement(children: .combine)
-            VStack(spacing: Sp.s2) {
-                DomyButton("就這樣改") { apply(c) }
-                DomyButton("先不改", variant: .plain, fullWidth: true) { keep() }
+            if changed {
+                DomyButton("好", variant: .secondary) { close() }
+            } else {
+                VStack(spacing: Sp.s2) {
+                    DomyButton("就這樣改") { apply(c) }
+                    DomyButton("先不改", variant: .plain, fullWidth: true) { keep() }
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -245,7 +241,7 @@ struct WeekVineView: View {
     }
 
     private func settle(_ out: WeekReviewOutput?, _ input: WeekReviewInput) {
-        let text = out.map { $0.finding.trimmingCharacters(in: .whitespacesAndNewlines) } ?? WeekWords.fallback(input)
+        let text = out.map { WeekWords.sentence($0.finding) } ?? WeekWords.fallback(input)
         withAnimation(Feel.transition) {
             change = store.state.habit.flatMap { WeekChange(out?.change, habit: $0) }
             finding = text
@@ -346,7 +342,9 @@ private struct WeekVine: View {
         let column = Double(inner) / 7
         let left = Double(size.width - inner) / 2
         func x(_ i: Int) -> Double { left + column * (Double(i) + 0.5) }
-        func vineY(_ i: Int) -> Double { soilY - 3 + sin(Double(i) * 0.9) * 2 }
+        func surface(_ at: Double) -> Double { soilY + sin(at * 0.035) * 2.2 }
+        /// 藤貼著土面
+        func vineY(_ i: Int) -> Double { surface(x(i)) - 1 }
         /// 每片葉子自己的進度，一片接一片
         func grow(_ i: Int) -> Double {
             let t = min(1, max(0, (p - Double(i) / 7 * 0.6) / 0.4))
@@ -358,7 +356,7 @@ private struct WeekVine: View {
         soil.addLine(to: CGPoint(x: 0, y: soilY))
         var sx = 0.0
         while sx <= Double(size.width) + 10 {
-            soil.addLine(to: CGPoint(x: sx, y: soilY + sin(sx * 0.035) * 2.2))
+            soil.addLine(to: CGPoint(x: sx, y: surface(sx)))
             sx += 10
         }
         soil.addLine(to: CGPoint(x: size.width, y: size.height))
@@ -378,14 +376,15 @@ private struct WeekVine: View {
         // 藤爬到最後一片長出來的葉子
         if let last = leaves.lastIndex(where: { $0.grown }) {
             var vine = Path()
-            vine.move(to: CGPoint(x: left * 0.5, y: soilY - 1))
+            vine.move(to: CGPoint(x: left * 0.5, y: surface(left * 0.5) - 1))
             for i in 0...last {
                 let from = i == 0 ? left * 0.5 : x(i - 1)
                 vine.addQuadCurve(to: CGPoint(x: x(i), y: vineY(i)),
-                                  control: CGPoint(x: (from + x(i)) / 2, y: vineY(i) - 6))
+                                  control: CGPoint(x: (from + x(i)) / 2, y: vineY(i) - 4))
             }
             if last < 6 {
-                vine.addLine(to: CGPoint(x: x(last) + column * 0.5, y: soilY - 2))
+                let tip = x(last) + column * 0.5
+                vine.addLine(to: CGPoint(x: tip, y: surface(tip) - 1))
             }
             ctx.stroke(vine.trimmedPath(from: 0, to: p), with: .color(garden.vine),
                        style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round))
@@ -396,7 +395,7 @@ private struct WeekVine: View {
             if s <= 0 { continue }
             var g = ctx
             // 從葉柄長出來
-            g.translateBy(x: x(i), y: soilY - 8)
+            g.translateBy(x: x(i), y: vineY(i) - 2)
             g.scaleBy(x: WeekVine.leafScale * s, y: WeekVine.leafScale * s)
             g.translateBy(x: 0, y: -12)
             mark(&g, leaf.kind, garden)

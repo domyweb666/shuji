@@ -190,20 +190,25 @@ struct FieldView: View {
 
     private func fewCard(_ few: FewCard) -> some View {
         Card {
-            VStack(alignment: .leading, spacing: Sp.s3) {
+            VStack(spacing: Sp.s5) {
+                TalkPotato(width: FieldView.fewPotato)
                 Text(few.title)
-                    .domyType(Ty.headline)
+                    .domyType(Ty.title3)
                     .foregroundStyle(Theme.fg)
+                    .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
                 if let p = few.progress {
-                    FillBar(value: p, color: Theme.leafDynamic, height: Sp.s2)
+                    FillBar(value: max(p, 0.03), color: Theme.leafDynamic, height: Sp.s2)
                         .accessibilityHidden(true)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(Sp.s5)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, Sp.s5)
+            .padding(.vertical, Sp.s8)
         }
     }
+
+    private static let fewPotato: CGFloat = 120 // domy-ignore: 插畫尺寸
 }
 
 /// 月曆：葉子是記了，帶花是回來，空圈是跳過，漏掉的留白

@@ -228,7 +228,7 @@ struct StepBar: View {
             HStack(spacing: Sp.s1) {
                 ForEach(1...total, id: \.self) { i in
                     Capsule()
-                        .fill(i <= step ? Theme.accent : Theme.surfaceMuted)
+                        .fill(i <= step ? Theme.leafDynamic : Theme.surfaceMuted)
                         .frame(height: Sp.s1)
                 }
             }

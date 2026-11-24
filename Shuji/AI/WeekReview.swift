@@ -154,7 +154,10 @@ struct WeekChange: Equatable {
     /// 欄位不認得、沒有字、跟現在一樣：當作沒有改法
     init?(_ c: WeekReviewOutput.Change?, habit: Habit) {
         guard let c else { return nil }
-        let text = String(c.text.trimmingCharacters(in: .whitespacesAndNewlines).prefix(60))
+        var text = c.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        // AI 給的是一個瞬間（吃完早午餐）；「不順的時候」那一格要看得懂整句
+        if c.field == "backup", !text.isEmpty, !text.contains("就") { text += "就\(habit.floor)" }
+        text = String(text.prefix(60))
         let label = c.label.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return nil }
         let now: String
@@ -183,6 +186,13 @@ enum WeekWords {
     /// 沒有 AI 的時候泡泡裡說什麼
     static func fallback(_ i: WeekReviewInput) -> String {
         [main(i), skips(i)].filter { !$0.isEmpty }.joined()
+    }
+
+    /// AI 那句沒有句號就補上
+    static func sentence(_ raw: String) -> String {
+        let s = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let last = s.last, !"。！？…".contains(last) else { return s }
+        return s + "。"
     }
 
     private static func main(_ i: WeekReviewInput) -> String {

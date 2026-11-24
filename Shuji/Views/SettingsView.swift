@@ -49,9 +49,11 @@ struct SettingsView: View {
                     .ignoresSafeArea()
             }
         }
-        .confirmationDialog("現在這個會收起來，紀錄留著。", isPresented: $confirmReplan, titleVisibility: .visible) {
-            Button("重新規劃") { replanning = true }
+        .alert("重新規劃習慣？", isPresented: $confirmReplan) {
             Button("取消", role: .cancel) {}
+            Button("重新規劃") { replanning = true }
+        } message: {
+            Text("現在這個會收起來，紀錄留著。")
         }
         .fullScreenCover(isPresented: $replanning) { ReplanView() }
         .confirmationDialog("全部清除？", isPresented: $confirmWipe, titleVisibility: .visible) {

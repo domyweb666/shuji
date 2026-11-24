@@ -166,7 +166,11 @@ struct TalkView: View {
             ReferralCard(text: referral)
                 .accessibilityFocused($reading)
         case .failed(let message):
-            cardBox { big(message, style: Ty.title3) }
+            let parts = TalkView.split(message)
+            cardBox {
+                big(parts.first, style: Ty.title1)
+                if !parts.rest.isEmpty { small(parts.rest) }
+            }
         case .ready, .waiting:
             cardBox {
                 small(words.lead)
@@ -174,6 +178,12 @@ struct TalkView: View {
                 if !words.foot.isEmpty { small(words.foot) }
             }
         }
+    }
+
+    /// 第一句放大，其他的是怎麼辦
+    private static func split(_ message: String) -> (first: String, rest: String) {
+        guard let dot = message.firstIndex(of: "。") else { return (message, "") }
+        return (String(message[..<dot]), String(message[message.index(after: dot)...]))
     }
 
     private func cardBox<C: View>(@ViewBuilder _ content: () -> C) -> some View {
@@ -289,8 +299,11 @@ struct TalkView: View {
 
     @ViewBuilder
     private var pickLinks: some View {
+        // 一行放不下就上下排，字不折行
         DomyButton("換一批", variant: .plain) { model.more() }
+            .fixedSize()
         DomyButton("都不是，自己打", variant: .plain) { typeOwn() }
+            .fixedSize()
     }
 
     private func option(_ title: String, primary: Bool = false, action: @escaping () -> Void) -> some View {
