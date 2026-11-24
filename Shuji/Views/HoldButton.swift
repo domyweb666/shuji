@@ -86,8 +86,9 @@ struct PotatoSeal: View {
         let done = style == .done
         PotatoBody(fill: done ? Theme.accent : Theme.soft, ring: done ? 1 : 0, ringColor: Theme.potatoRing(scheme)) {
             VStack(spacing: Sp.s1) {
-                Image(systemName: icon).font(Ty.title2.font)
-                Text(title).domyType(Ty.headline)
+                // 記好了只打勾，不寫字（讀屏照樣唸 title）
+                Image(systemName: icon).font(done ? Ty.largeTitle.font : Ty.title2.font)
+                if !done { Text(title).domyType(Ty.headline) }
             }
             .foregroundStyle(done ? Theme.onAccent : Theme.strong)
         }

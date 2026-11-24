@@ -13,10 +13,6 @@ enum SettingsTarget: Hashable {
 /// 從三個分頁推進去的第二層
 enum Route: Hashable {
     case sentence
-    case grown
-    case weeks
-    case pattern
-    case queue
     case basket
     case family
 }
@@ -267,7 +263,6 @@ final class Store {
         guard let h = state.habit else { return }
         addMark(v ? .pressureYes : .pressureNotYet, habit: h.id)
         save()
-        if !v { show("等遇到了再回來按。") }
     }
 
     func startLetGo() {
@@ -288,13 +283,32 @@ final class Store {
         } else {
             show(Copy.t(pass ? .p4pass : .p4fail))
         }
-        page = 0
+        page = 1
     }
 
     /// 兩週就是兩週，沒有提早結束
     var showLetGoEnd: Bool {
         guard state.letgo != nil else { return false }
         return (state.letgoDaysLeft(today: today) ?? 1) <= 0
+    }
+
+    // MARK: 打開 app 自動問
+
+    private func askKey(_ a: AutoAsk) -> String? {
+        state.habit.map { "shuji.ask.\(a.rawValue).\($0.id)" }
+    }
+
+    /// 現在要不要跳一張出來。跳過的話隔幾天再問（四問隔天，其他兩週）
+    func nextAsk() -> AutoAsk? {
+        guard let a = state.autoAsk(today: today), let key = askKey(a) else { return nil }
+        if let last = UserDefaults.standard.string(forKey: key).flatMap({ DayKey($0) }),
+           abs(DayKey.days(from: last, to: today)) < a.cooldown { return nil }
+        return a
+    }
+
+    func markAsked(_ a: AutoAsk) {
+        guard let key = askKey(a) else { return }
+        UserDefaults.standard.set(today.string, forKey: key)
     }
 
     // MARK: 挖

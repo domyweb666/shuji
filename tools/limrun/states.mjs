@@ -26,12 +26,12 @@ const frame = async l => (await nodes()).find(x => x.AXLabel === l)?.frame;
 const ymd = d => d.toISOString().slice(0, 10);
 let TODAY = new Date(Date.UTC(2026, 10, 24));
 const day = n => ymd(new Date(TODAY.getTime() + n * 864e5));
-function make({ skipLast = 0, log: lg, letgo, reviewDay = 0, lastReview = -1, n = 45, trigger = '起床喝完第一杯水', floor = '打開檔案寫一句', backup = '如果中午前還沒打開過檔案，就在第一餐吃完時打開', why = '把複雜的事想清楚、寫下來', empty = false, travel = false } = {}) {
+function make({ skipLast = 0, log: lg, letgo, reviewDay = 0, lastReview = -1, n = 45, trigger = '起床喝完第一杯水', floor = '打開檔案寫一句', backup = '如果中午前還沒打開過檔案，就在第一餐吃完時打開', why = '把複雜的事想清楚、寫下來', empty = false, travel = false, flat = false } = {}) {
   const s = { logs: {}, weekly: [], queue: ['坐上蒲團按計時器'], basket: [], travel, settings: { reviewDay },
     habit: { floor, trigger, planted: day(empty ? 0 : -n), travelFloor: travel ? '' : '在手機上寫三行', obstacle: '', backup, why } };
   if (!empty) for (let i = -n; i < 0; i++) { if ([5, 6, 13, 21, 30].includes(i + n)) continue; if (i >= -skipLast) continue; s.logs[day(i)] = { t: 'done' }; }
   if (lg) s.logs[day(0)] = lg;
-  if (!empty) for (let i = 5; i >= 0; i--) s.weekly.push({ date: day(lastReview - 7 * i), scores: [4, 4, 4, 4] });
+  if (!empty) for (let i = 5; i >= 0; i--) s.weekly.push({ date: day(lastReview - 7 * i), scores: Array(4).fill(flat ? 4 : Math.max(1, 6 - i)) });
   if (letgo) s.letgo = { start: day(-3), prior: 12 };
   return s;
 }
@@ -67,6 +67,9 @@ async function states(sfx) {
   await t('missed2', make({ skipLast: 2 }));
   await t('long', make({ trigger: LONGT, floor: LONGF }));
   await t('long40', make({ trigger: L40T, floor: L40F, skipLast: 2, travel: true }));
+  await t('ask-grown', make({ log: { t: 'done' }, flat: true }));
+  if (want('review')) { await load(make({ log: { t: 'done' }, lastReview: -9 })); for (let i = 1; i <= 4; i++) { const f = (await nodes()).find(x => x.AXLabel === '5' && x.frame.y > 300)?.frame; if (!f) { log('no scale', i); break; } await c.tap(f.x + f.width / 2, f.y + f.height / 2); await sleep(1100); if (i === 1) await shot('review-q2' + sfx); } await shot('review-after' + sfx); await dump('review-after' + sfx); }
+  if (want('field')) { await load(make({ log: { t: 'done' } })); await tap('田', 1500); await shot('field-month' + sfx); await dump('field-month' + sfx); await tap('分析', 1200); await shot('field-charts' + sfx); await tap('竹籃與排隊', 1500); await shot('field-basket' + sfx); await load(make({ empty: true })); await tap('田', 1500); await shot('field-empty' + sfx); await tap('分析', 1200); await shot('field-empty-charts' + sfx); }
   if (want('more')) { await load(make({ log: { t: 'done' } })); if (await tap('更多選項，可以撤銷今天', 1500)) { await shot('more-done' + sfx); } await load(make({ skipLast: 1 })); if (await tap('昨天忘了記、今天請假', 1500)) await shot('more-todo' + sfx); }
 }
 try {

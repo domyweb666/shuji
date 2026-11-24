@@ -1,35 +1,328 @@
 import SwiftUI
 
-/// 田（細查層，.analytics/06）：每一區回答一題。
-/// 長好了嗎（Q6）→ 開始四問（Q4）→ 這幾週記了幾天（Q11）→ 漏掉的日子有沒有規律（Q5）→ 季稽核 → 排隊 → 竹籃（Q12）。
-/// 原本最上面的四個統計數字拿掉了：看完不會改任何事（審查 P1-9）。
-/// 第一層只留「長好了嗎」三條和「開始四問」的線，其他各自推進去（QC-0004：這頁太複雜）。
+/// 田：數據報表（2026-11-24 多米定，照豆帳的「行事曆｜分析」）。一張卡一張圖，不放說明。
+/// 開始四問、長好了嗎不在這裡：時間到了打開 app 自動問（AutoAsk）。竹籃和排隊收在右上角。
 struct FieldView: View {
-    enum Part { case grown, weeks, pattern, queue, basket }
+    enum Side: String, CaseIterable { case month = "月曆", charts = "分析" }
 
-    /// nil 是田這一頁；有值就是推進去的那一區
-    var part: Part? = nil
     @Environment(Store.self) private var store
-    @State private var queueText = ""
-    @FocusState private var queueFocused: Bool
-    @State private var week: WeekSheet.Start? = nil
-    @State private var picked: PotatoPick? = nil
+    @State private var side = Side.month
+    /// 往前幾個月
+    @State private var back = 0
     @State private var showAudit = false
     @State private var showPaywall = false
     private let purchases = Purchases.shared
+
+    private var t: DayKey { store.today }
+
+    var body: some View {
+        DomyScreen(title: "田") {
+            HStack(spacing: Sp.s2) {
+                ForEach(Side.allCases, id: \.self) { s in sideButton(s) }
+                Button { store.route = [.basket] } label: {
+                    Image(systemName: "basket")
+                        .font(Ty.headline.font)
+                        .foregroundStyle(Theme.fg)
+                        .frame(width: Sz.iconButton, height: Sz.iconButton)
+                        .background(Theme.surface, in: Circle())
+                        .contentShape(Circle())
+                }
+                .buttonStyle(DomyPressStyle())
+                .accessibilityLabel("竹籃與排隊")
+            }
+        } content: {
+            switch side {
+            case .month: monthSide
+            case .charts: chartSide
+            }
+        }
+        .sheet(isPresented: $showAudit) { AuditSheet() }
+        .sheet(isPresented: $showPaywall) { PaywallSheet() }
+    }
+
+    private func sideButton(_ s: Side) -> some View {
+        let on = s == side
+        return Button {
+            Haptic.select()
+            withAnimation(Feel.change) { side = s }
+        } label: {
+            Text(s.rawValue)
+                .domyType(Ty.callout)
+                .fontWeight(on ? .semibold : .regular)
+                .foregroundStyle(on ? Theme.strong : Theme.fg)
+                .padding(.horizontal, Sp.s4)
+                .frame(height: Sz.touch)
+                .background(on ? Theme.soft : Theme.surface, in: Capsule())
+                .contentShape(Capsule())
+        }
+        .buttonStyle(DomyPressStyle())
+        .accessibilityAddTraits(on ? [.isSelected] : [])
+    }
+
+    // MARK: 月曆
+
+    @ViewBuilder
+    private var monthSide: some View {
+        if let m = store.state.monthReport(today: t, back: back) {
+            Card {
+                VStack(spacing: Sp.s3) {
+                    HStack {
+                        monthArrow("chevron.left", "上個月", enabled: store.state.monthReport(today: t, back: back + 1) != nil) { back += 1 }
+                        Spacer(minLength: 0)
+                        Text(verbatim: "\(m.year)年\(m.month)月")
+                            .domyType(Ty.headline)
+                            .foregroundStyle(Theme.fg)
+                        Spacer(minLength: 0)
+                        monthArrow("chevron.right", "下個月", enabled: back > 0) { back -= 1 }
+                    }
+                    MonthGrid(month: m, today: t)
+                }
+                .padding(Sp.s4)
+            }
+            HStack(spacing: Sp.s3) {
+                number(m.done, "記了幾天")
+                number(m.back, "回來幾次")
+                number(m.leave, "請假幾天")
+            }
+        }
+    }
+
+    private func monthArrow(_ icon: String, _ label: String, enabled: Bool, _ action: @escaping () -> Void) -> some View {
+        Button {
+            withAnimation(Feel.change) { action() }
+        } label: {
+            Image(systemName: icon)
+                .font(Ty.headline.font)
+                .foregroundStyle(enabled ? Theme.strong : Theme.disabled)
+                .frame(width: Sz.touch, height: Sz.touch)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(DomyPressStyle())
+        .disabled(!enabled)
+        .accessibilityLabel(label)
+    }
+
+    private func number(_ n: Int, _ label: String) -> some View {
+        Card {
+            VStack(alignment: .leading, spacing: Sp.s1 / 2) {
+                Text("\(n)")
+                    .domyType(Ty.title1)
+                    .monospacedDigit()
+                    .foregroundStyle(Theme.fg)
+                    .contentTransition(.numericText())
+                Text(label)
+                    .domyType(Ty.footnote)
+                    .foregroundStyle(Theme.fg2)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(Sp.s4)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    // MARK: 分析
+
+    @ViewBuilder
+    private var chartSide: some View {
+        chartCard("每週記了幾天") { WeekBarsView(rows: store.state.weekBars(today: t)) }
+        chartCard("星期幾記得最多") { WeekdayBarsView(counts: store.state.weekdayTally(today: t)) }
+        if !store.state.weekly.isEmpty {
+            chartCard("開始有多自動") { ChartView(weekly: Array(store.state.weekly.suffix(8))) }
+        }
+        if AIClient.shared.isAvailable && store.state.auditReady(today: t) {
+            DomySection {
+                RowButton(text: "做這一季的稽核", value: purchases.isFull ? nil : "完整版", tone: .action) {
+                    if purchases.isFull { showAudit = true } else { showPaywall = true }
+                }
+            }
+        }
+    }
+
+    private func chartCard<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        Card {
+            VStack(alignment: .leading, spacing: Sp.s4) {
+                Text(title)
+                    .domyType(Ty.headline)
+                    .foregroundStyle(Theme.fg)
+                    .accessibilityAddTraits(.isHeader)
+                content()
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(Sp.s5)
+        }
+    }
+}
+
+/// 月曆：葉子是記了，帶花是回來，空圈是請假，漏掉的留白
+struct MonthGrid: View {
+    var month: MonthReport
+    var today: DayKey
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 7)
+
+    var body: some View {
+        LazyVGrid(columns: columns, spacing: Sp.s2) {
+            ForEach(0..<7, id: \.self) { i in
+                Text(DayKey.weekNames[i])
+                    .domyType(Ty.footnote)
+                    .foregroundStyle(Theme.fg2)
+                    .accessibilityHidden(true)
+            }
+            ForEach(0..<month.lead, id: \.self) { i in
+                Color.clear.frame(height: Sz.touch).id("lead-\(i)")
+            }
+            ForEach(month.days, id: \.day) { d in cell(d) }
+        }
+    }
+
+    private func cell(_ d: MonthDay) -> some View {
+        let isToday = d.day == today
+        return VStack(spacing: Sp.s1 / 2) {
+            Text("\(d.day.day)")
+                .domyType(Ty.footnote)
+                .monospacedDigit()
+                .foregroundStyle(d.day > today ? Theme.fg3 : Theme.fg)
+            LeafMark(kind: d.kind)
+                .frame(width: Sp.s6, height: Sp.s6)
+        }
+        .frame(maxWidth: .infinity, minHeight: Sz.touch)
+        .padding(.vertical, Sp.s1)
+        .background(isToday ? Theme.soft : Color.clear, in: RoundedRectangle(cornerRadius: Rd.md, style: .continuous))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(d.day.long)\(word(d.kind))")
+    }
+
+    private func word(_ k: MonthDay.Kind) -> String {
+        switch k {
+        case .none: return ""
+        case .done: return "，記了"
+        case .back: return "，回來"
+        case .leave: return "，請假"
+        }
+    }
+}
+
+/// 月曆格裡的小插畫（座標照藤上的葉子縮小）
+private struct LeafMark: View {
+    var kind: MonthDay.Kind
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        let garden = Theme.garden(scheme)
+        Canvas { ctx, size in
+            var g = ctx
+            g.translateBy(x: size.width / 2, y: size.height / 2)
+            g.scaleBy(x: size.width / 28, y: size.height / 28)
+            if kind == .done || kind == .back {
+                var leaf = Path()
+                leaf.move(to: CGPoint(x: 0, y: 12))
+                leaf.addCurve(to: CGPoint(x: -7, y: -10), control1: CGPoint(x: -12, y: 8), control2: CGPoint(x: -15, y: -7))
+                leaf.addCurve(to: CGPoint(x: 0, y: -6), control1: CGPoint(x: -3, y: -11), control2: CGPoint(x: -1, y: -8))
+                leaf.addCurve(to: CGPoint(x: 7, y: -10), control1: CGPoint(x: 1, y: -8), control2: CGPoint(x: 3, y: -11))
+                leaf.addCurve(to: CGPoint(x: 0, y: 12), control1: CGPoint(x: 15, y: -7), control2: CGPoint(x: 12, y: 8))
+                g.fill(leaf, with: .color(garden.leaf))
+                var rib = Path()
+                rib.move(to: CGPoint(x: 0, y: 11))
+                rib.addLine(to: CGPoint(x: 0, y: -4))
+                g.stroke(rib, with: .color(garden.leafDark), lineWidth: 1)
+            }
+            if kind == .back {
+                for k in 0..<5 {
+                    let a = Double(k) / 5 * 2 * Double.pi - Double.pi / 2
+                    let x = 8 + cos(a) * 4, y = 6 + sin(a) * 4
+                    g.fill(Path(ellipseIn: CGRect(x: x - 3.4, y: y - 3.4, width: 6.8, height: 6.8)), with: .color(garden.flower))
+                }
+                g.fill(Path(ellipseIn: CGRect(x: 5.6, y: 3.6, width: 4.8, height: 4.8)), with: .color(garden.flowerCore))
+            }
+            if kind == .leave {
+                g.stroke(Path(ellipseIn: CGRect(x: -7, y: -7, width: 14, height: 14)), with: .color(Theme.accent), lineWidth: 2)
+            }
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+/// 每週一條直條，滿格是 7 天；這週用主色，其他用淡色
+struct WeekBarsView: View {
+    var rows: [WeekBarData]
+    private static let full: CGFloat = 112 // domy-ignore: 圖表高度
+
+    var body: some View {
+        HStack(alignment: .bottom, spacing: Sp.s2) {
+            ForEach(rows, id: \.start) { r in
+                VStack(spacing: Sp.s1) {
+                    Text(r.letgo ? "–" : "\(r.done)")
+                        .domyType(Ty.footnote)
+                        .monospacedDigit()
+                        .foregroundStyle(r.current ? Theme.strong : Theme.fg)
+                    RoundedRectangle(cornerRadius: Rd.sm, style: .continuous)
+                        .fill(r.current ? Theme.accent : Theme.bright)
+                        .frame(height: r.done == 0 ? Sz.hairline : WeekBarsView.full * CGFloat(min(7, r.done)) / 7)
+                    Text(r.current ? "這週" : r.start.short)
+                        .domyType(Ty.caption)
+                        .monospacedDigit()
+                        .foregroundStyle(Theme.fg2)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                }
+                .frame(maxWidth: rows.count < 4 ? Sp.s12 : .infinity)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(r.current ? "這週" : r.start.short + "那週")，\(r.letgo ? "放手測試" : "\(r.done) 天")")
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// 星期一到星期日各一條橫條，最多的那幾條用主色
+struct WeekdayBarsView: View {
+    var counts: [Int]
+
+    var body: some View {
+        let top = max(1, counts.max() ?? 1)
+        VStack(spacing: Sp.s3) {
+            ForEach([1, 2, 3, 4, 5, 6, 0], id: \.self) { i in
+                let n = counts.indices.contains(i) ? counts[i] : 0
+                HStack(spacing: Sp.s3) {
+                    Text(DayKey.weekNames[i])
+                        .domyType(Ty.subheadline)
+                        .foregroundStyle(Theme.fg)
+                        .frame(width: Sp.s5, alignment: .leading)
+                    GeometryReader { geo in
+                        Capsule()
+                            .fill(n == top ? Theme.accent : Theme.bright)
+                            .frame(width: n == 0 ? 0 : max(geo.size.height, geo.size.width * CGFloat(n) / CGFloat(top)))
+                    }
+                    .frame(height: Sp.s3)
+                    Text("\(n) 天")
+                        .domyType(Ty.footnote)
+                        .monospacedDigit()
+                        .foregroundStyle(Theme.fg2)
+                        .frame(minWidth: Sp.s12 - Sp.s2, alignment: .trailing)
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("星期\(DayKey.weekNames[i])，\(n) 天")
+            }
+        }
+    }
+}
+
+/// 竹籃與排隊：從田右上角推進來
+struct BasketView: View {
+    @Environment(Store.self) private var store
+    @State private var queueText = ""
+    @FocusState private var queueFocused: Bool
+    @State private var picked: PotatoPick? = nil
 
     struct PotatoPick: Identifiable {
         let index: Int
         var id: Int { index }
     }
 
-    private var t: DayKey { store.today }
-
     var body: some View {
-        screen
-        .sheet(item: $week) { start in WeekSheet(start: start) }
-        .sheet(isPresented: $showAudit) { AuditSheet() }
-        .sheet(isPresented: $showPaywall) { PaywallSheet() }
+        DomyScreen {
+            basketSection
+            queueSection
+        }
         .sheet(item: $picked) { pick in
             if store.state.basket.indices.contains(pick.index) {
                 PotatoSheet(potato: store.state.basket[pick.index])
@@ -37,325 +330,10 @@ struct FieldView: View {
         }
     }
 
-    @ViewBuilder
-    private var screen: some View {
-        if let part {
-            DomyScreen {
-                switch part {
-                case .grown: grownSection
-                case .weeks: weeksSection
-                case .pattern: patternSection
-                case .queue: queueSection
-                case .basket: basketSection
-                }
-            }
-        } else {
-            DomyScreen(title: "田", sub: store.state.habit.map { "\($0.trigger) → \($0.floor)" } ?? "還沒種東西") {
-                if store.state.habit != nil {
-                    grownSummary
-                    reviewSection
-                }
-                moreSection
-            }
-        }
-    }
-
-    // MARK: 第一層
-
-    /// 三條訊號只寫過了沒；怎麼算、要按的都在下一頁
-    private var grownSummary: some View {
-        let sg = store.state.signals(today: t)
-        return DomySection(title: "長好了嗎") {
-            Button { store.route = [.grown] } label: {
-                HStack(spacing: Sp.s3) {
-                    VStack(alignment: .leading, spacing: Sp.s3) {
-                        summaryLine(sg.s1, "曲線走平")
-                        summaryLine(sg.s2, "壓力週還照做")
-                        summaryLine(sg.s3, "不記也照做")
-                    }
-                    Spacer(minLength: 0)
-                    Image(systemName: "chevron.right")
-                        .font(Ty.footnote.font.weight(.semibold))
-                        .foregroundStyle(Theme.fg3)
-                        .accessibilityHidden(true)
-                }
-                .padding(Sp.s4)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(DomyRowPressStyle())
-            if sg.passCount >= 2 {
-                RowSep()
-                digButton
-            }
-        }
-    }
-
-    private func summaryLine(_ ok: Bool, _ title: String) -> some View {
-        HStack(spacing: Sp.s3) {
-            SignalDot(ok: ok)
-            Text(title).domyType(Ty.body).foregroundStyle(Theme.fg)
-        }
-        .accessibilityElement(children: .combine)
-    }
-
-    private var digButton: some View {
-        DomyButton("挖地瓜") {
-            Haptic.bloom()
-            store.route = []
-            store.dig()
-        }
-        .padding(Sp.s4)
-    }
-
-    private var moreSection: some View {
-        DomySection {
-            if store.state.habit != nil {
-                RowButton(text: Copy.t(.d7title)) { store.route = [.weeks] }
-                RowSep()
-                RowButton(text: Copy.t(.d8title)) { store.route = [.pattern] }
-                RowSep()
-                if AIClient.shared.isAvailable && store.state.auditReady(today: t) {
-                    RowButton(text: "做這一季的稽核", value: purchases.isFull ? nil : "完整版", tone: .action) {
-                        if purchases.isFull { showAudit = true } else { showPaywall = true }
-                    }
-                    RowSep()
-                }
-            }
-            RowButton(text: "排隊", value: "\(store.state.queue.count)") { store.route = [.queue] }
-            RowSep()
-            RowButton(text: "竹籃", value: "\(store.state.basket.count)") { store.route = [.basket] }
-        }
-    }
-
-    // MARK: 長好了嗎（Q6）
-
-    private var grownSection: some View {
-        let sg = store.state.signals(today: t)
-        let planted = store.state.habit?.planted ?? t
-        var footer = Copy.t(.d1, ["date": planted.short, "n": DayKey.days(from: planted, to: t) + 1])
-        if let next = store.state.queue.first { footer += Copy.t(.d1next, ["next": next]) }
-        return DomySection(footer: footer) {
-            signalRow(ok: sg.s1, title: "曲線走平", mini: curveMini(sg))
-            RowSep()
-            signalRow(ok: sg.s2, title: "壓力週還照做", mini: pressureMini)
-            if store.state.pressure != true {
-                pillRow {
-                    DomyButton("有，照做了", size: .compact) {
-                        withAnimation(Feel.change) { store.setPressure(true) }
-                    }
-                    DomyButton("還沒遇到／那週掉了", variant: .secondary, size: .compact) { store.setPressure(false) }
-                }
-            }
-            RowSep()
-            signalRow(ok: sg.s3, title: "不記也照做", mini: letgoMini)
-            if store.state.letgo == nil && !sg.s3 {
-                pillRow {
-                    DomyButton("開始放手測試", variant: .secondary, size: .compact) {
-                        withAnimation(Feel.change) { store.startLetGo() }
-                    }
-                }
-            }
-            if sg.flatLow {
-                RowSep()
-                VStack(alignment: .leading, spacing: Sp.s2) {
-                    Text(Copy.t(.d5))
-                        .domyType(Ty.subheadline)
-                        .foregroundStyle(Theme.fg2)
-                        .fixedSize(horizontal: false, vertical: true)
-                    DomyButton(Copy.t(.d5button), variant: .plain, size: .compact) {
-                        withAnimation(Feel.transition) { store.openSentence(.trigger) }
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, Sp.s4)
-                .padding(.vertical, Sp.s3)
-            }
-            if sg.passCount >= 2 {
-                RowSep()
-                digButton
-            }
-        }
-    }
-
-    private func curveMini(_ sg: AppState.Signals) -> String {
-        if sg.n < 6 { return Copy.t(.d2few, ["n": sg.n]) }
-        if sg.stale, let last = store.state.weekly.last { return Copy.t(.d2stale, ["date": last.date.short]) }
-        if sg.spread { return Copy.t(.d2spread) }
-        return Copy.t(.d2)
-    }
-
-    private var pressureMini: String {
-        guard let answer = store.state.pressure, let day = store.state.pressureDay else { return Copy.t(.d3) }
-        return Copy.t(.d3) + "\n" + Copy.t(answer ? .d3yes : .d3no, ["date": day.short])
-    }
-
-    private var letgoMini: String {
-        if let lg = store.state.letgo { return Copy.t(.d4running, ["date": lg.start.adding(13).short]) }
-        if let r = store.state.letgoResult {
-            if let days = r.recalled { return Copy.t(.d4result, ["r": days, "p": r.prior]) }
-            return Copy.t(.d4unsure)
-        }
-        return Copy.t(.d4)
-    }
-
-    private func signalRow(ok: Bool, title: String, mini: String) -> some View {
-        HStack(alignment: .top, spacing: Sp.s3) {
-            SignalDot(ok: ok)
-            VStack(alignment: .leading, spacing: Sp.s1 / 2) {
-                Text(title).domyType(Ty.body).foregroundStyle(Theme.fg)
-                Text(mini)
-                    .domyType(Ty.footnote)
-                    .foregroundStyle(Theme.fg2)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, Sp.s4)
-        .padding(.vertical, Sp.s3)
-        .accessibilityElement(children: .combine)
-    }
-
-    private func pillRow<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        FlowLayout(spacing: Sp.s2) { content() }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.leading, Sp.s4 + Sp.s6 + Sp.s3)
-            .padding(.trailing, Sp.s4)
-            .padding(.bottom, Sp.s3)
-    }
-
-    // MARK: 開始四問（Q4）
-
-    private var reviewSection: some View {
-        let e = store.state.reportWeekEnd(today: t)
-        return DomySection(title: "開始四問") {
-            if store.state.weekly.isEmpty {
-                CardBody {
-                    Text("每週做一次，這裡會畫出一條線。走平就是快長好了。")
-                        .domyType(Ty.subheadline)
-                        .foregroundStyle(Theme.fg2)
-                }
-            } else {
-                ChartView(weekly: Array(store.state.weekly.suffix(8)))
-                    .padding(.horizontal, Sp.s3)
-                    .padding(.top, Sp.s4)
-                    .padding(.bottom, Sp.s2)
-            }
-            if !store.state.reviewedThisWeek(today: t) {
-                RowSep()
-                RowButton(text: Copy.t(.d6do), tone: .action) { week = .review }
-            }
-            RowSep()
-            RowButton(text: Copy.t(.d6week), value: Copy.t(.w0s, ["start": e.adding(-6).short, "end": e.short])) {
-                week = .report
-            }
-            if let trial = store.state.runningTrial, t >= trial.end {
-                RowSep()
-                RowButton(text: Copy.t(.d9look), tone: .action) { week = .report }
-            }
-        }
-    }
-
-    // MARK: 這幾週記了幾天（Q11）
-
-    private var weeksSection: some View {
-        let rows = store.state.recentWeeks(today: t)
-        let planted = store.state.habit?.planted ?? t
-        let age = DayKey.days(from: planted, to: t) + 1
-        return DomySection(footer: age >= 7 ? Copy.t(.d7foot) : nil) {
-            if age < 7 || rows.isEmpty {
-                CardBody { Text(Copy.t(.d7few, ["d": age])).domyType(Ty.subheadline).foregroundStyle(Theme.fg2) }
-            } else {
-                ForEach(Array(rows.enumerated()), id: \.offset) { i, row in
-                    if i > 0 { RowSep() }
-                    WeekRowView(row: row)
-                }
-            }
-        }
-    }
-
-    // MARK: 漏掉的日子有沒有規律（Q5）
-
-    private var patternSection: some View {
-        let l = store.state.ledger(today: t)
-        let e = store.state.reportWeekEnd(today: t)
-        let split = l.weekendSplit(end: e)
-        let hasTravel = l.hasTravel(end: e)
-        let travel = l.travelSplit(end: e)
-        let reasons = l.leaveReasons()
-        return DomySection {
-            patternLine(highlight: split.passes) {
-                if split.enough {
-                    Text(Copy.t(.d8counts, ["w": split.weeks, "a": split.b.days, "b": split.b.done,
-                                            "c": split.a.days, "d": split.a.done]))
-                        .domyType(Ty.body).foregroundStyle(Theme.fg)
-                    Text(Copy.t(split.passes ? .d8over : .d8below)).domyType(Ty.footnote).foregroundStyle(Theme.fg2)
-                } else {
-                    Text(Copy.t(.d8few, ["k": max(1, split.needWeeks)])).domyType(Ty.subheadline).foregroundStyle(Theme.fg2)
-                }
-                if split.pausedDays > 0 {
-                    Text(Copy.t(.d8pause, ["g": split.pausedDays])).domyType(Ty.footnote).foregroundStyle(Theme.fg2)
-                }
-            }
-            if hasTravel {
-                RowSep()
-                patternLine(highlight: travel.passes) {
-                    if travel.a.days >= Threshold.groupDays && travel.b.days >= Threshold.groupDays {
-                        Text(Copy.t(.d8travel, ["a": travel.a.days, "b": travel.a.done, "c": travel.b.days, "d": travel.b.done]))
-                            .domyType(Ty.body).foregroundStyle(Theme.fg)
-                        Text(Copy.t(travel.passes ? .d8over : .d8below)).domyType(Ty.footnote).foregroundStyle(Theme.fg2)
-                    } else {
-                        Text(Copy.t(.d8travelFew)).domyType(Ty.subheadline).foregroundStyle(Theme.fg2)
-                    }
-                }
-            }
-            if !reasons.isEmpty {
-                RowSep()
-                let list = reasons.prefix(3).map { "\($0.reason.isEmpty ? Copy.t(.d8noReason) : $0.reason) \($0.count) 次" }
-                    .joined(separator: "、")
-                patternLine(highlight: false) {
-                    Text(Copy.t(.d8leaves, ["n": reasons.reduce(0) { $0 + $1.count }, "list": list]))
-                        .domyType(Ty.subheadline).foregroundStyle(Theme.fg)
-                }
-            }
-            if let trial = store.state.runningTrial {
-                RowSep()
-                if t >= trial.end {
-                    patternLine(highlight: false) {
-                        Text(Copy.t(.d9due)).domyType(Ty.subheadline).foregroundStyle(Theme.fg)
-                    }
-                    RowButton(text: Copy.t(.d9look), tone: .action) { week = .report }
-                } else {
-                    patternLine(highlight: false) {
-                        Text(Copy.t(.d9, ["change": Copy.changeLabel(trial.change, group: trial.group),
-                                          "date": trial.end.adding(-1).short]))
-                            .domyType(Ty.subheadline).foregroundStyle(Theme.fg)
-                    }
-                    RowButton(text: Copy.t(.d9stop), chevron: false) { store.stopTrial(trial.id) }
-                }
-            }
-        }
-    }
-
-    /// 細查層的一句；過門檻的那一句用主色細框（突顯只用在一處）
-    private func patternLine<Content: View>(highlight: Bool, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: Sp.s1) { content() }
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, Sp.s4)
-            .padding(.vertical, Sp.s3)
-            .overlay {
-                if highlight {
-                    RoundedRectangle(cornerRadius: Rd.md, style: .continuous)
-                        .strokeBorder(Theme.accent, lineWidth: Sz.hairline * 1.5)
-                        .padding(Sp.s1)
-                }
-            }
-    }
-
     // MARK: 排隊
 
     private var queueSection: some View {
-        DomySection(footer: "一次種一個。兩個都還在長的時候，會搶同一份注意力。這一個長好、挖出來之後，排第一的會出現在種下一個的畫面。") {
+        DomySection(title: "排隊") {
             ForEach(queueRows) { row in
                 let i = row.index
                 let q = row.text
@@ -419,7 +397,7 @@ struct FieldView: View {
     private var basketSection: some View {
         DomySection {
             if store.state.basket.isEmpty {
-                DomyEmptyState(icon: "basket", title: "竹籃還是空的", detail: "長好的習慣會變成一顆地瓜，收在這裡。")
+                DomyEmptyState(icon: "basket", title: "竹籃還是空的", detail: "長好的習慣會收在這裡。")
             } else {
                 ForEach(Array(store.state.basket.enumerated()), id: \.offset) { i, p in
                     if i > 0 { RowSep() }
@@ -449,83 +427,6 @@ struct FieldView: View {
         }
     }
 
-}
-
-extension WeekSheet.Start: Identifiable {
-    var id: Int { self == .review ? 0 : 1 }
-}
-
-/// 「這幾週記了幾天」的一列：日期、從 0 開始的橫條（實心記了、空心請假，滿格 7 天）、天數
-struct WeekRowView: View {
-    var row: WeekRow
-
-    var body: some View {
-        let c = row.count
-        HStack(alignment: .center, spacing: Sp.s3) {
-            Text("\(c.start.short)–\(c.end.short)")
-                .domyType(Ty.footnote)
-                .monospacedDigit()
-                .foregroundStyle(Theme.fg2)
-                .frame(minWidth: Sp.s12 + Sp.s8, alignment: .leading)
-            VStack(alignment: .leading, spacing: Sp.s1) {
-                switch row.kind {
-                case .bar:
-                    WeekBar(done: c.done, leave: c.leave)
-                    HStack(spacing: Sp.s2) {
-                        Text(c.leave > 0 ? Copy.t(.d7leave, ["n": c.done, "m": c.leave]) : Copy.t(.d7row, ["n": c.done]))
-                            .domyType(Ty.subheadline)
-                            .monospacedDigit()
-                            .foregroundStyle(Theme.fg)
-                        if c.todayPending {
-                            Text(Copy.t(.d7today)).domyType(Ty.footnote).foregroundStyle(Theme.fg2)
-                        }
-                    }
-                case .empty:
-                    Text(Copy.t(.d7empty)).domyType(Ty.subheadline).foregroundStyle(Theme.fg2)
-                case .letgo:
-                    Text(Copy.t(.d7letgo)).domyType(Ty.subheadline).foregroundStyle(Theme.fg2)
-                case .first:
-                    Text(Copy.t(.d7first, ["d": row.plantedDays, "n": c.done]))
-                        .domyType(Ty.subheadline)
-                        .foregroundStyle(Theme.fg)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                if row.changed {
-                    Chip(Copy.t(.d7changed))
-                }
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, Sp.s4)
-        .padding(.vertical, Sp.s3)
-        .accessibilityElement(children: .combine)
-    }
-}
-
-/// 一週的橫條：從同一條左邊線開始，滿格是 7 天；記了是實心，請假是空心接在後面
-struct WeekBar: View {
-    var done: Int
-    var leave: Int
-
-    var body: some View {
-        GeometryReader { geo in
-            let unit = geo.size.width / 7
-            ZStack(alignment: .leading) {
-                Capsule().fill(Theme.surfaceMuted)
-                HStack(spacing: 0) {
-                    if done > 0 {
-                        Capsule().fill(Theme.accent).frame(width: unit * CGFloat(min(done, 7)))
-                    }
-                    if leave > 0 {
-                        Capsule().strokeBorder(Theme.accent, lineWidth: Sz.hairline * 1.5)
-                            .frame(width: unit * CGFloat(min(leave, max(0, 7 - done))))
-                    }
-                }
-            }
-        }
-        .frame(height: Sp.s2)
-        .accessibilityHidden(true)
-    }
 }
 
 /// 開始四問的折線：y 是量表全幅 1 到 7，x 照日期（不是第幾次）；隔超過 10 天的兩點不連線（中間空了）

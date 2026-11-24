@@ -44,6 +44,12 @@ struct SentenceView: View {
                     store.updateHabit { $0.why = v }
                     return true
                 }
+                if let trial = store.state.runningTrial, store.today < trial.end {
+                    DomySection(footer: Copy.t(.d9, ["change": Copy.changeLabel(trial.change, group: trial.group),
+                                                     "date": trial.end.adding(-1).short])) {
+                        RowButton(text: Copy.t(.d9stop), chevron: false) { store.stopTrial(trial.id) }
+                    }
+                }
             }
             .task {
                 // 從「卡住了」那幾列過來：等推進的動畫停了，捲到那一格、叫出鍵盤
