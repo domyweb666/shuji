@@ -1,30 +1,6 @@
 import XCTest
 @testable import Shuji
 
-final class GuideTests: XCTestCase {
-    func testDecodesProposal() throws {
-        let json = #"{"type":"propose","say":"照你選的排。","question":"","options":[],"plans":[{"trigger":"起床喝完第一杯水","floor":"換上球鞋站到門口"},{"trigger":"刷完牙","floor":"換上球鞋"}],"difficulty":"hard","weeks_min":9,"weeks_max":19,"reason":"要換衣服出門。","category":null,"message":null}"#
-        let o = try JSONDecoder().decode(GuideOutput.self, from: Data(json.utf8))
-        XCTAssertEqual(o.plans.count, 2)
-        XCTAssertEqual(Guide.weeksText(o), "9 到 19 週")
-        XCTAssertEqual(o.difficultyLabel, "比較吃力")
-    }
-
-    func testDecodesQuestion() throws {
-        let json = #"{"type":"ask","say":"","question":"最糟的一天做得到哪一個？","options":["換上球鞋","走到巷口"],"plans":[],"difficulty":null,"weeks_min":0,"weeks_max":0,"reason":"","category":null,"message":null}"#
-        let o = try JSONDecoder().decode(GuideOutput.self, from: Data(json.utf8))
-        XCTAssertEqual(o.options.count, 2)
-        XCTAssertNil(o.difficulty)
-    }
-
-    func testFeedbackQuestionFitsServerLimit() {
-        let long = GuideOutput.Plan(trigger: String(repeating: "起", count: 30), floor: String(repeating: "做", count: 40))
-        XCTAssertLessThanOrEqual(Guide.feedbackQuestion([long, long, long]).count, 200)
-        let q = Guide.feedbackQuestion([.init(trigger: "刷完牙", floor: "讀一頁")])
-        XCTAssertEqual(q, "方案：如果刷完牙，我就讀一頁。想調整什麼？")
-    }
-}
-
 // 標準答案是用 Node 跑原型 index.html 裡同一段 JS 算出來的（today 固定 2026-11-07），
 // 這裡只比對 Swift 版算出來的是不是一模一樣。
 

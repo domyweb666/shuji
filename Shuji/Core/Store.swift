@@ -168,13 +168,19 @@ final class Store {
 
     // MARK: 種
 
-    func plant(floor: String, trigger: String) {
+    /// 種下去。原本還種著的收進 pastHabits，放手測試、試兩週跟著停；紀錄都留著
+    func plant(floor: String, trigger: String, estimatedDays: Int? = nil) {
         let t = today
         let st = stamp()
-        if let old = state.habit, !state.pastHabits.contains(where: { $0.id == old.id }) {
-            state.pastHabits.append(old)
+        if let old = state.habit {
+            // 沒有判定，只是收掉
+            if let lg = state.letgo { addMark(.letgoEnd, habit: old.id, prior: lg.prior) }
+            stopTrials(of: old.id)
+            if !state.pastHabits.contains(where: { $0.id == old.id }) { state.pastHabits.append(old) }
         }
-        state.habit = Habit(floor: floor, trigger: trigger, planted: t, id: makeID("hab"), plantedAt: st.at, tz: st.tz)
+        state.justDug = nil
+        state.habit = Habit(floor: floor, trigger: trigger, planted: t, id: makeID("hab"), plantedAt: st.at, tz: st.tz,
+                            estimatedDays: estimatedDays)
         if let i = state.queue.firstIndex(of: floor) { state.queue.remove(at: i) }
         save()
         show("種下去了。做完最小一步，就按住。")
@@ -357,11 +363,15 @@ final class Store {
         state.basket.insert(p, at: 0)
         state.justDug = p
         if !state.pastHabits.contains(where: { $0.id == h.id }) { state.pastHabits.append(h) }
-        for i in state.trials.indices where state.trials[i].habit == h.id && state.trials[i].status == .running {
-            state.trials[i].status = .stopped
-        }
+        stopTrials(of: h.id)
         save()
         page = 1
+    }
+
+    private func stopTrials(of habit: String) {
+        for i in state.trials.indices where state.trials[i].habit == habit && state.trials[i].status == .running {
+            state.trials[i].status = .stopped
+        }
     }
 
     /// 挖出來那頁按「種下一個」
@@ -378,6 +388,12 @@ final class Store {
         guard !v.isEmpty else { return }
         state.queue.append(v)
         save()
+    }
+
+    /// 排隊的那個已經拿去種了
+    func removeQueue(_ s: String) {
+        guard let i = state.queue.firstIndex(of: s) else { return }
+        removeQueue(at: i)
     }
 
     func removeQueue(at i: Int) {

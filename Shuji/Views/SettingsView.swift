@@ -10,6 +10,8 @@ struct SettingsView: View {
     @Environment(\.openURL) private var openURL
     @State private var sheet: SettingsSheet? = nil
     @State private var confirmWipe = false
+    @State private var confirmReplan = false
+    @State private var replanning = false
     @State private var restoring = false
     @AppStorage(Appearance.storageKey) private var appearanceCode = Appearance.system.rawValue
     @AppStorage(VeggieHaptics.storageKey) private var hapticsOn = true
@@ -47,6 +49,11 @@ struct SettingsView: View {
                     .ignoresSafeArea()
             }
         }
+        .confirmationDialog("現在這個會收起來，紀錄留著。", isPresented: $confirmReplan, titleVisibility: .visible) {
+            Button("重新規劃") { replanning = true }
+            Button("取消", role: .cancel) {}
+        }
+        .fullScreenCover(isPresented: $replanning) { ReplanView() }
         .confirmationDialog("全部清除？", isPresented: $confirmWipe, titleVisibility: .visible) {
             Button("清除全部，不可復原", role: .destructive) {
                 Haptic.remove()
@@ -92,6 +99,9 @@ struct SettingsView: View {
     private var habitSection: some View {
         DomySection {
             pushRow("text.quote", "我的習慣") { store.route = [.sentence] }
+                .disabled(habit == nil)
+            RowSep()
+            pushRow("arrow.triangle.2.circlepath", "重新規劃習慣") { confirmReplan = true }
                 .disabled(habit == nil)
             RowSep()
             pushRow("forward", "跳過的理由", value: "\(store.state.settings.skipReasons.count) 個") { store.route = [.skipReasons] }

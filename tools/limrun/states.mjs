@@ -35,12 +35,12 @@ function make({ skipLast = 0, log: lg, letgo, reviewDay = 0, lastReview = -1, n 
   if (letgo) s.letgo = { start: day(-3), prior: 12 };
   return s;
 }
-async function load(state) {
+async function load(state, args = []) {
   try { await c.terminateApp(BUNDLE); } catch {}
   await sleep(500);
   const p = join(SP, 'state.json'); writeFileSync(p, JSON.stringify(state));
   await c.pushFile(p, 'Library/Application Support/Shuji/state.json', { bundleId: BUNDLE, containerType: 'data' });
-  await simctl(['launch', 'booted', BUNDLE]); await sleep(2600);
+  await simctl(['launch', 'booted', BUNDLE, ...args]); await sleep(2600);
 }
 const LONGT = '週末早上帶孩子從公園回到家，把鞋子放進櫃子', LONGF = '坐到書桌前打開昨天的稿子補一句話';
 const L40T = '每天晚上睡前把手機放到客廳的充電座，再回房間坐到床邊之後了';
@@ -111,6 +111,22 @@ try {
     await load(make()); await tap('設定', 1500); await tap('AI', 1500); await shot('z-ai'); await dump('z-ai');
     await load(make()); await tap('設定', 1500); await tap('我的習慣', 1500); await shot('z-habit');
     await simctl(['ui', 'booted', 'appearance', 'dark']); await load(make()); await tap('跳過', 1500); await shot('z-skip-dark'); if (await tap('旅行', 1800)) await shot('z-skipped-dark'); await load(make()); await tap('設定', 1500); await tap('AI', 1500); await shot('z-ai-dark');
+  }
+  // 2026-11-25：跟地瓜對答。-talkDemo N 只有 DEBUG 建置認得：1 到 4 步，5 離題，6 等待，7 連兩次離題，8 連不到
+  if (want('talk')) {
+    const none = { logs: {}, weekly: [], queue: [], basket: [], settings: {} };
+    for (const sfx of ['', '-dark']) {
+      if (sfx) await simctl(['ui', 'booted', 'appearance', 'dark']);
+      for (let n = 1; n <= 8; n++) { await load(none, ['-talkDemo', String(n)]); await shot('talk' + n + sfx); if (!sfx) await dump('talk' + n); }
+    }
+    await simctl(['ui', 'booted', 'appearance', 'light']);
+    await load(none); await shot('talk-first'); await dump('talk-first');
+    await tap('自己填', 1500); await shot('talk-manual'); await dump('talk-manual');
+    await load(none); await tap('更多', 1200); await shot('talk-more');
+    await load(none); await tap('連電腦的 Claude', 1800); await shot('talk-connect');
+    await load({ ...none, queue: ['坐上蒲團按計時器'] }); await shot('talk-queue');
+    await load(make()); await tap('設定', 1500); await shot('talk-set'); await tap('重新規劃習慣', 1500); await shot('talk-replan'); await dump('talk-replan');
+    if (await tap('重新規劃', 1800)) { await shot('talk-replan-open'); await dump('talk-replan-open'); await tap('自己填', 1500); await shot('talk-replan-manual'); }
   }
   log('DONE');
 } catch (e) { log('ERROR', e.stack || e); process.exitCode = 1; }

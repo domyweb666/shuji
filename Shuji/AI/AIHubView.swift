@@ -133,17 +133,14 @@ struct AIHubView: View {
     }
 }
 
-/// 用問答想下一個要種什麼，選好放進排隊，不動現在種著的
+/// 跟地瓜對答想下一個要種什麼，選好最小一步放進排隊，不動現在種著的
 private struct NextHabitSheet: View {
-    @Environment(Store.self) private var store
     @Environment(\.dismiss) private var dismiss
+    @State private var model = TalkModel()
 
     var body: some View {
-        GuideView(queueOnly: { plan in
-            store.addQueue(String(plan.floor.prefix(40)))
-            store.show("排進去了。")
-            dismiss()
-        }, onManual: { _, _ in }, onRestore: {})
+        TalkView(model: model, queueOnly: true, onExit: { dismiss() }, onDone: { dismiss() })
+            .padding(.top, Sp.s3)
             .presentationDragIndicator(.visible)
             .presentationCornerRadius(Rd.xxl)
             .presentationBackground(Theme.canvas)

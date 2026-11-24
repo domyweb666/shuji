@@ -37,10 +37,12 @@ struct Habit: Codable, Equatable {
     /// 種下去那一刻（世界標準時間）；舊資料是空
     var plantedAt: String?
     var tz: String?
+    /// 種下去時預估幾天養成；舊的習慣是空
+    var estimatedDays: Int?
 
     init(floor: String, trigger: String, planted: DayKey,
          travelFloor: String = "", obstacle: String = "", backup: String = "", why: String = "",
-         id: String = "", plantedAt: String? = nil, tz: String? = nil) {
+         id: String = "", plantedAt: String? = nil, tz: String? = nil, estimatedDays: Int? = nil) {
         self.id = id
         self.floor = floor
         self.trigger = trigger
@@ -51,9 +53,10 @@ struct Habit: Codable, Equatable {
         self.why = why
         self.plantedAt = plantedAt
         self.tz = tz
+        self.estimatedDays = estimatedDays
     }
 
-    enum CodingKeys: String, CodingKey { case id, floor, trigger, travelFloor, obstacle, backup, why, planted, plantedAt, tz }
+    enum CodingKeys: String, CodingKey { case id, floor, trigger, travelFloor, obstacle, backup, why, planted, plantedAt, tz, estimatedDays }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -67,6 +70,7 @@ struct Habit: Codable, Equatable {
         planted = try c.decodeIfPresent(DayKey.self, forKey: .planted) ?? DayKey.today()
         plantedAt = try c.decodeIfPresent(String.self, forKey: .plantedAt)
         tz = try c.decodeIfPresent(String.self, forKey: .tz)
+        estimatedDays = try c.decodeIfPresent(Int.self, forKey: .estimatedDays)
     }
 }
 
