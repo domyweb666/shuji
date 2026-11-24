@@ -1,10 +1,10 @@
 // 測試用：不走 API 金鑰，改叫這台電腦上的 claude CLI（用 Claude 訂閱的登入）。
-// 只給 eval 和本機測試用。Cloudflare Workers 不能啟動外部程式，正式路徑一律走 src/model.ts 的 anthropicCaller。
+// 只給 eval、本機測試和電腦轉接（bridge/）用。Cloudflare Workers 不能啟動外部程式，正式路徑一律走 src/model.ts 的 anthropicCaller。
 //
 // 跟正式版的差別：沒有提示快取、沒有 Sonnet 的伺服器端備援、沒有 max_tokens 上限；
 // 輸出格式不是 API 強制的，而是在系統提示最後多加一段格式要求，再用同一份 schema 驗。
 // 系統提示的其他部分、輸出 schema、模型、effort 都跟正式版同一份來源。
-import { spawn } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
@@ -15,7 +15,7 @@ import { OUTPUTS, TASKS, type TaskId } from '../src/tasks';
 const TIMEOUT_MS = 180_000;
 
 /** 找出要執行的程式。Windows 的 claude 是 npm 的 .cmd 包裝，中文參數經過 cmd 會壞，所以直接用 node 跑 cli.js。 */
-function resolveCli(): { cmd: string; pre: string[] } {
+export function resolveCli(): { cmd: string; pre: string[] } {
   const override = process.env.SHUJI_CLAUDE_CLI;
   if (override) return override.endsWith('.js') ? { cmd: process.execPath, pre: [override] } : { cmd: override, pre: [] };
   if (process.platform === 'win32') {
@@ -101,16 +101,33 @@ export function parseCliResult<T extends TaskId>(task: T, stdout: string): Model
   };
 }
 
-export function cliCaller(): ModelCaller {
+export interface CliOptions {
+  /** 給 CLI 的環境變數。不給就是拿掉 CLAUDE／ANTHROPIC 開頭的那些 */
+  env?: NodeJS.ProcessEnv;
+  /** 這一次最多還能跑多久 */
+  timeoutMs?: () => number;
+  /** 使用者的內容交給 CLI 之前再洗一次 */
+  clean?: (text: string) => string;
+  /** 工作資料夾（預設開一個空的） */
+  work?: string;
+  /** 系統提示檔放哪（預設跟工作資料夾同一個） */
+  promptDir?: string;
+  model?: string;
+  onChild?: (child: ChildProcess | null) => void;
+  kill?: (child: ChildProcess) => void;
+}
+
+export function cliCaller(options: CliOptions = {}): ModelCaller {
   const { cmd, pre } = resolveCli();
-  const env = cleanEnv();
+  const env = options.env ?? cleanEnv();
   // 空資料夾當工作目錄，CLI 才不會讀到任何專案的 CLAUDE.md
-  const work = mkdtempSync(join(tmpdir(), 'shuji-eval-'));
+  const work = options.work ?? mkdtempSync(join(tmpdir(), 'shuji-eval-'));
+  const promptDir = options.promptDir ?? work;
   const promptFiles = new Map<TaskId, string>();
   const promptFile = (task: TaskId) => {
     let f = promptFiles.get(task);
     if (!f) {
-      f = join(work, `system-${task}.txt`);
+      f = join(promptDir, `system-${task}.txt`);
       writeFileSync(f, [...systemBlocks(task).map((b) => b.text), formatNote(task)].join('\n\n'), 'utf8');
       promptFiles.set(task, f);
     }
@@ -122,7 +139,7 @@ export function cliCaller(): ModelCaller {
     const args = [
       ...pre,
       '-p',
-      '--model', spec.model,
+      '--model', options.model || spec.model,
       '--effort', spec.effort,
       '--tools', '',
       '--setting-sources', '',
@@ -133,21 +150,30 @@ export function cliCaller(): ModelCaller {
       '--output-format', 'json',
     ];
     return new Promise((resolve, reject) => {
+      const timeout = options.timeoutMs ? options.timeoutMs() : TIMEOUT_MS;
+      if (timeout <= 0) return reject(new Error('時間用完了'));
       const child = spawn(cmd, args, { cwd: work, env, windowsHide: true });
+      options.onChild?.(child);
       let out = '';
       let err = '';
       const timer = setTimeout(() => {
-        child.kill();
-        reject(new Error(`CLI 超過 ${TIMEOUT_MS / 1000} 秒沒回應`));
-      }, TIMEOUT_MS);
+        if (options.kill) options.kill(child);
+        else child.kill();
+        reject(new Error(`CLI 超過 ${Math.round(timeout / 1000)} 秒沒回應`));
+      }, timeout);
       child.stdout.setEncoding('utf8').on('data', (d) => (out += d));
       child.stderr.setEncoding('utf8').on('data', (d) => (err += d));
+      child.stdin.on('error', () => {
+        /* CLI 先結束時 stdin 會斷，交給 close 處理 */
+      });
       child.on('error', (e) => {
         clearTimeout(timer);
+        options.onChild?.(null);
         reject(new Error(`啟動 claude CLI 失敗：${e.message}`));
       });
       child.on('close', (code) => {
         clearTimeout(timer);
+        options.onChild?.(null);
         if (process.env.SHUJI_CLI_DEBUG === '1') console.error(`\n[cli 任務 ${task}] ${out.slice(0, 3000)}`);
         if (!out.trim()) return reject(new Error(`CLI 沒有輸出（結束碼 ${code}）：${err.slice(0, 300)}`));
         try {
@@ -156,7 +182,8 @@ export function cliCaller(): ModelCaller {
           reject(e as Error);
         }
       });
-      child.stdin.end(JSON.stringify(input), 'utf8');
+      const text = JSON.stringify(input);
+      child.stdin.end(options.clean ? options.clean(text) : text, 'utf8');
     });
   };
 }

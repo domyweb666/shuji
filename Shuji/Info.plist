@@ -8,6 +8,15 @@
 	<true/>
 	<key>UIFileSharingEnabled</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>掃電腦上的 QR code，連到你自己電腦的 Claude。按「連電腦的 Claude」時才用。</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>連到同一個 Wi-Fi 裡你自己的電腦，用那台電腦的 Claude 回答。</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>ShujiAIBaseURL</key>
 	<string></string>
 </dict>

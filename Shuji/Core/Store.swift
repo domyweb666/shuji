@@ -15,6 +15,8 @@ enum Route: Hashable {
     case sentence
     case basket
     case family
+    case skipReasons
+    case ai
 }
 
 /// 整個 app 唯一的狀態容器。動作都在這裡，畫面只負責畫。
@@ -63,6 +65,14 @@ final class Store {
         #if !DEBUG
         self.state.dayOffset = 0
         #endif
+        endTravel()
+    }
+
+    /// 旅行中這個狀態拿掉了（2026-11-25，改成跳過一次）：還停在旅行中的舊資料補一筆結束
+    private func endTravel() {
+        guard state.travel else { return }
+        addMark(.travelOff, habit: nil)
+        save()
     }
 
     // MARK: 今天
@@ -150,6 +160,7 @@ final class Store {
         #if !DEBUG
         state.dayOffset = 0
         #endif
+        endTravel()
         save()
         show("還原好了。")
         return true
@@ -197,26 +208,47 @@ final class Store {
     }
 
     func backfillYesterday() {
-        guard canBackfillYesterday else { return }
-        addRecord(.done, day: today.adding(-1), source: .backfill)
+        backfill(day: today.adding(-1))
+    }
+
+    /// 補記那天有做（規則照舊：補得到的只有昨天）
+    func backfill(day: DayKey) {
+        guard day == today.adding(-1), canBackfillYesterday else { return }
+        addRecord(.done, day: day, source: .backfill)
         vineGrow = false
         save()
         show("昨天那一節補上了。")
     }
 
-    func leaveToday(reason: String) {
-        let t = today
-        guard state.log(on: t) == nil, state.stats(today: t).leaveLeft > 0 else { return }
-        addRecord(.leave, day: t, source: .hold, reason: reason.trimmingCharacters(in: .whitespacesAndNewlines))
+    func leaveToday(reason: String) { skip(day: today, reason: reason) }
+
+    /// 今天和昨天可以改；放手測試中、剛挖出來、種下去之前不行
+    func canEdit(day: DayKey) -> Bool {
+        guard let h = state.habit, state.justDug == nil, state.letgo == nil else { return false }
+        return day >= h.planted && day <= today && day >= today.adding(-1)
+    }
+
+    /// 那天跳過。理由可以是空的
+    func skip(day: DayKey, reason: String) {
+        guard canEdit(day: day), state.log(on: day) == nil else { return }
+        addRecord(.leave, day: day, source: day == today ? .hold : .backfill,
+                  reason: reason.trimmingCharacters(in: .whitespacesAndNewlines))
         save()
     }
 
-    /// 撤銷今天：標記，不刪（原則 3）
-    func undoToday() {
+    /// 撤銷那天記的（今天或昨天）
+    func undo(day: DayKey) {
+        guard canEdit(day: day) else { return }
+        strike(day)
+    }
+
+    func undoToday() { strike(today) }
+
+    /// 標記，不刪（原則 3）
+    private func strike(_ day: DayKey) {
         guard let h = state.habit else { return }
-        let t = today
         let at = stamp().at
-        for i in state.records.indices where state.records[i].habit == h.id && state.records[i].day == t && state.records[i].isActive {
+        for i in state.records.indices where state.records[i].habit == h.id && state.records[i].day == day && state.records[i].isActive {
             state.records[i].deletedAt = at
         }
         save()
@@ -237,7 +269,7 @@ final class Store {
         if s.justDug != nil { return "剛挖出來了。先打開薯記種下一個。" }
         if s.letgo != nil { return "放手測試中，照常做就好，不用記。" }
         if let log = s.log(on: t) {
-            return log.t == .leave ? "今天請假了。" : "今天已經記過了。"
+            return log.t == .leave ? "今天跳過了。" : "今天已經記過了。"
         }
         let isReturn = logToday(source: .shortcut)
         let n = state.stats(today: t).nodes
@@ -386,6 +418,20 @@ final class Store {
         guard on != state.travel else { return }
         addMark(on ? .travelOn : .travelOff, habit: nil)
         save()
+    }
+
+    /// 加一個跳過的理由。空的、重複的、滿 8 個就不加
+    @discardableResult
+    func addSkipReason(_ s: String) -> Bool {
+        let before = state.settings.skipReasons
+        let after = Settings.cleanSkipReasons(before + [s])
+        guard after != before else { return false }
+        updateSettings { $0.skipReasons = after }
+        return true
+    }
+
+    func removeSkipReason(_ s: String) {
+        updateSettings { v in v.skipReasons.removeAll { $0 == s } }
     }
 
     func updateSettings(_ change: (inout Settings) -> Void) {

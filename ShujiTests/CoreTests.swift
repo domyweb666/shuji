@@ -525,8 +525,83 @@ final class StoreTests: XCTestCase {
         s.undoToday()
         XCTAssertNil(s.state.log(on: T))
         s.updateSettings { $0.leave = 0 }
-        s.leaveToday(reason: "發燒")
-        XCTAssertNil(s.state.log(on: T), "本月沒有請假額度就不能請")
+        s.leaveToday(reason: " 旅行 ")
+        XCTAssertEqual(s.state.log(on: T)?.reason, "旅行", "沒有每月次數限制")
+        s.undoToday()
+        s.skip(day: T, reason: "")
+        XCTAssertEqual(s.state.log(on: T)?.t, .leave, "可以不選理由")
+    }
+
+    func testSkipReasons() throws {
+        let s = makeStore()
+        XCTAssertEqual(s.state.settings.skipReasons, ["旅行", "生病", "太累", "太忙"])
+        XCTAssertFalse(s.addSkipReason("  "))
+        XCTAssertFalse(s.addSkipReason("旅行"), "不重複")
+        XCTAssertTrue(s.addSkipReason("一二三四五六七八九"))
+        XCTAssertEqual(s.state.settings.skipReasons.last, "一二三四五六七八")
+        for r in ["甲", "乙", "丙"] { XCTAssertTrue(s.addSkipReason(r)) }
+        XCTAssertFalse(s.addSkipReason("丁"), "最多 8 個")
+        s.removeSkipReason("生病")
+        XCTAssertEqual(s.state.settings.skipReasons.count, 7)
+
+        let back = try JSONDecoder().decode(AppState.self, from: JSONEncoder().encode(s.state))
+        XCTAssertEqual(back.settings, s.state.settings, "存檔讀得回來")
+        let old = try JSONDecoder().decode(Settings.self, from: Data(#"{"leave":1}"#.utf8))
+        XCTAssertEqual(old.skipReasons, Settings.defaultSkipReasons, "舊檔沒有這一欄")
+        let odd = try JSONDecoder().decode(Settings.self, from: Data(#"{"skipReasons":3}"#.utf8))
+        XCTAssertEqual(odd.skipReasons, Settings.defaultSkipReasons, "形狀不對就用預設")
+        let dup = try JSONDecoder().decode(Settings.self, from: Data(#"{"skipReasons":["累","累",""]}"#.utf8))
+        XCTAssertEqual(dup.skipReasons, ["累"])
+    }
+
+    /// 月曆點一天：今天和昨天改得到，更早的看得到、改不到
+    func testEditDayFromCalendar() {
+        let s = makeStore()
+        s.state = AppState.demo(today: T)
+        let y = T.adding(-1), old = T.adding(-2)
+        XCTAssertTrue(s.canEdit(day: T))
+        XCTAssertTrue(s.canEdit(day: y))
+        XCTAssertFalse(s.canEdit(day: old))
+        XCTAssertFalse(s.canEdit(day: T.adding(1)))
+
+        s.undo(day: old)
+        XCTAssertNotNil(s.state.log(on: old), "前天不能改")
+        s.undo(day: y)
+        XCTAssertNil(s.state.log(on: y))
+        s.skip(day: y, reason: "生病")
+        XCTAssertEqual(s.state.log(on: y), DayLog.leave("生病"))
+        XCTAssertEqual(s.state.records.last?.source, .backfill)
+        s.backfill(day: y)
+        XCTAssertEqual(s.state.log(on: y)?.t, .leave, "已經有一筆就不補")
+        s.undo(day: y)
+        s.backfill(day: y)
+        XCTAssertEqual(s.state.log(on: y)?.t, .done)
+        s.state.drop(old.string)
+        s.backfill(day: old)
+        XCTAssertNil(s.state.log(on: old), "補記只能補昨天")
+
+        s.startLetGo()
+        XCTAssertFalse(s.canEdit(day: T), "放手中不改")
+
+        let n = makeStore()
+        n.plant(floor: "讀一頁書", trigger: "刷完牙")
+        XCTAssertFalse(n.canEdit(day: y), "種下去之前")
+    }
+
+    /// 旅行中拿掉了：舊存檔還停在旅行中，打開就補一筆結束
+    func testOpenEndsTravel() throws {
+        var d = AppState.demo(today: T)
+        d.mark(.travelOn, T.adding(-3))
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("shuji-travel-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let url = dir.appendingPathComponent("state.json")
+        try JSONEncoder().encode(d).write(to: url)
+        let s = Store(now: { localDate(2026, 11, 7, 12, 0) }, fileURL: url, backupDir: dir)
+        XCTAssertFalse(s.state.travel)
+        XCTAssertEqual(s.state.travelEndedOn, T)
+        let again = Store(now: { localDate(2026, 11, 8, 12, 0) }, fileURL: url, backupDir: dir)
+        XCTAssertEqual(again.state.marks.filter { $0.kind == .travelOff }.count, 1, "存起來了，不會再補一筆")
     }
 
     func testLetGoFlow() {
@@ -568,7 +643,7 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(s.state.stats(today: T).nodes, 1)
         s.undoToday()
         s.leaveToday(reason: "出遠門")
-        XCTAssertEqual(s.shortcutLog(), "今天請假了。")
+        XCTAssertEqual(s.shortcutLog(), "今天跳過了。")
         s.undoToday()
         s.startLetGo()
         XCTAssertEqual(s.shortcutLog(), "放手測試中，照常做就好，不用記。")

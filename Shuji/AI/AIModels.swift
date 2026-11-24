@@ -10,7 +10,7 @@ enum AITask: Int {
     case diagnose = 4   // 三問診斷（免費）
     case weekly = 5     // 週回顧建議（完整版）
     case audit = 6      // 季稽核（完整版）
-    case guide = 7      // 對話引導：首次設定用問答的方式拆出開關句（免費）
+    case guide = 7      // 對話引導：首次設定用問答的方式拆出「如果…我就…」（免費）
 
     var paid: Bool { self == .weekly || self == .audit }
 }
@@ -21,7 +21,7 @@ enum HabitField: String, Codable {
 
     var label: String {
         switch self {
-        case .trigger: return "如果（開關）"
+        case .trigger: return "如果（時機）"
         case .floor: return "我就（最小一步）"
         case .backup, .obstacle: return "不順的時候"
         case .travelFloor: return "旅行版最小一步"

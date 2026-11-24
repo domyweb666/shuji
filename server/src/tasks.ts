@@ -181,8 +181,14 @@ export const TASKS: Record<TaskId, TaskSpec> = {
   6: { id: 6, name: '季稽核', model: 'claude-sonnet-5-5', effort: 'medium', maxTokens: 8192, pack: 'audit', paid: true, quota: { limit: 2, window: 'quarter' } },
 };
 
+/** 2026-11-25 多米：「開關」「開關句」別人看不懂，給使用者看的字改講「時機」。知識包是書的內容，不動。 */
+export const WORDING_RULE =
+  '用詞：知識包和上面的規則叫它「開關」「開關句」，那是內部說法。輸出裡每一個給使用者看的字串都不要出現這兩個詞：「開關」寫成「時機」，「備用開關」寫成「備用時機」，「開關句」寫成「習慣」或直接寫出「如果…我就…」。「最小一步」照舊。電燈開關這種真的東西照原樣寫。';
+
 export function instructionFor(id: TaskId): string {
-  return INSTRUCTIONS[id];
+  return `${INSTRUCTIONS[id]}
+
+${WORDING_RULE}`;
 }
 
 export function isTaskId(n: number): n is TaskId {

@@ -50,7 +50,7 @@ export const DIAGNOSE_NOTHING = '設計看起來沒問題，可能只是那陣�
 export const GUIDE_WEEKS: Record<'easy' | 'medium' | 'hard', [number, number]> = { easy: [4, 8], medium: [8, 12], hard: [10, 20] };
 const QUANTITY = /[0-9０-９]+\s*(分鐘|次|字|頁|下|公里|小時)/;
 
-export const AUDIT_WARNS = ['開關和環境留著，只拆記錄', '加量和加新習慣不要同一季', '有些結果要好幾季才看得到'];
+export const AUDIT_WARNS = ['時機和環境留著，只拆記錄', '加量和加新習慣不要同一季', '有些結果要好幾季才看得到'];
 
 export interface CheckResult<T> {
   ok: boolean;
@@ -75,10 +75,24 @@ export function bannedHits(text: string): string[] {
   return hits;
 }
 
+/** 給使用者看的字不講「開關」（WORDING_RULE 的第二道）。電燈開關、按下開關這種真的東西不換 */
+export function plainWording(s: string): string {
+  return s.replace(/開關句/g, '習慣').replace(/(?<![燈源扇器電按下打離])開關(?![燈門機])/g, '時機');
+}
+
+/** 整份輸出裡給人看的字串都換一遍 */
+function plainDeep(v: unknown): unknown {
+  if (typeof v === 'string') return plainWording(v);
+  if (Array.isArray(v)) return v.map(plainDeep);
+  if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, plainDeep(x)]));
+  return v;
+}
+
 const negated = (s: string) => NEGATION.test(s);
 
 /**
  * 整理並檢查一份輸出。會改的東西：
+ * - 給人看的字裡的「開關」換成「時機」
  * - 任務 1 的 example 用 floors[0]、triggers[0] 重組（保證跟候選一致）
  * - 任務 4 的 closing 換成固定句；layer 0 時換成固定建議
  * - 任務 6 的 warn 不在三句之內就清空
@@ -88,7 +102,7 @@ const negated = (s: string) => NEGATION.test(s);
  */
 export function review<T extends TaskId>(task: T, raw: TaskOutput<T>, input?: unknown): CheckResult<TaskOutput<T>> {
   const problems: string[] = [];
-  const out = structuredClone(raw) as any;
+  const out = plainDeep(structuredClone(raw)) as any;
 
   if (out.type === 'unfit') {
     if (!out.category) problems.push('unfit 沒有 category');

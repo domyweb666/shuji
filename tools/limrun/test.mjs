@@ -224,7 +224,7 @@ try {
   check('田頁有「根」的數字', await has('根'));
   await goPage('設定');
   await shot('11-settings');
-  check('設定頁有「開關句」', await has('開關句'));
+  check('設定頁有「我的習慣」', await has('我的習慣'));
   // 收工檢查：開了會問通知權限
   if (await tapLabel('收工檢查', { wait: 1200 })) {
     const asked = await allowIfAsked();

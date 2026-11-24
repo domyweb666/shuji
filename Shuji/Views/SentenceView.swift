@@ -36,10 +36,6 @@ struct SentenceView: View {
                         DomyButton("幫我想不順的時候怎麼辦", variant: .plain, size: .compact) { showObstacle = true }
                     }
                 }
-                field("旅行版最小一步（選填）", "在手機上寫三行", habit?.travelFloor, 40, .travelFloor) { v in
-                    store.updateHabit { $0.travelFloor = v }
-                    return true
-                }
                 field("這件事為了什麼（選填）", "", habit?.why, 60, .why) { v in
                     store.updateHabit { $0.why = v }
                     return true
@@ -60,7 +56,7 @@ struct SentenceView: View {
                 focus = target
             }
         }
-        .navigationTitle("開關句")
+        .navigationTitle("我的習慣")
         .sheet(isPresented: $showObstacle) { ObstacleSheet() }
         .onDisappear {
             // 從這週的田過來、沒改就離開：之後的改動不算在這週的田。等欄位先存完再清

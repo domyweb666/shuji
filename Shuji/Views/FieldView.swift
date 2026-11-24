@@ -11,6 +11,14 @@ struct FieldView: View {
     @State private var back = 0
     @State private var showAudit = false
     @State private var showPaywall = false
+    @State private var picked: DayPick? = nil
+
+    /// 月曆點的那一天
+    struct DayPick: Identifiable {
+        let day: DayKey
+        var id: String { day.string }
+    }
+
     private let purchases = Purchases.shared
 
     private var t: DayKey { store.today }
@@ -36,6 +44,7 @@ struct FieldView: View {
             case .charts: chartSide
             }
         }
+        .sheet(item: $picked) { pick in DaySheet(day: pick.day) }
         .sheet(isPresented: $showAudit) { AuditSheet() }
         .sheet(isPresented: $showPaywall) { PaywallSheet() }
     }
@@ -75,14 +84,14 @@ struct FieldView: View {
                         Spacer(minLength: 0)
                         monthArrow("chevron.right", "下個月", enabled: back > 0) { back -= 1 }
                     }
-                    MonthGrid(month: m, today: t)
+                    MonthGrid(month: m, today: t, planted: store.state.habit?.planted ?? t) { d in picked = DayPick(day: d) }
                 }
                 .padding(Sp.s4)
             }
             HStack(spacing: Sp.s3) {
                 number(m.done, "記了幾天")
                 number(m.back, "回來幾次")
-                number(m.leave, "請假幾天")
+                number(m.leave, "跳過幾天")
             }
         }
     }
@@ -153,10 +162,12 @@ struct FieldView: View {
     }
 }
 
-/// 月曆：葉子是記了，帶花是回來，空圈是請假，漏掉的留白
+/// 月曆：葉子是記了，帶花是回來，空圈是跳過，漏掉的留白
 struct MonthGrid: View {
     var month: MonthReport
     var today: DayKey
+    var planted: DayKey
+    var pick: (DayKey) -> Void
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 7)
 
     var body: some View {
@@ -174,7 +185,21 @@ struct MonthGrid: View {
         }
     }
 
+    /// 種下那天到今天可以點
+    @ViewBuilder
     private func cell(_ d: MonthDay) -> some View {
+        if d.day >= planted && d.day <= today {
+            Button { pick(d.day) } label: { face(d) }
+                .buttonStyle(DomyPressStyle())
+                .accessibilityLabel("\(d.day.long)\(word(d.kind))")
+        } else {
+            face(d)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(d.day.long)\(word(d.kind))")
+        }
+    }
+
+    private func face(_ d: MonthDay) -> some View {
         let isToday = d.day == today
         return VStack(spacing: Sp.s1 / 2) {
             Text("\(d.day.day)")
@@ -187,8 +212,7 @@ struct MonthGrid: View {
         .frame(maxWidth: .infinity, minHeight: Sz.touch)
         .padding(.vertical, Sp.s1)
         .background(isToday ? Theme.soft : Color.clear, in: RoundedRectangle(cornerRadius: Rd.md, style: .continuous))
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(d.day.long)\(word(d.kind))")
+        .contentShape(Rectangle())
     }
 
     private func word(_ k: MonthDay.Kind) -> String {
@@ -196,7 +220,7 @@ struct MonthGrid: View {
         case .none: return ""
         case .done: return "，記了"
         case .back: return "，回來"
-        case .leave: return "，請假"
+        case .leave: return "，跳過"
         }
     }
 }

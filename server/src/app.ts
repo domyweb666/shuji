@@ -99,6 +99,43 @@ function parseJson(bytes: Uint8Array): any {
   }
 }
 
+export const BAD_OUTPUT_MSG = '現在想不出來，你先自己填，等一下再試。';
+
+export type Answer = { ok: true; body: Record<string, unknown> } | { ok: false; problems: string[] };
+
+/**
+ * 問模型並檢查輸出：不合規就再問一次，再不行回 problems（呼叫端給 app 一句 bad_output，app 回手動流程）。
+ * 正式伺服器和電腦轉接（bridge/）共用這一段，app 收到的 body 才會一模一樣。
+ */
+export async function askModel(caller: ModelCaller, id: TaskId, input: unknown, log: (e: Record<string, unknown>) => void, stop: () => boolean = () => false): Promise<Answer> {
+  let problems: string[] = [];
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    if (attempt > 1 && stop()) break;
+    let r;
+    try {
+      r = await caller(id, input);
+    } catch (e) {
+      problems = [`呼叫失敗：${(e as Error).message}`];
+      log({ ev: 'model_error', task: id, attempt, reason: (e as Error).message });
+      continue;
+    }
+    if (!r.parsed || r.stopReason === 'refusal' || r.stopReason === 'max_tokens') {
+      problems = [`沒有可用的輸出（${r.stopReason}）`];
+      log({ ev: 'model_empty', task: id, attempt, stop: r.stopReason, usage: r.usage });
+      continue;
+    }
+    const checked = review(id, r.parsed as any, input);
+    log({ ev: 'model_ok', task: id, attempt, pass: checked.ok, problems: checked.problems, usage: r.usage });
+    if (!checked.ok) {
+      problems = checked.problems;
+      continue;
+    }
+    const result = checked.value as any;
+    return { ok: true, body: { ok: true, task: id, result, ...(result.type === 'unfit' ? { referral: referralFor(result.category) } : {}) } };
+  }
+  return { ok: false, problems };
+}
+
 export function createApp(deps: Deps) {
   const now = deps.now ?? (() => new Date());
   const log = deps.log ?? ((e) => console.log(JSON.stringify(e)));
@@ -191,40 +228,12 @@ export function createApp(deps: Deps) {
       return fail(429, 'rate_limited', WINDOW_LIMIT_MSG[spec.quota.window]);
     }
 
-    // 問模型：不合規就再問一次，再不行回手動流程，次數退回去
-    let problems: string[] = [];
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      let r;
-      try {
-        r = await deps.caller(id, parsed.data);
-      } catch (e) {
-        problems = [`呼叫失敗：${(e as Error).message}`];
-        log({ ev: 'model_error', task: id, attempt, reason: (e as Error).message });
-        continue;
-      }
-      if (!r.parsed || r.stopReason === 'refusal' || r.stopReason === 'max_tokens') {
-        problems = [`沒有可用的輸出（${r.stopReason}）`];
-        log({ ev: 'model_empty', task: id, attempt, stop: r.stopReason, usage: r.usage });
-        continue;
-      }
-      const checked = review(id, r.parsed as any, parsed.data);
-      log({ ev: 'model_ok', task: id, attempt, pass: checked.ok, problems: checked.problems, usage: r.usage });
-      if (!checked.ok) {
-        problems = checked.problems;
-        continue;
-      }
-      const result = checked.value as any;
-      return json(200, {
-        ok: true,
-        task: id,
-        result,
-        ...(result.type === 'unfit' ? { referral: referralFor(result.category) } : {}),
-      });
-    }
+    const a = await askModel(deps.caller, id, parsed.data, log);
+    if (a.ok) return json(200, a.body);
     await storage.decr(bucket);
     await storage.decr(`global:${day.key}`);
-    log({ ev: 'bad_output', task: id, problems });
-    return fail(502, 'bad_output', '現在想不出來，你先自己填，等一下再試。');
+    log({ ev: 'bad_output', task: id, problems: a.problems });
+    return fail(502, 'bad_output', BAD_OUTPUT_MSG);
   }
 
   return async function handle(req: Request): Promise<Response> {

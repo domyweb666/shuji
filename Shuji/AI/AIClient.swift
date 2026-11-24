@@ -1,13 +1,16 @@
 import CryptoKit
 import DeviceCheck
 import Foundation
+import Observation
 
-/// 薯記的 AI 中繼伺服器用戶端。
-/// - 金鑰不在 app 裡：app 只跟自己的伺服器說話，伺服器才去叫 Claude。
+/// AI 用戶端。兩條路，電腦優先：
+/// - 電腦的 Claude：連了 server/bridge 就走這條，不做 App Attest（Bridge.swift）。
+/// - 薯記的中繼伺服器：金鑰不在 app 裡，app 只跟自己的伺服器說話，伺服器才去叫 Claude。
 /// - 這台裝置第一次用時跟伺服器做一次 App Attest 註冊；之後每個請求都帶 assertion，簽的是整個 body。
 /// - 模擬器沒有 App Attest：Debug 建置可以在設定頁測試區貼開發用通行碼。
 /// - 任何失敗都回一句給人看的話，畫面接著回到手動流程。手動流程永遠可用。
 @MainActor
+@Observable
 final class AIClient {
     static let shared = AIClient()
 
@@ -23,19 +26,24 @@ final class AIClient {
     }
 
     static let fallbackMessage = "現在想不出來，你先自己填，等一下再試。"
+    static let unreachableMessage = "連不到電腦。看看電腦那頭有沒有開、是不是同一個 Wi-Fi、iPhone 設定裡薯記的「區域網路」有沒有打開。"
+    static let rescanMessage = "電腦重開過，密碼換了。到設定的「AI」斷開，再掃一次。"
+    static let notBridgeMessage = "這不是薯記的 QR code。"
 
     // MARK: 設定
 
     private enum Keys {
         static let keyId = "shuji.ai.keyId"
         static let registered = "shuji.ai.registered"
-        static let consent = "shuji.ai.consent"
         static let device = "shuji.ai.devDevice"
         static let devToken = "shuji.ai.devToken"
         static let baseOverride = "shuji.ai.baseURL"
     }
 
-    private let defaults = UserDefaults.standard
+    @ObservationIgnored private let defaults = UserDefaults.standard
+
+    /// 連著的電腦。畫面看得到它變，連上、斷開 AI 入口馬上跟著換
+    private(set) var bridge: BridgeLink? = BridgeStore.load()
 
     /// 伺服器網址：Info.plist 的 ShujiAIBaseURL；Debug 建置可以在測試區蓋掉。空的就代表 AI 沒接上，按鈕都不出現。
     var baseURL: URL? {
@@ -46,14 +54,83 @@ final class AIClient {
         return URL(string: s)
     }
 
-    var isAvailable: Bool {
+    private var serverReady: Bool {
         guard baseURL != nil else { return false }
         return DCAppAttestService.shared.isSupported || devToken != nil
     }
 
+    var isAvailable: Bool { bridge != nil || serverReady }
+
+    /// 下一句會送去哪裡
+    var destination: AIDestination? {
+        AIDestination.pick(bridge: bridge, server: serverReady ? baseURL : nil)
+    }
+
+    /// 同意是對「送去這裡」的同意：換一台電腦、換成伺服器都要再問
     var hasConsented: Bool {
-        get { defaults.bool(forKey: Keys.consent) }
-        set { defaults.set(newValue, forKey: Keys.consent) }
+        get { destination.map { defaults.bool(forKey: $0.consentKey) } ?? false }
+        set { if let d = destination { defaults.set(newValue, forKey: d.consentKey) } }
+    }
+
+    // MARK: 電腦的 Claude
+
+    /// 連上就存起來。回傳有沒有存進鑰匙圈；連不上丟 Failure
+    func connect(_ raw: String) async throws -> Bool {
+        guard var link = BridgeLink.parse(raw) else { throw Failure(message: Self.notBridgeMessage) }
+        // 第一次連，iPhone 會跳出「區域網路」的詢問，按允許之前那一下一定連不到，多試幾次
+        for attempt in 0..<4 {
+            do {
+                link.name = try await ping(link)
+                break
+            } catch let f as Failure where f.message == Self.unreachableMessage && attempt < 3 {
+                try await Task.sleep(for: .seconds(2))
+            }
+        }
+        bridge = link
+        return BridgeStore.save(link)
+    }
+
+    func disconnect() {
+        BridgeStore.clear()
+        bridge = nil
+    }
+
+    private struct Pong: Decodable { var name: String? }
+
+    /// 電腦在不在。先問這一下，電腦沒開時幾秒就知道，不用等 180 秒
+    private func ping(_ link: BridgeLink) async throws -> String {
+        let (data, status) = try await reach(URLRequest(url: link.url("ping"), timeoutInterval: 6))
+        if status == 401 { throw Failure(message: Self.rescanMessage) }
+        guard status == 200, let pong = try? JSONDecoder().decode(Pong.self, from: data) else {
+            throw Failure(message: Self.unreachableMessage)
+        }
+        let name = pong.name ?? ""
+        return name.isEmpty ? link.name : name
+    }
+
+    private func reach(_ req: URLRequest) async throws -> (Data, Int) {
+        do {
+            let (data, resp) = try await URLSession.shared.data(for: req)
+            return (data, (resp as? HTTPURLResponse)?.statusCode ?? 0)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            throw Failure(message: Self.unreachableMessage)
+        }
+    }
+
+    /// 電腦那頭最多想 170 秒，這裡等 180 秒。不重試：一句就是一次訂閱額度
+    private func runOnComputer<O: Decodable>(_ link: BridgeLink, _ task: AITask, body: Data, as type: O.Type) async throws -> Outcome<O> {
+        _ = try await ping(link)
+        var req = URLRequest(url: link.url("v1/task/\(task.rawValue)"), timeoutInterval: 180)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "content-type")
+        req.httpBody = body
+        let (data, status) = try await reach(req)
+        if status == 200 { return try decode(data, as: O.self) }
+        if status == 401 { throw Failure(message: Self.rescanMessage) }
+        let err = try? JSONDecoder().decode(ErrorBody.self, from: data)
+        throw Failure(message: err?.message ?? Self.fallbackMessage, rateLimited: status == 429)
     }
 
     #if DEBUG
@@ -86,8 +163,9 @@ final class AIClient {
     // MARK: 呼叫任務
 
     func run<I: Encodable, O: Decodable>(_ task: AITask, input: I, habitId: String? = nil, as type: O.Type) async throws -> Outcome<O> {
-        guard let base = baseURL else { throw Failure(message: Self.fallbackMessage) }
         let body = try JSONEncoder().encode(AIEnvelope(ts: Int(Date().timeIntervalSince1970), habit_id: habitId, input: input))
+        if let link = bridge { return try await runOnComputer(link, task, body: body, as: O.self) }
+        guard let base = baseURL else { throw Failure(message: Self.fallbackMessage) }
         let url = base.appendingPathComponent("v1/task/\(task.rawValue)")
 
         var lastError: Error = Failure(message: Self.fallbackMessage)

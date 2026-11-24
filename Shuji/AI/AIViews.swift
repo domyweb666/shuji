@@ -86,17 +86,24 @@ final class AICall<O: Decodable> {
 // MARK: 第一次用之前：說清楚資料去哪
 
 struct AIConsentSheet: View {
+    var destination: AIDestination?
     var agree: () -> Void
     var decline: () -> Void
 
     var body: some View {
         SheetFrame {
             SheetTitle("先說清楚資料去哪")
-            SheetNote("按下去之後，你在這一格寫的字會送到薯記的伺服器，再交給 Anthropic 的 Claude 模型想建議。")
             Card {
-                RowLabel(text: "只送這一次需要的內容", mini: "例如開關句和你剛寫的那幾句，不送整份紀錄")
+                switch destination {
+                case .computer(let name)?:
+                    RowLabel(text: "送到你的電腦「\(name)」", mini: "走家裡的網路，沒有加密")
+                    RowSep()
+                    RowLabel(text: "電腦再交給 Anthropic 的 Claude", mini: "用那台電腦登入的 Claude 帳號")
+                default:
+                    RowLabel(text: "送到薯記的伺服器，再交給 Anthropic 的 Claude", mini: "伺服器不存你寫的字，只記這台裝置今天用了幾次")
+                }
                 RowSep()
-                RowLabel(text: "薯記的伺服器不存你寫的字", mini: "只記這台裝置今天用了幾次，用來擋濫用")
+                RowLabel(text: "只送這一次需要的內容", mini: "例如你的習慣和剛寫的那幾句，不送整份紀錄")
                 RowSep()
                 RowLabel(text: "Anthropic 依它的隱私政策處理這段文字")
             }
@@ -114,7 +121,7 @@ private struct AIConsentModifier<O: Decodable>: ViewModifier {
 
     func body(content: Content) -> some View {
         content.sheet(isPresented: $call.needsConsent) {
-            AIConsentSheet(agree: { call.consented() }, decline: { call.declined() })
+            AIConsentSheet(destination: AIClient.shared.destination, agree: { call.consented() }, decline: { call.declined() })
         }
     }
 }
@@ -269,7 +276,7 @@ struct PlantHelper: View {
                 DomyButton(call.output == nil ? "幫我拆小一點" : "再想一次",
                            variant: call.output == nil ? .plain : .quiet, size: .compact,
                            disabled: goal.isEmpty) {
-                    call.run(.plant, PlantInput(goal: goal, queue: store.state.queue))
+                    call.run(.plant, PlantInput(goal: goal, queue: Array(store.state.queue.prefix(10))))
                 }
             }
             AIStatus(call: call)
@@ -285,7 +292,7 @@ struct PlantHelper: View {
                             }
                         }
                     }
-                    Foot("開關的候選放在下一步。")
+                    Foot("時機的候選放在下一步。")
                 } else if let m = o.message, !m.isEmpty {
                     WarnBox { Text(m) }
                 }
@@ -341,7 +348,7 @@ struct ObstacleSheet: View {
             SuggestionCard(text: "如果\(p.if)，就\(p.then)。", field: .backup, caption: "被「\(p.if)」擋住的時候")
         }
         if let b = o.backup, !b.isEmpty {
-            SuggestionCard(text: b, field: .backup, caption: "開關沒出現的那天")
+            SuggestionCard(text: b, field: .backup, caption: "時機沒出現的那天")
         }
         if let t = o.travel {
             if t.portable, !t.floor.isEmpty {
@@ -366,8 +373,8 @@ struct RivalHelper: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Sp.s4) {
-            SectionTitle("開關那一刻的對手")
-            AIQuestion(title: "開關出現的那一刻，你通常手上拿著什麼、或正在做什麼？") {
+            SectionTitle("那一刻的對手")
+            AIQuestion(title: "時機到的那一刻，你通常手上拿著什麼、或正在做什麼？") {
                 AIInput(placeholder: "手機，會先看一下訊息，常常就滑掉半小時", text: $rival)
             }
             AIQuestion(title: "那時候比較像") {
@@ -422,7 +429,7 @@ struct DiagnoseSheet: View {
         SheetFrame {
             SheetTitle("回答三題")
             SheetNote("照實寫就好，一兩句。答完會給你一個要改的地方。")
-            question("開關有出現嗎？", chips: ["有，每天都有", "有時候沒有", "很少出現"], text: $q1)
+            question("時機有出現嗎？", chips: ["有，每天都有", "有時候沒有", "很少出現"], text: $q1)
             question("最小一步太大嗎？", chips: ["不會", "累的日子做不到", "太大了"], text: $q2)
             question("旁邊有更近的東西搶走了嗎？", chips: ["沒有", "手機", "想睡、很累"], text: $q3)
             if !call.isLoading && call.output == nil {
@@ -482,7 +489,7 @@ struct AuditSheet: View {
             AIQuestion(title: "這一季它帶來了什麼？滿意嗎？") {
                 AIInput(placeholder: "寫了很多，但大多是零散筆記，沒有一篇發出去", text: $satisfied, limit: 300)
             }
-            AIQuestion(title: "下一季開關、地點、作息會變嗎？") {
+            AIQuestion(title: "下一季時機、地點、作息會變嗎？") {
                 AIInput(placeholder: "下一季會去外地住兩個月", text: $change, limit: 300)
             }
             if !call.isLoading {
@@ -532,7 +539,7 @@ struct PaywallSheet: View {
             Card {
                 feature("leaf", "季稽核", "一季一次，選維持、加量、換情境或退場")
                 RowSep()
-                feature("rectangle.on.rectangle", "小工具", "桌面和鎖定畫面看得到開關句、今天記了沒")
+                feature("rectangle.on.rectangle", "小工具", "桌面和鎖定畫面看得到你的習慣、今天記了沒")
             }
             if purchases.isFull {
                 DomyInfoStrip(text: "這台裝置已經是完整版了。")

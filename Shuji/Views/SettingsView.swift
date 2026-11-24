@@ -93,12 +93,13 @@ struct SettingsView: View {
     // MARK: 這個習慣
 
     private var habitSection: some View {
-        DomySection(title: "這個習慣") {
-            pushRow("text.quote", "開關句") { store.route = [.sentence] }
+        DomySection {
+            pushRow("text.quote", "我的習慣") { store.route = [.sentence] }
                 .disabled(habit == nil)
             RowSep()
-            toggleRow("suitcase", "旅行中", isOn: Binding(get: { store.state.travel }, set: { store.setTravel($0) }))
-                .disabled(habit == nil)
+            pushRow("forward", "跳過的理由") { store.route = [.skipReasons] }
+            RowSep()
+            pushRow("sparkles", "AI") { store.route = [.ai] }
         }
     }
 
@@ -106,20 +107,7 @@ struct SettingsView: View {
 
     private var rhythmSection: some View {
         DomySection(title: "節奏") {
-            menuRow("calendar", "每月請假", options: Array(0..<4),
-                    selection: Binding(get: { store.state.settings.leave },
-                                       set: { v in store.updateSettings { $0.leave = v } }),
-                    name: { "\($0) 次" })
-            RowSep()
-            menuRow("calendar.badge.clock", "週回顧日", options: Array(0..<7),
-                    selection: Binding(get: { store.state.settings.reviewDay },
-                                       set: { v in store.updateSettings { $0.reviewDay = v } }),
-                    name: { DayKey.weekNames[$0] })
-            RowSep()
-            toggleRow("leaf", "這週的田", isOn: Binding(get: { store.state.settings.weekCard },
-                                                     set: { v in store.updateSettings { $0.weekCard = v } }))
-            RowSep()
-            toggleRow("checkmark.circle", "收工檢查", isOn: Binding(get: { store.state.settings.check }, set: { setCheck($0) }))
+            toggleRow("alarm", "每天提醒", isOn: Binding(get: { store.state.settings.check }, set: { setCheck($0) }))
             if store.state.settings.check {
                 RowSep()
                 row {

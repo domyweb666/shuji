@@ -390,8 +390,6 @@ struct FindingCard: View {
             toSettings(.trigger)
         case "floor":
             toSettings(.floor)
-        case "travelFloor":
-            toSettings(.travelFloor)
         default:
             break
         }

@@ -23,7 +23,7 @@ enum GlanceCopy {
         .widgetDone: "今天記了 · 第 {n} 節",
         .widgetNone: "今天還沒記 · 已長 {n} 節",
         .widgetNoneFirst: "今天還沒記",
-        .widgetLeave: "今天請假",
+        .widgetLeave: "今天跳過",
         .widgetLetGo: "放手測試中，不用記",
         .widgetDug: "挖出來了，種下一個",
         .widgetEmpty: "還沒種東西",

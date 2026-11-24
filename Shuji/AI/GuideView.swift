@@ -25,7 +25,9 @@ enum Guide {
 
 struct GuideView: View {
     @Environment(Store.self) private var store
-    /// 改成自己填。帶著目前選到的最小一步和開關（沒有就空字串）
+    /// 有給的話只挑一組交出去（放進排隊），不種、不碰現在的習慣
+    var queueOnly: ((GuideOutput.Plan) -> Void)? = nil
+    /// 改成自己填。帶著目前選到的最小一步和時機（沒有就空字串）
     var onManual: (_ floor: String, _ trigger: String) -> Void
     var onRestore: () -> Void
 
@@ -57,7 +59,7 @@ struct GuideView: View {
     }
 
     var body: some View {
-        DomyScreen(title: "種一個習慣", sub: "回答幾題，幫你拆成每天做得到的一步。") {
+        DomyScreen(title: queueOnly == nil ? "種一個習慣" : "下一個要種什麼", sub: "回答幾題，幫你拆成每天做得到的一步。") {
             if !turns.isEmpty { saidSoFar }
             if call.isLoading {
                 AIStatus(call: call)
@@ -68,7 +70,9 @@ struct GuideView: View {
                 AIStatus(call: call)
                 VStack(spacing: Sp.s2) {
                     DomyButton("再試一次") { send() }
-                    DomyButton("我自己填", variant: .secondary) { onManual("", "") }
+                    if queueOnly == nil {
+                        DomyButton("我自己填", variant: .secondary) { onManual("", "") }
+                    }
                 }
             } else if let p = proposal {
                 proposalSection(p)
@@ -80,8 +84,10 @@ struct GuideView: View {
                     if !turns.isEmpty && !call.isUnfit {
                         DomyButton("重新問一次", variant: .quiet, size: .compact) { restart() }
                     }
-                    DomyButton("我自己填", variant: .quiet, size: .compact) { onManual("", "") }
-                    DomyButton("從備份還原", variant: .quiet, size: .compact) { onRestore() }
+                    if queueOnly == nil {
+                        DomyButton("我自己填", variant: .quiet, size: .compact) { onManual("", "") }
+                        DomyButton("從備份還原", variant: .quiet, size: .compact) { onRestore() }
+                    }
                 }
                 .frame(maxWidth: .infinity)
             }
@@ -132,7 +138,7 @@ struct GuideView: View {
             inputRow(placeholder: turns.isEmpty ? "例如：每天運動 30 分鐘" : "都不是的話，自己打") {
                 answer(draftValue)
             }
-            if turns.isEmpty {
+            if turns.isEmpty && queueOnly == nil {
                 Foot("一次只種一個，長好了再種下一個。")
             }
         }
@@ -191,23 +197,25 @@ struct GuideView: View {
             Foot("這是照這件事的難度估的範圍，每個人差很多。中間漏掉幾天，它還是在長。")
         }
 
-        DomyButton("種下去") { plant(p) }
+        DomyButton(queueOnly == nil ? "種下去" : "排進下一個") { plant(p) }
 
         if canAddTurn {
             VStack(alignment: .leading, spacing: Sp.s2) {
                 Eyebrow("想調整的話跟我說").padding(.horizontal, Sp.s1)
-                inputRow(placeholder: "例如：開關換成早上的") {
+                inputRow(placeholder: "例如：時機換成早上的") {
                     turns.append(GuideTurn(q: Guide.feedbackQuestion(p.plans), a: draftValue))
                     draft = ""
                     send()
                 }
             }
         }
-        DomyButton("我自己改這一組", variant: .quiet, size: .compact) {
-            let plan = p.plans[min(picked, p.plans.count - 1)]
-            onManual(plan.floor, plan.trigger)
+        if queueOnly == nil {
+            DomyButton("我自己改這一組", variant: .quiet, size: .compact) {
+                let plan = p.plans[min(picked, p.plans.count - 1)]
+                onManual(plan.floor, plan.trigger)
+            }
+            .frame(maxWidth: .infinity)
         }
-        .frame(maxWidth: .infinity)
     }
 
     // MARK: 動作
@@ -224,7 +232,7 @@ struct GuideView: View {
     private func send() {
         guard !turns.isEmpty else { return }
         awaiting = true
-        call.run(.guide, GuideInput(turns: turns, queue: store.state.queue))
+        call.run(.guide, GuideInput(turns: turns, queue: Array(store.state.queue.prefix(10))))
     }
 
     /// 新的一輪回來了
@@ -264,6 +272,10 @@ struct GuideView: View {
         guard !p.plans.isEmpty else { return }
         let plan = p.plans[min(picked, p.plans.count - 1)]
         typing = false
+        if let queueOnly {
+            queueOnly(plan)
+            return
+        }
         Haptic.bloom()
         store.plant(floor: String(plan.floor.prefix(40)), trigger: String(plan.trigger.prefix(30)))
     }

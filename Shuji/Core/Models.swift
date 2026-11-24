@@ -454,7 +454,7 @@ struct Settings: Codable, Equatable {
     var sound: Bool = true
     /// 0 是星期日
     var reviewDay: Int = 0
-    /// 每月可請假次數 0 到 3
+    /// 每月可請假次數（2026-11-25 起不擋、不顯示，留著讀舊檔）
     var leave: Int = 2
     /// 收工檢查（原生版才有）：預設關
     var check: Bool = false
@@ -462,10 +462,26 @@ struct Settings: Codable, Equatable {
     var checkMinute: Int = 0
     /// 這週的田：做完開始四問後顯示。預設開（回顧層可以關，書 3-6）
     var weekCard: Bool = true
+    /// 跳過的理由（今天頁跳過時點的那一排）
+    var skipReasons: [String] = Settings.defaultSkipReasons
+
+    static let defaultSkipReasons = ["旅行", "生病", "太累", "太忙"]
+    static let maxSkipReasons = 8
+    static let maxSkipReasonLength = 8
+
+    /// 去頭尾空白、截到 8 字、拿掉空的和重複的、最多 8 個
+    static func cleanSkipReasons(_ list: [String]) -> [String] {
+        var out: [String] = []
+        for raw in list {
+            let v = String(raw.trimmingCharacters(in: .whitespacesAndNewlines).prefix(maxSkipReasonLength))
+            if !v.isEmpty, !out.contains(v) { out.append(v) }
+        }
+        return Array(out.prefix(maxSkipReasons))
+    }
 
     init() {}
 
-    enum CodingKeys: String, CodingKey { case sound, reviewDay, leave, check, checkHour, checkMinute, weekCard }
+    enum CodingKeys: String, CodingKey { case sound, reviewDay, leave, check, checkHour, checkMinute, weekCard, skipReasons }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -476,6 +492,8 @@ struct Settings: Codable, Equatable {
         checkHour = min(23, max(0, Int(try c.decodeIfPresent(Double.self, forKey: .checkHour) ?? 21)))
         checkMinute = min(59, max(0, Int(try c.decodeIfPresent(Double.self, forKey: .checkMinute) ?? 0)))
         weekCard = try c.decodeIfPresent(Bool.self, forKey: .weekCard) ?? true
+        let reasons: [String]? = try? c.decodeIfPresent([String].self, forKey: .skipReasons)
+        skipReasons = reasons.map { Settings.cleanSkipReasons($0) } ?? Settings.defaultSkipReasons
     }
 }
 

@@ -36,7 +36,7 @@ struct TodayView: View {
         }
         .sheet(item: $sheet) { which in
             switch which {
-            case .more: MoreSheet()
+            case .more: SkipSheet()
             case .tips: TipsSheet()
             case .diagnose: DiagnoseSheet()
             }
@@ -78,7 +78,6 @@ struct TodayView: View {
                 .animation(Feel.change, value: st.nodes)
                 .accessibilityAddTraits(.isHeader)
             Spacer(minLength: 0)
-            if store.state.travel { Chip("旅行中") }
             if canOpenMore { MoreButton(label: moreLabel) { sheet = .more } }
         }
         .frame(minHeight: Sz.iconButton)
@@ -90,7 +89,7 @@ struct TodayView: View {
     }
 
     private var moreLabel: String {
-        store.state.log(on: t) == nil ? "昨天忘了記、今天請假" : "更多選項，可以撤銷今天"
+        store.state.log(on: t) == nil ? "跳過今天、昨天忘了記" : "更多選項，可以撤銷今天"
     }
 
     // MARK: 土面上的字
@@ -110,14 +109,12 @@ struct TodayView: View {
                 // 記好之後只留開關句，完成的樣子交給地瓜
             } else if let log, log.t == .leave {
                 Sentence(trigger: h.trigger, floor: floor)
-                note(["今天請假。", log.reason ?? ""].joined())
+                note("今天跳過。\(log.reason ?? "")")
             } else {
                 Sentence(trigger: h.trigger, floor: floor)
                 if store.state.consecutiveMissed(today: t) >= 2 {
-                    textLink("卡住的話，看看開關有沒有出現，或最小一步太大") { goSentence(nil) }
+                    textLink("卡住的話，看看時機對不對，或最小一步太大") { goSentence(nil) }
                     if !h.backup.isEmpty { note("不順的時候：\(h.backup)") }
-                } else if store.state.travelEndedOn == t.adding(-1) {
-                    note("回家第一天，東西擺回原位了嗎？")
                 }
             }
         }
@@ -142,7 +139,7 @@ struct TodayView: View {
         }
         VStack(spacing: Sp.s2) {
             Card {
-                RowButton(text: "開關有出現嗎？") { goSentence(.trigger) }
+                RowButton(text: "那個時機有出現嗎？") { goSentence(.trigger) }
                 RowSep()
                 RowButton(text: "最小一步太大嗎？") { goSentence(.floor) }
                 RowSep()
@@ -206,7 +203,7 @@ struct TodayView: View {
         if store.state.letgoDaysLeft(today: t) != nil {
             PotatoSeal(icon: "hourglass", title: "放手中")
         } else if let log, log.t == .leave {
-            PotatoSeal(icon: "moon.zzz", title: "請假")
+            PotatoSeal(icon: "moon.zzz", title: "跳過")
         } else {
             HoldButton(hint: store.state.longAbsence(today: t) ? "從這一節接上" : "做完最小一步，按住一下",
                        done: log?.t == .done) { recordNode() }
@@ -291,7 +288,7 @@ struct DugView: View {
                     DomyStat(value: "\(p.days)", unit: "天", label: "種了"),
                 ])
             }
-            DomyInfoStrip(text: "開關、東西擺的位置都留著，只是不用再記了。")
+            DomyInfoStrip(text: "時機、東西擺的位置都留著，只是不用再記了。")
             DomyButton("種下一個" + (store.state.queue.first.map { "：\($0)" } ?? "")) {
                 store.plantNext()
             }
