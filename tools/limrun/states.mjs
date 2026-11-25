@@ -24,7 +24,8 @@ const simctl = async a => { try { await c.simctl(a).wait(); } catch (e) { log('s
 const tap = async (l, wait = 900) => { try { await c.tapElement({ AXLabel: l }); log('tap', l); await sleep(wait); return true; } catch (e) { log('tap FAIL', l, (e.message || '').slice(0, 120)); return false; } };
 const frame = async l => (await nodes()).find(x => x.AXLabel === l)?.frame;
 const ymd = d => d.toISOString().slice(0, 10);
-let TODAY = new Date(Date.UTC(2026, 10, 24));
+// 模擬器是 UTC，薯記的一天從凌晨四點起算
+let TODAY = new Date(ymd(new Date(Date.now() - 4 * 36e5)) + "T00:00:00Z");
 const day = n => ymd(new Date(TODAY.getTime() + n * 864e5));
 function make({ skipLast = 0, log: lg, letgo, reviewDay = 0, lastReview = -1, n = 45, trigger = '起床喝完第一杯水', floor = '打開檔案寫一句', backup = '如果中午前還沒打開過檔案，就在第一餐吃完時打開', why = '把複雜的事想清楚、寫下來', empty = false, travel = false, flat = false } = {}) {
   const s = { logs: {}, weekly: [], queue: ['坐上蒲團按計時器'], basket: [], travel, settings: { reviewDay },
@@ -99,6 +100,26 @@ try {
     await load(make()); await tap('設定', 1500); await drag(); await go(/^完整版/, 'paywall');
     await load(make()); await tap('設定', 1500); await drag(); await drag(); await go(/家族|其他.*app|蔬果|更多/i, 'family');
     await simctl(['ui', 'booted', 'appearance', 'dark']); await load(make()); await tap('設定', 1500); await shot('set1-dark'); await drag(); await shot('set2-dark'); await drag(); await shot('set3-dark');
+  }
+  // 2026-11-25：回來卡、回來那一下、停了一陣子、竹籃、提醒退場、時間卡。每個狀態種下的日子不同，自動問才不會被當成問過
+  if (want('back')) {
+    const two = n => { const id = 'hab-b' + n, d = []; for (let i = n; i > 0; i--) d.push({ id: 'r' + i, habit: id, kind: 'done', day: day(-i), at: day(-i - 1) + `T${i % 6 === 0 ? 11 : 23}:${10 + (i * 7) % 48}:00Z`, tz: 'Asia/Taipei', source: 'hold' });
+      return { v: 2, habit: { id, floor: '坐上蒲團', trigger: '刷完牙', planted: day(-n) }, records: d, reviews: [4, 4.5, 5].map((v, i) => ({ id: 'v' + i, habit: id, date: day(-1 - 7 * (2 - i)), scores: [v, v, v, v] })), marks: [], basket: [], queue: [], settings: { reviewDay: 0 } }; };
+    const basket = n => { const s = two(n); s.basket = [{ id: 'p1', floor: '打開檔案寫一句', trigger: '起床喝完第一杯水', nodes: 71, ret: 9, days: 84, planted: day(-130), dug: day(-40) }]; return s; };
+    const off = n => { const s = two(n); s.settings.check = true; s.marks = [{ id: 'm1', habit: s.habit.id, kind: 'remindAfterMiss', day: day(-20) }]; return s; };
+    for (const [i, sfx] of ['', '-dark'].entries()) {
+      await simctl(['ui', 'booted', 'appearance', sfx ? 'dark' : 'light']);
+      await load(make({ n: 46 + i, skipLast: 1 })); await shot('b-yesterday' + sfx); await dump('b-yesterday' + sfx);
+      if (await tap('沒做', 1500)) { await shot('b-yesterday-why' + sfx); await dump('b-yesterday-why' + sfx); }
+      await load(make({ n: 48 + i, skipLast: 5 })); await shot('b-back' + sfx); await dump('b-back' + sfx);
+      await tap('旅行', 1800); await shot('b-back-after' + sfx); await holdShot('b-hold' + sfx);
+      await load(make({ n: 50 + i, skipLast: 16 })); await shot('b-long' + sfx); await dump('b-long' + sfx);
+      await holdShot('b-long-hold' + sfx); if (await tap('上次卡在哪？', 1500)) await shot('b-stuck' + sfx);
+      await load(basket(52 + i)); await shot('b-basket' + sfx); await dump('b-basket' + sfx);
+      await load(off(54 + i)); await shot('b-remind' + sfx);
+      await load(two(56 + i)); await tap('田', 1500); await tap('分析', 1200); try { await c.scroll('down', 620); } catch {} await sleep(1000); await shot('b-time' + sfx); await dump('b-time' + sfx);
+    }
+    await simctl(['ui', 'booted', 'appearance', 'light']);
   }
   // 2026-11-25：跳過、月曆可點、設定瘦身、AI 頁
   if (want('lazy')) {

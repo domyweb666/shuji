@@ -21,6 +21,7 @@ struct TodayView: View {
         case skip
         case tips
         case diagnose
+        case stuck
         var id: String { rawValue }
     }
 
@@ -39,6 +40,7 @@ struct TodayView: View {
             case .skip: SkipSheet()
             case .tips: TipsSheet()
             case .diagnose: DiagnoseSheet()
+            case .stuck: StuckSheet { stuck($0) }
             }
         }
     }
@@ -110,6 +112,7 @@ struct TodayView: View {
             } else if store.state.log(on: t) != nil {
                 // 記好、跳過之後只留這句，今天的樣子交給地瓜
                 Sentence(trigger: h.trigger, floor: floor)
+                if store.state.returnedFromLong(today: t) { textLink("上次卡在哪？") { sheet = .stuck } }
             } else {
                 Sentence(trigger: h.trigger, floor: floor)
                 if store.state.consecutiveMissed(today: t) >= 2 {
@@ -122,7 +125,11 @@ struct TodayView: View {
 
     @ViewBuilder
     private func absence(_ h: Habit) -> some View {
+        // 先歡迎，卡在哪等接上了再問
         VStack(alignment: .leading, spacing: Sp.s2) {
+            Text("你回來了")
+                .domyType(Ty.title1)
+                .foregroundStyle(Theme.fg)
             Text("藤還在，根都還在。")
                 .domyType(Ty.title3)
                 .foregroundStyle(Theme.fg)
@@ -132,22 +139,20 @@ struct TodayView: View {
                     .foregroundStyle(Theme.fg)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Text("停了一陣子。接上之前，看一下哪裡卡住：")
-                .domyType(Ty.subheadline)
-                .foregroundStyle(Theme.fg2)
-                .fixedSize(horizontal: false, vertical: true)
         }
-        VStack(spacing: Sp.s2) {
-            Card {
-                RowButton(text: "那個時機有出現嗎？") { goSentence(.trigger) }
-                RowSep()
-                RowButton(text: "最小一步太大嗎？") { goSentence(.floor) }
-                RowSep()
-                RowButton(text: "旁邊有更近的東西搶走了嗎？") { sheet = .tips }
-            }
-            if AIClient.shared.isAvailable {
-                DomyButton("回答三題，幫我找哪裡要改", variant: .plain, size: .compact, fullWidth: true) { sheet = .diagnose }
-            }
+        Text("如果\(h.trigger)，我就\(store.state.activeFloor)。")
+            .domyType(Ty.headline)
+            .foregroundStyle(Theme.fg)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func stuck(_ c: StuckSheet.Choice) {
+        switch c {
+        case .tips: sheet = .tips
+        case .diagnose: sheet = .diagnose
+        case .trigger, .floor:
+            sheet = nil
+            goSentence(c == .trigger ? .trigger : .floor)
         }
     }
 
@@ -206,7 +211,8 @@ struct TodayView: View {
             PotatoSkip(reason: log.reason ?? "")
         } else {
             HoldButton(hint: store.state.longAbsence(today: t) ? "從這一節接上" : "做完最小一步，按住一下",
-                       done: log?.t == .done) { recordNode() }
+                       done: log?.t == .done,
+                       back: log?.t == .done && store.state.isReturn(t)) { recordNode() }
         }
     }
 

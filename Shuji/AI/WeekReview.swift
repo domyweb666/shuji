@@ -76,6 +76,12 @@ struct WeekReviewInput: Codable, Equatable {
     var pattern: String
     /// 最近 84 天跳過的理由，次數多的在前
     var reasons: [Reason]
+    /// 開始四問的方向：up、down、flat、low、mixed、few
+    var ease: String
+    /// 多半什麼時候做，例「早上 7 點多」。看不出來是空的
+    var usual_time: String
+    /// 最近 84 天漏掉的理由，次數多的在前
+    var gap_reasons: [Reason]
 }
 
 extension AppState {
@@ -94,7 +100,19 @@ extension AppState {
                                week: .init(done: done, possible: done + missed.count, missed: missed, skipped: skipped),
                                weekday: split.a, weekend: split.b,
                                pattern: weekPattern(l, split: split, end: e),
-                               reasons: l.topSkipReasons())
+                               reasons: l.topSkipReasons(),
+                               ease: easeCode(today: t), usual_time: usualTime(today: t)?.text ?? "",
+                               gap_reasons: topGapReasons(today: t))
+    }
+
+    private func easeCode(today t: DayKey) -> String {
+        switch lineShape {
+        case .few: return "few"
+        case .up: return "up"
+        case .down: return "down"
+        case .mixed: return "mixed"
+        case .flat: return signals(today: t).flatLow ? "low" : "flat"
+        }
     }
 
     /// 跟「這週的田」的平日／週末觀察同一道門檻（M7、C9）：種下那週、放手的週、回來的週不講規律

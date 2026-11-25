@@ -212,6 +212,10 @@ struct Mark: Codable, Equatable, Identifiable {
         case letgoEnd
         case travelOn
         case travelOff
+        /// 提醒走到哪一段（Comeback.swift）。remindDaily 也用在使用者自己開關
+        case remindDaily
+        case remindAfterMiss
+        case remindOff
     }
 
     var id: String
@@ -518,6 +522,10 @@ struct AppState: Codable, Equatable {
     var observations: [Insight] = []
     var trials: [Trial] = []
     var seen: [ReportSeen] = []
+    /// 漏掉的那幾段和理由
+    var gaps: [Gap] = []
+    /// 竹籃每週問的那一句
+    var checks: [BasketCheck] = []
     var basket: [Potato] = []
     var queue: [String] = []
     var justDug: Potato? = nil
@@ -529,7 +537,7 @@ struct AppState: Codable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case v, habit, pastHabits, records, reviews, marks, changes, observations, trials, seen,
-             basket, queue, justDug, settings, dayOffset
+             gaps, checks, basket, queue, justDug, settings, dayOffset
     }
 
     init(from decoder: Decoder) throws {
@@ -550,6 +558,8 @@ struct AppState: Codable, Equatable {
         observations = try c.decodeIfPresent([Lenient<Insight>].self, forKey: .observations)?.compactMap(\.value) ?? []
         trials = try c.decodeIfPresent([Lenient<Trial>].self, forKey: .trials)?.compactMap(\.value) ?? []
         seen = try c.decodeIfPresent([Lenient<ReportSeen>].self, forKey: .seen)?.compactMap(\.value) ?? []
+        gaps = try c.decodeIfPresent([Lenient<Gap>].self, forKey: .gaps)?.compactMap(\.value) ?? []
+        checks = try c.decodeIfPresent([Lenient<BasketCheck>].self, forKey: .checks)?.compactMap(\.value) ?? []
         basket = try c.decodeIfPresent([Potato].self, forKey: .basket) ?? []
         queue = try c.decodeIfPresent([String].self, forKey: .queue) ?? []
         justDug = try c.decodeIfPresent(Potato.self, forKey: .justDug)

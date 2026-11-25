@@ -4,6 +4,9 @@ import CoreMotion
 /// 地瓜藤：每做一節長一片葉、往下紮一條根；回來那一節開一朵花。
 /// 原型是 canvas 2D，這裡用 Canvas + TimelineView 逐幀畫，數字全部照搬。
 struct VineView: View {
+    /// 土面以上再多畫多高
+    private static let sky: CGFloat = 120 // domy-ignore: 插畫畫布高度
+
     /// 土面離畫布頂多高
     var soilTop: CGFloat
     /// 地瓜頂端的位置，最後一節的根連到這裡（地瓜在正中間）
@@ -17,31 +20,42 @@ struct VineView: View {
     @State private var model = VineModel()
 
     var body: some View {
+        Color.clear
+            .contentShape(Rectangle())
+            .onTapGesture { point in model.tap(at: point) }
+            .background { canvas }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("地瓜藤，共 \(store.state.doneKeys.count) 節")
+            .onAppear {
+                sync()
+                if store.page == 1 { model.startMotion() }
+            }
+            .onChange(of: store.page) { _, page in
+                if page == 1 { model.startMotion() } else { model.stopMotion() }
+            }
+            .onDisappear { model.stopMotion() }
+            .onChange(of: store.state.records) { _, _ in sync() }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active && store.page == 1 { model.startMotion() } else { model.stopMotion() }
+            }
+    }
+
+    /// 畫布往上多留一截給花瓣飄，只管畫，那一截底下的字照樣點得到
+    private var canvas: some View {
         // 三頁都一直在，沒看著這頁就不畫
         TimelineView(.animation(paused: store.page != 1)) { timeline in
             Canvas { context, size in
+                let ground = CGSize(width: size.width, height: size.height - VineView.sky)
+                context.translateBy(x: 0, y: VineView.sky)
                 model.soilTop = soilTop
                 model.potatoTop = potatoTop
                 model.baked = baked
-                model.step(now: timeline.date, size: size, reduce: reduceMotion)
-                model.draw(in: &context, size: size, garden: Theme.garden(scheme), now: timeline.date, reduce: reduceMotion)
+                model.step(now: timeline.date, size: ground, reduce: reduceMotion)
+                model.draw(in: &context, size: ground, garden: Theme.garden(scheme), now: timeline.date, reduce: reduceMotion)
             }
         }
-        .contentShape(Rectangle())
-        .onTapGesture { point in model.tap(at: point) }
-        .accessibilityLabel("地瓜藤，共 \(store.state.doneKeys.count) 節")
-        .onAppear {
-            sync()
-            if store.page == 1 { model.startMotion() }
-        }
-        .onChange(of: store.page) { _, page in
-            if page == 1 { model.startMotion() } else { model.stopMotion() }
-        }
-        .onDisappear { model.stopMotion() }
-        .onChange(of: store.state.records) { _, _ in sync() }
-        .onChange(of: scenePhase) { _, phase in
-            if phase == .active && store.page == 1 { model.startMotion() } else { model.stopMotion() }
-        }
+        .padding(.top, -VineView.sky)
+        .allowsHitTesting(false)
     }
 
     private func sync() {
@@ -66,6 +80,9 @@ final class VineModel {
         var vx: Double
         var vy: Double
         var life: Double = 0
+        /// 回來那一下散開的花瓣
+        var petal = false
+        var spin = 0.0
     }
 
     struct Grow {
@@ -318,10 +335,16 @@ final class VineModel {
 
             if L.ret {
                 var fs = 1.0
-                if let gr = grow, i == gr.index { fs = a < 0.8 ? 0 : spring((a - 0.8) / 0.5) }
+                var rise = 1.0
+                if let gr = grow, i == gr.index {
+                    // 回來：先開得很大，停一下再收回來
+                    rise = a < 0.8 ? 0 : spring((a - 0.8) / 0.5)
+                    let back = max(0, min(1, (a - 2.0) / 0.8))
+                    fs = rise * (1 + 1.4 * (1 - ease(back)))
+                }
                 if fs > 0 {
                     drawFlower(in: &gc, x: x + (i % 2 == 1 ? -14 : 14), y: y - 10, s: fs * 1.05,
-                               rot: (1 - fs) * 0.8 + L.a * 0.5, garden: garden)
+                               rot: (1 - rise) * 0.8 + L.a * 0.5, garden: garden)
                 }
             }
         }
@@ -331,6 +354,14 @@ final class VineModel {
             g.spawned = true
             grow = g
             let (x, y) = nodePos(g.index)
+            if g.ret {
+                for k in 0..<22 {
+                    let out = k % 2 == 0 ? 1.0 : -1.0
+                    parts.append(Particle(x: x, y: y - 14, vx: out * (20 + Double.random(in: 0..<1) * 130),
+                                          vy: -40 - Double.random(in: 0..<1) * 90, life: -0.3,
+                                          petal: true, spin: Double.random(in: -5..<5)))
+                }
+            }
             for _ in 0..<8 {
                 parts.append(Particle(x: x + (Double.random(in: 0..<1) - 0.5) * 14, y: y + 4,
                                       vx: (Double.random(in: 0..<1) - 0.5) * 80,
@@ -340,10 +371,23 @@ final class VineModel {
         var alive: [Particle] = []
         for var p in parts {
             p.life += dt
-            p.vy += 420 * dt
+            // 花瓣等花開了才散，飄得比土粒慢
+            if p.petal && p.life < 0 {
+                alive.append(p)
+                continue
+            }
+            p.vy += (p.petal ? 90 : 420) * dt
             p.x += p.vx * dt
             p.y += p.vy * dt
             var g = gc
+            if p.petal {
+                g.opacity = max(0, 1 - p.life / 2)
+                g.translateBy(x: p.x, y: p.y)
+                g.rotate(by: .radians(p.spin * p.life))
+                g.fill(Path(ellipseIn: CGRect(x: -3.2, y: -4.6, width: 6.4, height: 9.2)), with: .color(garden.flower))
+                if p.life < 2 { alive.append(p) }
+                continue
+            }
             g.opacity = max(0, 1 - p.life / 0.7)
             g.fill(Path(CGRect(x: p.x, y: p.y, width: 3, height: 3)), with: .color(garden.soilDeep))
             if p.life < 0.7 { alive.append(p) }
@@ -362,7 +406,7 @@ final class VineModel {
             g.fill(leafPath(0.45), with: .color(garden.leaf))
         }
 
-        if grow != nil && a > 2.2 { grow = nil }
+        if let g = grow, a > (g.ret ? 3.0 : 2.2) { grow = nil }
     }
 
     private func leafPath(_ s: Double) -> Path {

@@ -143,6 +143,11 @@ enum CopyID: String, CaseIterable {
     case f3bottom = "F-3 下面"
     case f4q = "F-4"
     case f4item = "F-4 一項"
+    case f5q = "F-5"
+    case f5a = "F-5 答案"
+    case f5left = "F-5 左"
+    case f5mid = "F-5 中"
+    case f5right = "F-5 右"
     case fewOn = "F-0"
     case fewSoon = "F-0 推不出日期"
     case fewWeek = "F-0 這週"
@@ -297,6 +302,11 @@ enum Copy {
         .f3bottom: "要逼自己",
         .f4q: "跳過都因為什麼？",
         .f4item: "{reason} {k} 次",
+        .f5q: "都在什麼時候做？",
+        .f5a: "多半{time}",
+        .f5left: "清晨",
+        .f5mid: "下午",
+        .f5right: "半夜",
         .fewOn: "{date}看得到{what}",
         .fewSoon: "再記幾天就看得到",
         .fewWeek: "這週做得多不多",

@@ -99,6 +99,8 @@ enum Theme {
     static let bakedFlesh = hex(0xF0A23A)
     static let bakedCore = hex(0xFFD27A)
     static let bakedLine = hex(0xC97A1E)
+    /// 剝開那塊上面寫的字（回來那天）
+    static let bakedInk = hex(0x5A2E0E)
 
     /// 跳過那天的地瓜（插畫，淺深同色，上面的字是白的）
     static let potatoSkip = hex(0x74485D).opacity(0.85)

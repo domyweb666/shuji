@@ -26,6 +26,7 @@ struct ShujiApp: App {
             if phase == .active {
                 // 回到前景重算「今天」（凌晨四點換日），順便把收工檢查排到對的那天
                 store.refreshToday()
+                store.settleReminder()
                 CheckNotification.reschedule(state: store.state, today: store.today)
             }
         }

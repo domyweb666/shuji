@@ -63,9 +63,9 @@ final class HabitEstimateTests: XCTestCase {
         XCTAssertEqual(after.estimateDate(today: T), T.adding(45))
     }
 
-    func testFinishedIsToday() {
+    func testFinishedHasNoDate() {
         let s = makeState(planted: T.adding(-80), total: 60, done: (1...61).map { T.adding(-$0) })
-        XCTAssertEqual(s.estimateDate(today: T), T)
+        XCTAssertNil(s.estimateDate(today: T))
     }
 
     func testSkippedAndUndoneDaysDoNotCount() {

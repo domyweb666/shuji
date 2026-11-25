@@ -150,15 +150,15 @@ struct SettingsView: View {
 
     private func setCheck(_ on: Bool) {
         if !on {
-            store.updateSettings { $0.check = false }
+            store.setReminder(false)
             return
         }
         Task {
             let ok = await CheckNotification.requestAuthorization()
             if ok {
-                store.updateSettings { $0.check = true }
+                store.setReminder(true)
             } else {
-                store.updateSettings { $0.check = false }
+                store.setReminder(false)
                 store.show("通知沒有開。到 iPhone 的「設定」裡打開薯記的通知。")
             }
         }

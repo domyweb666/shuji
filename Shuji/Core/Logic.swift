@@ -186,9 +186,12 @@ extension AppState {
         /// S1 的細項：最近三次橫跨超過 21 天
         var spread: Bool = false
         var passCount: Int { [s1, s2, s3].filter { $0 }.count }
+        /// 開始四問那個要過，另外兩個過一個
+        var grown: Bool { s1 && (s2 || s3) }
     }
 
-    /// 三個「長好了嗎」訊號（M6）。S1：至少 6 次、最近三次相差 0.5 以內、最近一次在 14 天內、三次橫跨 21 天以內
+    /// 三個「長好了嗎」訊號（M6）。S1：至少 6 次、最近三次相差 0.5 以內、最近一次平均 4 以上、
+    /// 最近一次在 14 天內、三次橫跨 21 天以內（放手的日子不算進去：那兩週本來就不問）
     func signals(today t: DayKey) -> Signals {
         let w = weekly
         var s1 = false
@@ -199,30 +202,59 @@ extension AppState {
             let last3 = Array(w.suffix(3))
             let l = last3.map(\.avg)
             if let hi = l.max(), let lo = l.min(), hi - lo <= 0.5 {
-                stale = DayKey.days(from: last3[2].date, to: t) > 14
-                spread = DayKey.days(from: last3[0].date, to: last3[2].date) > 21
-                s1 = !stale && !spread
-                flatLow = s1 && l[2] < 3
+                stale = daysWithoutLetGo(from: last3[2].date, to: t) > 14
+                spread = daysWithoutLetGo(from: last3[0].date, to: last3[2].date) > 21
+                let flat = !stale && !spread
+                s1 = flat && l[2] >= ComebackRule.easeMin
+                flatLow = flat && l[2] < 3
             }
         }
         return Signals(s1: s1, flatLow: flatLow, s2: pressure == true, s3: letgoResult?.pass == true,
                        n: w.count, stale: stale, spread: spread)
     }
 
+    /// 兩天之間隔幾天，放手的日子不算
+    private func daysWithoutLetGo(from a: DayKey, to b: DayKey) -> Int {
+        let l = ledger(today: b)
+        var n = 0
+        var d = a.adding(1)
+        while d <= b {
+            if !l.isLetGo(d) { n += 1 }
+            d = d.adding(1)
+        }
+        return n
+    }
+
     /// 打開 app 要自動問什麼（2026-11-24 多米定：四問和長好了嗎都不擺在田，時間到自己跳）。
     /// 種滿一週才開始問；放手中、剛挖出來、停了一陣子都不問。
-    /// 四問：過了週回顧日、這週還沒做。長好了嗎照原本三個訊號，過兩個問要不要挖；
-    /// 曲線走平之後才問壓力週，沒遇到就問要不要放手兩週。
+    /// 漏了還沒問的先問（2026-11-25）。四問：過了週回顧日、這週還沒做。長好了嗎：四問那個過了，
+    /// 另外兩個再過一個就問要不要挖；還沒有的話先問壓力週，沒遇到就問要不要放手兩週。
+    /// 最後才是提醒要不要關、要不要開回來、竹籃那一句。
     func autoAsk(today t: DayKey) -> AutoAsk? {
-        guard let h = habit, justDug == nil, letgo == nil, !longAbsence(today: t),
-              DayKey.days(from: h.planted, to: t) >= 7 else { return nil }
-        if !reviewedThisWeek(today: t) { return .review }
+        autoAsks(today: t).first
+    }
+
+    /// 現在可以問的，照順序。剛問過的由 Store 跳過，往後找下一個
+    func autoAsks(today t: DayKey) -> [AutoAsk] {
+        guard let h = habit, justDug == nil, letgo == nil, !longAbsence(today: t) else { return [] }
+        if pendingGap(today: t) != nil { return [.back] }
+        guard DayKey.days(from: h.planted, to: t) >= 7 else { return [] }
+        if !reviewedThisWeek(today: t) { return [.review] }
+        var out: [AutoAsk] = []
         let sg = signals(today: t)
-        if sg.passCount >= 2 { return .dig }
-        guard sg.s1, !sg.flatLow else { return nil }
-        if pressureDay.map({ DayKey.days(from: $0, to: t) >= AutoAsk.pressure.cooldown }) ?? true { return .pressure }
-        if letgoResult?.end.map({ DayKey.days(from: $0, to: t) >= AutoAsk.letgo.cooldown }) ?? true { return .letgo }
-        return nil
+        if sg.grown {
+            out.append(.dig)
+        } else if sg.s1 {
+            if pressureDay.map({ DayKey.days(from: $0, to: t) >= AutoAsk.pressure.cooldown }) ?? true {
+                out.append(.pressure)
+            } else if letgoResult?.end.map({ DayKey.days(from: $0, to: t) >= AutoAsk.letgo.cooldown }) ?? true {
+                out.append(.letgo)
+            }
+        }
+        if reminderCanStop(today: t) { out.append(.remindOff) }
+        if reminderMayReturn(today: t) { out.append(.remindOn) }
+        if basketAsk(today: t) != nil { out.append(.basket) }
+        return out
     }
 
     /// 放手測試開始前 14 天做了幾天
@@ -265,11 +297,20 @@ extension AppState {
 
 /// 打開 app 自動跳出來的那一張
 enum AutoAsk: String, Identifiable {
-    case review, dig, pressure, letgo
+    case back, review, dig, pressure, letgo, remindOff, remindOn, basket
 
     var id: String { rawValue }
     /// 跳過之後隔幾天再問
-    var cooldown: Int { self == .review ? 1 : 14 }
+    var cooldown: Int {
+        switch self {
+        case .back, .review: return 1
+        case .basket: return 7
+        case .dig, .pressure, .letgo, .remindOff, .remindOn: return 14
+        }
+    }
+
+    /// 接在四問後面一起問；提醒、竹籃等下次打開
+    var followsReview: Bool { self == .dig || self == .pressure || self == .letgo }
 }
 
 /// 一次放手測試

@@ -4,6 +4,7 @@ import UserNotifications
 /// 收工檢查：原型寫「原生版才有」的那個開關。
 /// 一天最多一則，而且只在「那天還沒記」的情況下才排；記了就排明天。
 /// 放手測試中、剛挖完、還沒種，都不排。連漏 3 天以上也先不排，記了下一節再恢復（.analytics/08 安靜規則 6）。
+/// 穩了之後只在前一天漏掉時響，再穩兩週就退場（Comeback.swift）。
 enum CheckNotification {
     static let identifier = "shuji.check"
 
@@ -25,7 +26,8 @@ enum CheckNotification {
     static func reschedule(state: AppState, today t: DayKey, now: Date = Date()) {
         let center = UNUserNotificationCenter.current()
         center.removePendingNotificationRequests(withIdentifiers: [identifier])
-        guard state.checkShouldSchedule(today: t) else { return }
+        let days = state.reminderDays(today: t)
+        guard !days.isEmpty else { return }
 
         let hour = state.settings.checkHour
         let minute = state.settings.checkMinute
@@ -34,17 +36,12 @@ enum CheckNotification {
             (hour < 4 ? day.adding(1) : day).date(hour: hour, minute: minute)
         }
 
-        var candidate = fireDate(for: t)
-        let todayLogged = state.log(on: t) != nil
-        if todayLogged || (candidate.map { $0 <= now } ?? true) {
-            candidate = fireDate(for: t.adding(1))
-        }
-        guard let date = candidate, date > now else { return }
+        guard let date = days.compactMap({ fireDate(for: $0) }).first(where: { $0 > now }) else { return }
 
         let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: date)
         let content = UNMutableNotificationContent()
         content.title = "薯記"
-        content.body = "今天還沒記。做完「\(state.activeFloor)」，回來按住一下。"
+        content.body = state.reminderText
         content.sound = .default
         let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
         center.add(UNNotificationRequest(identifier: identifier, content: content, trigger: trigger))

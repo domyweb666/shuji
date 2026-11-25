@@ -203,7 +203,7 @@ final class LogicTests: XCTestCase {
         d.marks = []
         XCTAssertEqual(d.autoAsk(today: T), .review)
         // 這一段不看停了多久：補一筆最近的紀錄
-        d.put(T.adding(5).string, .done)
+        for i in 0...5 { d.put(T.adding(i).string, .done) }
         XCTAssertEqual(d.autoAsk(today: T.adding(5)), .review, "過了三天也照樣問")
 
         func weeks(_ v: Double) -> [WeeklyReview] {
@@ -220,6 +220,8 @@ final class LogicTests: XCTestCase {
         XCTAssertNil(d.autoAsk(today: T), "放手中不問")
         d.marks = []
         d.setWeekly(weeks(2))
+        XCTAssertFalse(d.autoAsks(today: T).contains(.dig))
+        d.basket = []
         XCTAssertNil(d.autoAsk(today: T), "走平在低處，不問長好了嗎")
         d.habit?.planted = T.adding(-6)
         d.setWeekly([])
@@ -278,7 +280,7 @@ final class LogicTests: XCTestCase {
 
         d.setWeekly((0..<6).map { WeeklyReview(date: T.adding(-42 + $0 * 7), scores: [2, 2, 2, 2]) })
         let low = d.signals(today: T)
-        XCTAssertTrue(low.s1)
+        XCTAssertFalse(low.s1, "平均要 4 以上")
         XCTAssertTrue(low.flatLow)
 
         d.setWeekly((0..<5).map { WeeklyReview(date: T.adding(-35 + $0 * 7), scores: [5, 5, 5, 5]) })

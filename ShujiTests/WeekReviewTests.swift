@@ -127,7 +127,8 @@ final class WeekReviewTests: XCTestCase {
     private func week(_ done: Int, _ missed: [String], _ skipped: [WeekReviewInput.Skip] = [], pattern: String = "none") -> WeekReviewInput {
         WeekReviewInput(floor: "a", trigger: "b", days_planted: 30,
                         week: .init(done: done, possible: done + missed.count, missed: missed, skipped: skipped),
-                        weekday: .zero, weekend: .zero, pattern: pattern, reasons: [])
+                        weekday: .zero, weekend: .zero, pattern: pattern, reasons: [],
+                        ease: "few", usual_time: "", gap_reasons: [])
     }
 
     func testFallbackLines() {

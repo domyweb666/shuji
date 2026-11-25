@@ -110,6 +110,12 @@ struct EaseCard: Equatable {
     var weekly: [WeeklyReview]
 }
 
+/// 都在什麼時候做？
+struct TimeCard: Equatable {
+    var answer: String
+    var time: UsualTime
+}
+
 /// 跳過都因為什麼？
 struct SkipCard: Equatable {
     var answer: String
@@ -127,6 +133,7 @@ struct FieldCards: Equatable {
     var week: WeekCard?
     var gap: GapCard?
     var ease: EaseCard?
+    var time: TimeCard?
     var skips: SkipCard?
     var few: FewCard?
 }
@@ -136,7 +143,7 @@ extension AppState {
         guard habit != nil else { return FieldCards() }
         let l = ledger(today: t)
         var c = FieldCards(week: weekCard(l, today: t), gap: gapCard(l, today: t),
-                           ease: easeCard(l, today: t), skips: skipCard(l, today: t))
+                           ease: easeCard(l, today: t), time: timeCard(today: t), skips: skipCard(l, today: t))
         if c.week == nil, c.gap == nil, c.ease == nil { c.few = fewCard(l, today: t) }
         return c
     }
@@ -180,6 +187,11 @@ extension AppState {
         case .flat: answer = Copy.t(signals(today: t).flatLow ? .f3low : .f3flat)
         }
         return EaseCard(answer: answer, weekly: Array(weekly.suffix(8)))
+    }
+
+    /// M18：看得出來才出
+    private func timeCard(today t: DayKey) -> TimeCard? {
+        usualTime(today: t).map { TimeCard(answer: Copy.t(.f5a, ["time": $0.text]), time: $0) }
     }
 
     /// 最近 84 天有寫理由的跳過，次數多的在前，一樣多的取比較近的

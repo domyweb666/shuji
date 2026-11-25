@@ -240,7 +240,7 @@ struct TalkView: View {
             let n = model.days ?? HabitDifficulty.medium.days
             let d = store.today.adding(n)
             return Words(lead: "\(model.trigger)就\(model.floor)。", big: "預估 \(n) 天養成",
-                         foot: "大概 \(d.month)月\(d.day)日，我每週會跟你說走到哪。")
+                         foot: "大概 \(d.month)月\(d.day)日，每個人差很多，我每週跟你說走到哪。")
         }
     }
 

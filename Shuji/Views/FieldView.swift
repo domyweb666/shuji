@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 田：月曆｜分析。分析是四張問句卡（2026-11-25 多米選田 B）：問題、答案、一張圖，資料不夠就不出那張。
+/// 田：月曆｜分析。分析是問句卡（2026-11-25 多米選田 B）：問題、答案、一張圖，資料不夠就不出那張。
 /// 開始四問、長好了嗎不在這裡：時間到了打開 app 自動問（AutoAsk）。竹籃和排隊收在右上角。
 struct FieldView: View {
     enum Side: String, CaseIterable { case month = "月曆", charts = "分析" }
@@ -148,6 +148,9 @@ struct FieldView: View {
         }
         if let e = cards.ease {
             questionCard(Copy.t(.f3q), e.answer) { ChartView(weekly: e.weekly) }
+        }
+        if let c = cards.time {
+            questionCard(Copy.t(.f5q), c.answer) { TimeDots(time: c.time) }
         }
         if let s = cards.skips {
             questionCard(Copy.t(.f4q), s.answer) {
@@ -354,6 +357,53 @@ struct WeekBarsView: View {
             .frame(height: r.done == 0 ? Sz.hairline : tall(r.done))
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("\(week)，\(days)")
+    }
+}
+
+/// 一天一條線（清晨四點到隔天四點），每一次一個點，擠在一起的往上下疊，淡色帶是多半在做的那兩小時
+struct TimeDots: View {
+    var time: UsualTime
+    private static let tall: CGFloat = 56 // domy-ignore: 圖表高度
+
+    var body: some View {
+        VStack(spacing: Sp.s2) {
+            Canvas { ctx, size in
+                let r = Sp.s1
+                func X(_ minute: Int) -> CGFloat { r + (size.width - r * 2) * CGFloat(minute) / 1440 }
+                let mid = size.height / 2
+                let left = X(time.start) - r
+                let right = X(min(1440, time.start + UsualTime.window)) + r
+                let band = CGRect(x: left, y: 0, width: right - left, height: size.height)
+                ctx.fill(Path(roundedRect: band, cornerRadius: Rd.sm, style: .continuous), with: .color(Theme.soft))
+                var line = Path()
+                line.move(to: CGPoint(x: 0, y: mid))
+                line.addLine(to: CGPoint(x: size.width, y: mid))
+                ctx.stroke(line, with: .color(Theme.separator), lineWidth: Sz.hairline)
+                let columns = Dictionary(grouping: time.points) { Int(X($0) / (r * 2)) }
+                for (key, column) in columns {
+                    let x = min((CGFloat(key) + 0.5) * r * 2, size.width - r)
+                    let n = CGFloat(column.count)
+                    let step = n > 1 ? min(r * 2, (size.height - r * 2) / (n - 1)) : 0
+                    for i in column.indices {
+                        let y = mid + (CGFloat(i) - (n - 1) / 2) * step
+                        ctx.fill(Path(ellipseIn: CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2)),
+                                 with: .color(Theme.accent.opacity(0.6)))
+                    }
+                }
+            }
+            .frame(height: TimeDots.tall)
+            HStack {
+                Text(Copy.t(.f5left))
+                Spacer(minLength: 0)
+                Text(Copy.t(.f5mid))
+                Spacer(minLength: 0)
+                Text(Copy.t(.f5right))
+            }
+            .domyType(Ty.footnote)
+            .foregroundStyle(Theme.fg2)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("最近 \(time.points.count) 次")
     }
 }
 

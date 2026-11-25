@@ -8,6 +8,8 @@ struct PotatoBody<Label: View>: View {
     var ringColor: Color
     /// 記好了：1 是烤好剝開，0 是原本的樣子
     var open: CGFloat = 0
+    /// 剝開的那塊上面要寫字：紋路不畫
+    var written = false
     @ViewBuilder var label: Label
 
     /// 地瓜本體、外圈、整塊佔的大小（插畫，不走代號）
@@ -41,7 +43,7 @@ struct PotatoBody<Label: View>: View {
                     .frame(width: size.width, height: size.height)
                     .opacity(1 - open)
                 // 從中間裂開：先一條縫，再往上下張開
-                BakedFlesh()
+                BakedFlesh(written: written)
                     .frame(width: size.width, height: size.height)
                     .scaleEffect(x: 0.6 + 0.4 * open, y: max(0.01, open))
                     .opacity(open > 0.02 ? 1 : 0)
@@ -133,6 +135,8 @@ struct PotatoSeal: View {
 
 /// 烤好剝開的切口（插畫，座標照 Claude Design 選項 C）
 private struct BakedFlesh: View {
+    var written: Bool
+
     var body: some View {
         Canvas { ctx, size in
             var g = ctx
@@ -151,6 +155,7 @@ private struct BakedFlesh: View {
                 (-60, 0), (-42, -17), (-29, -9), (-13, -17), (6, -24), (27, -17), (58, -2),
                 (33, 13), (17, 9), (0, 17), (-21, 23), (-42, 13), (-60, 0),
             ]), with: .color(Theme.bakedCore))
+            guard !written else { return }
             var lines = Path()
             lines.move(to: CGPoint(x: -29, y: -2))
             lines.addQuadCurve(to: CGPoint(x: -8, y: 0), control: CGPoint(x: -19, y: 4))
@@ -197,6 +202,8 @@ struct HoldButton: View {
     var hint: String
     /// 今天記好了：同一顆地瓜烤好剝開，按了沒反應。用同一個 view，變形才接得起來
     var done = false
+    /// 今天是回來的那一節：剝開的地方寫「你回來了」，整天都在
+    var back = false
     var onComplete: () -> Void
 
     @GestureState private var pressing = false
@@ -220,12 +227,21 @@ struct HoldButton: View {
         TimelineView(.animation(paused: startTime == nil && releaseTime == nil)) { timeline in
             let p = progress(at: timeline.date)
             PotatoBody(fill: pressing && !done ? Theme.strong : Theme.accent, ring: done ? 1 : p,
-                       ringColor: Theme.potatoRing(scheme), open: done ? 1 : 0) {
-                Text("按住")
-                    .domyType(Ty.title1)
-                    .tracking(2)
-                    .foregroundStyle(Theme.onAccent)
-                    .opacity(done ? 0 : 1)
+                       ringColor: Theme.potatoRing(scheme), open: done ? 1 : 0, written: back) {
+                ZStack {
+                    Text("按住")
+                        .domyType(Ty.title1)
+                        .tracking(2)
+                        .foregroundStyle(Theme.onAccent)
+                        .opacity(done ? 0 : 1)
+                    Text("你回來了")
+                        .domyType(Ty.title3)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                        .foregroundStyle(Theme.bakedInk)
+                        .frame(maxWidth: PotatoBody<EmptyView>.bodySize.width * 0.56)
+                        .opacity(done && back ? 1 : 0)
+                }
             }
             .scaleEffect(reduceMotion || done ? 1 : 1 + HoldButton.swell * p)
             .animation(reduceMotion ? nil : Feel.open, value: done)
@@ -254,7 +270,7 @@ struct HoldButton: View {
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(done ? "今天記好了" : "按住一秒半，記一節")
+        .accessibilityLabel(done ? (back ? "你回來了，今天記好了" : "今天記好了") : "按住一秒半，記一節")
         .accessibilityHint(done ? "" : hint)
         .accessibilityAddTraits(done ? [] : .isButton)
         .accessibilityAction { complete() }
