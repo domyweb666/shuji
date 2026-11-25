@@ -22,6 +22,7 @@ struct TodayView: View {
         case tips
         case diagnose
         case stuck
+        case next
         var id: String { rawValue }
     }
 
@@ -41,6 +42,7 @@ struct TodayView: View {
             case .tips: TipsSheet()
             case .diagnose: DiagnoseSheet()
             case .stuck: StuckSheet { stuck($0) }
+            case .next: NextHabitSheet()
             }
         }
     }
@@ -107,6 +109,10 @@ struct TodayView: View {
             if let left = store.state.letgoDaysLeft(today: t) {
                 Sentence(trigger: h.trigger, floor: floor)
                 note("放手測試中，照常做就好，不用記。還有 \(left) 天。")
+                // 這兩週沒事做，快長好了：先想下一個
+                if store.state.queue.isEmpty, AIClient.shared.isAvailable {
+                    textLink("先想下一個要種什麼") { sheet = .next }
+                }
             } else if store.state.longAbsence(today: t) {
                 absence(h)
             } else if store.state.log(on: t) != nil {
@@ -116,7 +122,11 @@ struct TodayView: View {
             } else {
                 Sentence(trigger: h.trigger, floor: floor)
                 if store.state.consecutiveMissed(today: t) >= 2 {
-                    textLink("卡住的話，看看時機對不對，或最小一步太大") { goSentence(nil) }
+                    if AIClient.shared.isAvailable {
+                        textLink("連著沒做，找找看哪裡卡住") { sheet = .diagnose }
+                    } else {
+                        textLink("卡住的話，看看時機對不對，或最小一步太大") { goSentence(nil) }
+                    }
                     if !h.backup.isEmpty { note("不順的時候：\(h.backup)") }
                 }
             }

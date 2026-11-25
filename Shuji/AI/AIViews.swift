@@ -80,10 +80,9 @@ final class AICall<O: Decodable> {
     }
 }
 
-// MARK: 第一次用之前：說清楚資料去哪
+// MARK: 第一次送去薯記的伺服器之前：說清楚資料去哪。送到自己的電腦不問（QC-0011）
 
 struct AIConsentSheet: View {
-    var destination: AIDestination?
     var agree: () -> Void
     var decline: () -> Void
 
@@ -91,14 +90,7 @@ struct AIConsentSheet: View {
         SheetFrame {
             SheetTitle("先說清楚資料去哪")
             Card {
-                switch destination {
-                case .computer(let name)?:
-                    RowLabel(text: "送到你的電腦「\(name)」", mini: "走家裡的網路，沒有加密")
-                    RowSep()
-                    RowLabel(text: "電腦再交給 Anthropic 的 Claude", mini: "用那台電腦登入的 Claude 帳號")
-                default:
-                    RowLabel(text: "送到薯記的伺服器，再交給 Anthropic 的 Claude", mini: "伺服器不存你寫的字，只記這台裝置今天用了幾次")
-                }
+                RowLabel(text: "送到薯記的伺服器，再交給 Anthropic 的 Claude", mini: "伺服器不存你寫的字，只記這台裝置今天用了幾次")
                 RowSep()
                 RowLabel(text: "只送這一次需要的內容", mini: "例如你的習慣和剛寫的那幾句，不送整份紀錄")
                 RowSep()
@@ -118,7 +110,7 @@ private struct AIConsentModifier<O: Decodable>: ViewModifier {
 
     func body(content: Content) -> some View {
         content.sheet(isPresented: $call.needsConsent) {
-            AIConsentSheet(destination: AIClient.shared.destination, agree: { call.consented() }, decline: { call.declined() })
+            AIConsentSheet(agree: { call.consented() }, decline: { call.declined() })
         }
     }
 }
@@ -312,19 +304,23 @@ struct PlantHelper: View {
 
 struct ObstacleSheet: View {
     @Environment(Store.self) private var store
-    @State private var interruptions = ""
+    /// 從回來卡過來：剛說的理由。有的話一打開就想，不用再打字
+    private let given: Bool
+    @State private var interruptions: String
     @State private var travels = false
+    @State private var asked = false
     @State private var call = AICall<ObstacleOutput>()
+
+    init(interruption: String = "") {
+        given = !interruption.isEmpty
+        _interruptions = State(initialValue: interruption)
+    }
 
     var body: some View {
         SheetFrame {
-            SheetTitle("不順的時候")
-            SheetNote("過去兩週，這件事最常怎麼被打斷？挑最常見的一兩個寫就好。沒被打斷過也可以空著。")
-            AIInput(placeholder: "早上有時候要趕出門，週末常常睡到中午", text: $interruptions, limit: 300)
-            Card {
-                DomyToggleRow(label: "最近會出遠門", isOn: $travels)
-            }
-            if !call.isLoading {
+            SheetTitle(given ? "下次遇到「\(interruptions)」" : "不順的時候")
+            if !given { form }
+            if !call.isLoading, !given || asked {
                 DomyButton(call.output == nil ? "幫我想" : "再想一次",
                            variant: call.output == nil ? .primary : .secondary) { run() }
             }
@@ -332,6 +328,20 @@ struct ObstacleSheet: View {
             if let o = call.output { results(o) }
         }
         .aiConsent(call)
+        .onAppear {
+            guard given, !asked else { return }
+            asked = true
+            run()
+        }
+    }
+
+    @ViewBuilder
+    private var form: some View {
+        SheetNote("過去兩週，這件事最常怎麼被打斷？挑最常見的一兩個寫就好。沒被打斷過也可以空著。")
+        AIInput(placeholder: "早上有時候要趕出門，週末常常睡到中午", text: $interruptions, limit: 300)
+        Card {
+            DomyToggleRow(label: "最近會出遠門", isOn: $travels)
+        }
     }
 
     private func run() {

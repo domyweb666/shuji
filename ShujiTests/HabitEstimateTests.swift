@@ -207,6 +207,65 @@ final class ReplanTests: XCTestCase {
         XCTAssertEqual(s.state.trials.first?.status, .stopped)
     }
 
+    /// QC-0011：換習慣之後，今天的藤要馬上是空的；舊的收在「種到一半的」
+    func testReplanClearsTheSceneAndKeepsTheOldOne() {
+        let s = makeStore()
+        s.plant(floor: "坐到鋪墊上", trigger: "洗完臉")
+        let old = s.state.habit!.id
+        s.logToday()
+        s.vineGrow = true
+        s.plant(floor: "握起啞鈴做一下", trigger: "剛坐上椅子")
+        XCTAssertEqual(s.state.doneKeys, [], "新的習慣一節都還沒有")
+        XCTAssertNil(s.state.log(on: s.today))
+        XCTAssertFalse(s.vineGrow)
+        XCTAssertEqual(s.state.unfinished.map(\.id), [old])
+        XCTAssertEqual(s.state.unfinished.first?.done, 1)
+        XCTAssertEqual(s.state.unfinished.first?.end, s.today)
+    }
+
+    /// 長好挖出來的在竹籃，一天都沒記過的不算
+    func testUnfinishedSkipsDugAndEmpty() {
+        let s = makeStore()
+        s.state = AppState.demo(today: s.today)
+        s.dig()
+        s.plantNext()
+        s.plant(floor: "讀一頁書", trigger: "刷完牙")
+        s.plant(floor: "喝一口水", trigger: "刷完牙")
+        XCTAssertEqual(s.state.pastHabits.count, 2)
+        XCTAssertEqual(s.state.unfinished, [])
+    }
+
+    /// 回來卡後面只問一次「下次怎麼辦」；想過了就不問
+    func testBackupIsOfferedOnce() {
+        let s = makeStore()
+        XCTAssertFalse(s.shouldOfferBackup)
+        s.plant(floor: "讀一頁書", trigger: "刷完牙")
+        XCTAssertTrue(s.shouldOfferBackup)
+        s.markBackupOffered()
+        XCTAssertFalse(s.shouldOfferBackup)
+        s.plant(floor: "喝一口水", trigger: "刷完牙")
+        XCTAssertTrue(s.shouldOfferBackup)
+        s.updateHabit { $0.backup = "晚上補一口" }
+        XCTAssertFalse(s.shouldOfferBackup)
+    }
+
+    func testDueLineHasTheYear() {
+        XCTAssertTrue(TalkModel.dueLine(today: DayKey("2026-11-26")!, days: 90).contains("2027 年 2 月 24 日"))
+    }
+
+    /// 進度條：答完一題才走四分之一
+    @MainActor
+    func testProgressCountsAnswered() {
+        let m = TalkModel()
+        XCTAssertEqual(m.answered, 0)
+        m.arrived(PlanOutput(type: "options", lead: "", options: ["坐到鋪墊上"]), at: .floor)
+        XCTAssertEqual(m.answered, 1)
+        m.arrived(PlanOutput(type: "options", lead: "", options: ["洗完臉"]), at: .trigger)
+        XCTAssertEqual(m.answered, 2)
+        m.arrived(PlanOutput(type: "estimate", difficulty: .hard), at: .plan)
+        XCTAssertEqual(m.answered, 3)
+    }
+
     func testReplanWhileJustDug() {
         let s = makeStore()
         s.state = AppState.demo(today: s.today)

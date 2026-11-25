@@ -366,6 +366,18 @@ struct PotatoBadge: View {
     }
 }
 
+/// 種到一半的：只有苗，還沒結地瓜
+struct SproutBadge: View {
+    var body: some View {
+        Image(systemName: "leaf")
+            .font(Ty.callout.font)
+            .foregroundStyle(Theme.leafDynamic)
+            .frame(width: Sz.touch, height: Sz.touch)
+            .background(Theme.surfaceMuted, in: Circle())
+            .accessibilityHidden(true)
+    }
+}
+
 struct ToastView: View {
     var text: String
 

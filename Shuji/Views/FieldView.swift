@@ -457,6 +457,7 @@ struct BasketView: View {
     @State private var queueText = ""
     @FocusState private var queueFocused: Bool
     @State private var picked: PotatoPick? = nil
+    @State private var pickedUnfinished: UnfinishedHabit? = nil
 
     struct PotatoPick: Identifiable {
         let index: Int
@@ -466,8 +467,10 @@ struct BasketView: View {
     var body: some View {
         DomyScreen {
             basketSection
+            if !store.state.unfinished.isEmpty { unfinishedSection }
             queueSection
         }
+        .sheet(item: $pickedUnfinished) { UnfinishedSheet(item: $0) }
         .sheet(item: $picked) { pick in
             if store.state.basket.indices.contains(pick.index) {
                 PotatoSheet(potato: store.state.basket[pick.index])
@@ -572,6 +575,37 @@ struct BasketView: View {
         }
     }
 
+    // MARK: 種到一半的
+
+    private var unfinishedSection: some View {
+        DomySection(title: "種到一半的") {
+            ForEach(Array(store.state.unfinished.enumerated()), id: \.element.id) { i, u in
+                if i > 0 { RowSep() }
+                Button { pickedUnfinished = u } label: {
+                    HStack(spacing: Sp.s3) {
+                        SproutBadge()
+                        VStack(alignment: .leading, spacing: Sp.s1 / 2) {
+                            Text(u.habit.floor).domyType(Ty.body).foregroundStyle(Theme.fg)
+                            Text("做了 \(u.done) 天 · \(u.habit.planted.short) – \(u.end.short)")
+                                .domyType(Ty.footnote)
+                                .monospacedDigit()
+                                .foregroundStyle(Theme.fg2)
+                        }
+                        Spacer(minLength: 0)
+                        Image(systemName: "chevron.right")
+                            .font(Ty.footnote.font.weight(.semibold))
+                            .foregroundStyle(Theme.fg3)
+                            .accessibilityHidden(true)
+                    }
+                    .padding(.horizontal, Sp.s4)
+                    .padding(.vertical, Sp.s3)
+                    .frame(minHeight: Sz.row)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(DomyRowPressStyle())
+            }
+        }
+    }
 }
 
 /// 開始四問的折線：y 是量表全幅 1 到 7（不寫數字），x 照日期（不是第幾次）；隔超過 10 天的兩點不連線（中間空了）

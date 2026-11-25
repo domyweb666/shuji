@@ -1,9 +1,9 @@
 import SwiftUI
 
-/// AI：從設定推進來的一頁。沒連電腦時只有一顆連線的按鈕；連上之後列 AI 可以幫的事。
+/// AI：從設定推進來的一頁，只管連線。AI 幫的忙各自在用得到的時候出現，不列成選單（QC-0011）：
+/// 漏掉說了理由 → 想下次怎麼辦；連著沒做 → 找哪裡卡住；放手中 → 想下一個。
 struct AIHubView: View {
     @Environment(Store.self) private var store
-    @State private var sheet: HubSheet? = nil
     @State private var scanning = false
     @State private var pasting = false
     @State private var draft = ""
@@ -11,11 +11,6 @@ struct AIHubView: View {
     @State private var problem: String? = nil
     @FocusState private var typing: Bool
     private let ai = AIClient.shared
-
-    enum HubSheet: String, Identifiable {
-        case obstacle, diagnose, next
-        var id: String { rawValue }
-    }
 
     private var draftValue: String { draft.trimmingCharacters(in: .whitespacesAndNewlines) }
 
@@ -34,17 +29,9 @@ struct AIHubView: View {
             } else {
                 connectSection
             }
-            if ai.isAvailable { helpSection }
         }
         .navigationTitle("AI")
         .fullScreenCover(isPresented: $scanning) { scanner }
-        .sheet(item: $sheet) { which in
-            switch which {
-            case .obstacle: ObstacleSheet()
-            case .diagnose: DiagnoseSheet()
-            case .next: NextHabitSheet()
-            }
-        }
     }
 
     // MARK: 連電腦
@@ -119,22 +106,10 @@ struct AIHubView: View {
             }
         }
     }
-
-    // MARK: 可以幫的事
-
-    private var helpSection: some View {
-        DomySection(title: "AI 可以幫你") {
-            RowButton(text: "想不順的時候怎麼辦", disabled: store.state.habit == nil) { sheet = .obstacle }
-            RowSep()
-            RowButton(text: "找哪裡卡住", disabled: store.state.habit == nil) { sheet = .diagnose }
-            RowSep()
-            RowButton(text: "想下一個要種什麼") { sheet = .next }
-        }
-    }
 }
 
 /// 跟地瓜對答想下一個要種什麼，選好最小一步放進排隊，不動現在種著的
-private struct NextHabitSheet: View {
+struct NextHabitSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var model = TalkModel()
 

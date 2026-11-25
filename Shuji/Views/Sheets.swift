@@ -471,3 +471,22 @@ struct PotatoSheet: View {
         }
     }
 }
+
+// MARK: 種到一半的習慣
+
+struct UnfinishedSheet: View {
+    var item: UnfinishedHabit
+
+    var body: some View {
+        SheetFrame {
+            SheetTitle(item.habit.floor)
+            Card {
+                RowLabel(text: "時機", value: item.habit.trigger)
+                RowSep()
+                RowLabel(text: "做了", value: "\(item.done) 天")
+                RowSep()
+                RowLabel(text: "種了", value: "\(item.habit.planted.short) – \(item.end.short)")
+            }
+        }
+    }
+}

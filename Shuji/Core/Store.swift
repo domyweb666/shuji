@@ -181,6 +181,7 @@ final class Store {
         // 上一個習慣讓提醒退場了：新的重新開始每天提醒
         if state.marks.last(where: { $0.kind.isReminder })?.kind == .remindOff { state.settings.check = true }
         state.justDug = nil
+        vineGrow = false
         state.habit = Habit(floor: floor, trigger: trigger, planted: t, id: makeID("hab"), plantedAt: st.at, tz: st.tz,
                             estimatedDays: estimatedDays)
         if let i = state.queue.firstIndex(of: floor) { state.queue.remove(at: i) }
@@ -365,6 +366,22 @@ final class Store {
     func markAsked(_ a: AutoAsk) {
         guard let key = askKey(a) else { return }
         UserDefaults.standard.set(today.string, forKey: key)
+    }
+
+    // MARK: 不順的時候
+
+    private static func backupKey(_ habit: String) -> String { "shuji.ask.backup.\(habit)" }
+
+    /// 要不要在回來卡後面問「下次怎麼辦」：還沒想過、最近兩週也沒問過
+    var shouldOfferBackup: Bool {
+        guard let h = state.habit, h.backup.isEmpty else { return false }
+        guard let last = UserDefaults.standard.string(forKey: Store.backupKey(h.id)).flatMap({ DayKey($0) }) else { return true }
+        return abs(DayKey.days(from: last, to: today)) >= 14
+    }
+
+    func markBackupOffered() {
+        guard let h = state.habit else { return }
+        UserDefaults.standard.set(today.string, forKey: Store.backupKey(h.id))
     }
 
     // MARK: 提醒、竹籃

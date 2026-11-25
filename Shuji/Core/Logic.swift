@@ -257,6 +257,22 @@ extension AppState {
         return out
     }
 
+    /// 種到一半就換掉的習慣，最近換掉的排前面（QC-0011）。從 pastHabits 和紀錄讀出來，不另外存。
+    /// 挖出來的在竹籃；一天都沒記過的不算。
+    var unfinished: [UnfinishedHabit] {
+        let dug = Set(basket.compactMap(\.habit))
+        let line = pastHabits + (habit.map { [$0] } ?? [])
+        var out: [UnfinishedHabit] = []
+        for (i, h) in pastHabits.enumerated() where !dug.contains(h.id) && h.id != habit?.id {
+            let days = Set(records.filter { $0.habit == h.id && $0.isActive && $0.kind == .done }.map(\.day))
+            guard let last = days.max() else { continue }
+            // 下一個種下去那天就是換掉的那天
+            let next = i + 1 < line.count ? line[i + 1].planted : last
+            out.append(UnfinishedHabit(habit: h, done: days.count, end: max(last, next)))
+        }
+        return out.reversed()
+    }
+
     /// 放手測試開始前 14 天做了幾天
     func doneInLast14Days(today t: DayKey) -> Int {
         let l = ledger(today: t)
@@ -311,6 +327,16 @@ enum AutoAsk: String, Identifiable {
 
     /// 接在四問後面一起問；提醒、竹籃等下次打開
     var followsReview: Bool { self == .dig || self == .pressure || self == .letgo }
+}
+
+/// 種到一半就換掉的習慣
+struct UnfinishedHabit: Identifiable, Equatable {
+    var habit: Habit
+    /// 做了幾天
+    var done: Int
+    /// 換掉那天
+    var end: DayKey
+    var id: String { habit.id }
 }
 
 /// 一次放手測試

@@ -35,6 +35,11 @@ struct VineView: View {
             }
             .onDisappear { model.stopMotion() }
             .onChange(of: store.state.records) { _, _ in sync() }
+            // 換習慣不會動到紀錄，要自己收：舊的藤和花馬上拿掉（QC-0011）
+            .onChange(of: store.state.habit?.id) { _, _ in
+                model.clear()
+                sync()
+            }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active && store.page == 1 { model.startMotion() } else { model.stopMotion() }
             }
@@ -107,6 +112,11 @@ final class VineModel {
     private var width = 0.0
     private var height = 0.0
     private let motion = CMMotionManager()
+
+    /// 換了一個習慣：根直接回到地瓜頂，不從上一個的樣子滑過去
+    func clear() {
+        lastTime = nil
+    }
 
     func configure(returns: [Bool], animateLast: Bool, reduce: Bool) {
         leaves = returns.enumerated().map { Leaf(index: $0.offset, ret: $0.element) }

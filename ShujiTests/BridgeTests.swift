@@ -48,10 +48,12 @@ final class BridgeTests: XCTestCase {
         XCTAssertNil(AIDestination.pick(bridge: nil, server: nil))
     }
 
-    /// 換一台電腦、換成伺服器，都是另一把 key，要再問一次
+    /// QC-0011：送到自己的電腦不問；送到伺服器要問，換一台再問一次
     func testConsentKeyFollowsDestination() {
-        let keys = [AIDestination.computer(name: "多米"), .computer(name: "另一台"), .server(host: "a.com"), .server(host: "多米")].map(\.consentKey)
-        XCTAssertEqual(Set(keys).count, 4)
+        XCTAssertNil(AIDestination.computer(name: "多米").consentKey)
+        let keys = [AIDestination.server(host: "a.com"), .server(host: "多米")].map(\.consentKey)
+        XCTAssertFalse(keys.contains(nil))
+        XCTAssertEqual(Set(keys).count, 2)
         XCTAssertFalse(keys.contains("shuji.ai.consent"), "舊的單一旗標不再算數")
     }
 

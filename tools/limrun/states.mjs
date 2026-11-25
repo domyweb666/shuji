@@ -96,7 +96,6 @@ try {
     const toBottom = async () => { await tap('設定', 1500); await drag(); await drag(); };
     await load(make()); await tap('設定', 1500); await shot('set1'); await dump('set1');
     await drag(); await shot('set2'); await dump('set2'); await drag(); await shot('set3'); await dump('set3');
-    await load(make()); await tap('設定', 1500); await drag(); await drag(); await go(/什麼時候不適合/, 'unfit');
     await load(make()); await tap('設定', 1500); await drag(); await go(/^完整版/, 'paywall');
     await load(make()); await tap('設定', 1500); await drag(); await drag(); await go(/家族|其他.*app|蔬果|更多/i, 'family');
     await simctl(['ui', 'booted', 'appearance', 'dark']); await load(make()); await tap('設定', 1500); await shot('set1-dark'); await drag(); await shot('set2-dark'); await drag(); await shot('set3-dark');

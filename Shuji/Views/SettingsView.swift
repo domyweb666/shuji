@@ -21,7 +21,7 @@ struct SettingsView: View {
     private let config = VeggieConfig.shuji
 
     enum SettingsSheet: String, Identifiable {
-        case export, restore, unfit, paywall, mail
+        case export, restore, paywall, mail
         var id: String { rawValue }
     }
 
@@ -42,7 +42,6 @@ struct SettingsView: View {
             switch which {
             case .export: ExportSheet()
             case .restore: RestoreSheet()
-            case .unfit: UnfitSheet()
             case .paywall: PaywallSheet()
             case .mail:
                 FeedbackMailView(recipient: config.supportEmail ?? "", feedback: Feedback(config: config)) { sheet = nil }
@@ -231,14 +230,12 @@ struct SettingsView: View {
                 }
                 .buttonStyle(.plain)
             }
-            RowSep()
             aboutRows
         }
     }
 
     @ViewBuilder
     private var aboutRows: some View {
-        pushRow("info.circle", "什麼時候不適合用這個 app") { sheet = .unfit }
         if !VeggieApp.others(excluding: config.slug).isEmpty {
             RowSep()
             pushRow("square.grid.2x2", VeggieText.family) { store.route = [.family] }

@@ -64,7 +64,7 @@ struct TalkView: View {
             if on { connecting = false }
         }
         .sheet(isPresented: $model.needsConsent, onDismiss: { model.decline() }) {
-            AIConsentSheet(destination: ai.destination, agree: { model.agree() }, decline: { model.decline() })
+            AIConsentSheet(agree: { model.agree() }, decline: { model.decline() })
         }
         .sheet(isPresented: $connecting, onDismiss: { connectClosed() }) { connectSheet }
     }
@@ -106,7 +106,7 @@ struct TalkView: View {
                 Capsule().fill(Theme.surfaceMuted)
                 Capsule()
                     .fill(Theme.leafDynamic)
-                    .frame(width: geo.size.width * CGFloat(shownStep) / CGFloat(total))
+                    .frame(width: geo.size.width * CGFloat(min(model.answered, total)) / CGFloat(total))
             }
         }
         .frame(height: TalkView.barHeight)
@@ -238,9 +238,8 @@ struct TalkView: View {
                          big: "接在它後面", foot: "")
         case .plan:
             let n = model.days ?? HabitDifficulty.medium.days
-            let d = store.today.adding(n)
-            return Words(lead: "\(model.trigger)就\(model.floor)。", big: "預估 \(n) 天養成",
-                         foot: "大概 \(d.month)月\(d.day)日，每個人差很多，我每週跟你說走到哪。")
+            return Words(lead: "\(model.trigger)，就\(model.floor)。", big: "預估 \(n) 天",
+                         foot: TalkModel.dueLine(today: store.today, days: n))
         }
     }
 

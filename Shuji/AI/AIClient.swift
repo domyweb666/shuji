@@ -66,10 +66,13 @@ final class AIClient {
         AIDestination.pick(bridge: bridge, server: serverReady ? baseURL : nil)
     }
 
-    /// 同意是對「送去這裡」的同意：換一台電腦、換成伺服器都要再問
+    /// 同意是對「送去這裡」的同意：換一台伺服器要再問；送到自己的電腦不問
     var hasConsented: Bool {
-        get { destination.map { defaults.bool(forKey: $0.consentKey) } ?? false }
-        set { if let d = destination { defaults.set(newValue, forKey: d.consentKey) } }
+        get {
+            guard let d = destination else { return false }
+            return d.consentKey.map { defaults.bool(forKey: $0) } ?? true
+        }
+        set { if let key = destination?.consentKey { defaults.set(newValue, forKey: key) } }
     }
 
     // MARK: 電腦的 Claude
