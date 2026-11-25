@@ -114,7 +114,7 @@ function wrongNumbers(finding: string, i: TaskInput<9>): string[] {
     known.push(i.weekday.done, i.weekday.days, i.weekday.days - i.weekday.done, i.weekend.done, i.weekend.days, i.weekend.days - i.weekend.done, ...i.reasons.map((r) => r.count));
   }
   const bad: string[] = [];
-  for (const m of finding.matchAll(/(漏了?|做了?|跳過了?)?s*([0-9]+|[一二兩三四五六七八九十]+)\s*(天|次)/g)) {
+  for (const m of finding.matchAll(/(漏了?|做了?|跳過了?)?\s*([0-9]+|[一二兩三四五六七八九十]+)\s*(天|次)/g)) {
     const n = cnNumber(m[2]);
     const verb = finding.includes('這週') ? m[1]?.[0] : undefined;
     const want = verb === '漏' ? w.missed.length : verb === '做' ? w.done : verb === '跳' ? w.skipped.length : null;
