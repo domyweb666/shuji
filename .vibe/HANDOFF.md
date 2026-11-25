@@ -1,41 +1,38 @@
-# Handoff: 懶人化、AI 對答、週報已併 main，TestFlight 1.0（10）已上傳，等多米真機回饋
+# Handoff: 需求研究的兩批「回來」「放手」寫完，等 CI 綠、拍圖、給多米看
 
-> 2026-11-25 凌晨。repo `E:\習慣地瓜\shuji`，`main` 017d3c9（併了 `lazy-1125`）。上一份見 `.vibe/handoff/archive/2026-11-25-lazy-round2.md`
+> 2026-11-25 11:55。repo `E:\習慣地瓜\shuji`，分支 `return-1125`（從 main 30c118c 開，已 push，**沒併 main、沒出 TestFlight**）。上一份見 `.vibe/handoff/archive/2026-11-25-testflight10.md`
 
-## ✅ 現況
-- 程式：第一輪懶人化、跳過 A、田 B、設定 A、地瓜對答（Onboarding 與「重新規劃習慣」）、週報 B、任務 8／9、離題防線、`estimatedDays`。
-- CI：main 017d3c9，run 45476607688 三個工作全綠。
-- TestFlight 1.0（10）：run 45476614373，Upload succeeded（2026-11-25）。Apple 處理完沒有查。
-- 週報進度列改成「做了 {n} 天／大概 {月}{日}長好」（6e64375，圖還是舊字）。
-- 圖：`E:\習慣地瓜\懶人化-1125\`（對答、對答-深色、週報、其他、其他-2）。淺深色都看過。
-- 電腦轉接：`npm run bridge` 真 CLI 打過任務 8 三步、離題一次、任務 9 一次，都 200，2.5 到 7 秒，欄位跟 app 的 Decodable 對得上。
+## ✅ 寫完的（規格 `docs/回來與放手-規格.md`，由來 `docs/需求研究對照-2026-11-25.md`）
+- Swift：回來卡、回來那一下（花放大、花瓣、地瓜寫「你回來了」）、停了一陣子的今天頁、提醒退場、田的時間卡（M18）、竹籃每週一句、長好門檻（四問平均 4 以上）、預估滿了寫「快長好了」。新檔 `Core/Comeback.swift`、`Core/UsualTime.swift`、`Views/BackSheet.swift`、`ShujiTests/ComebackTests.swift`。
+- 伺服器任務 9：多收 ease、usual_time、gap_reasons（都可缺），vitest 126 綠。
+- `.analytics` 02–08、兩份閘門紀錄、機制表、功能增刪建議都同步。
 
-## 🔧 這一輪改的
-- 田分析「這週做得多嗎」：還沒到回顧日只寫「這週到現在 {n} 天」（沒記：這週還沒記），回顧日當天才跟平常比。
-- 對答：「換一批」會折成兩行，鎖一行；按「自己打」就收起選項（原本鍵盤會蓋住輸入框），上一步回到選項；連不到電腦的卡分成一句大字加一句小字；自己填的進度條也改綠色。
-- 「重新規劃習慣」的確認改成系統提示框（原本的小框浮在畫面中間、字折得難看）。
-- 週報：改完留在同一張卡，標題變「改好了」，只剩一顆「好」；藤和葉貼住土面。AI 那句沒句號就補；`backup` 只給一個瞬間時，補成「吃完早午餐就坐上蒲團」再存。
-- 田分析資料不夠的那張：加地瓜，進度條從 0 也看得到一點。
-- `tools/limrun/states.mjs`：拍對答前先切回淺色、補「跳過的理由」、分析捲到底、鍵盤升起（talk1-key 到 talk3-key）的圖。
+## 🚧 現況
+- CI run 45541795122：app 編得過，只有 `WeekReviewTests.swift` 少三個參數；已修（d1b6365）。Swift 單元測試**還沒有任何一次跑完**。
+- 新一輪 **run 45542873262**（d1b6365）剛排上。
+- 模擬器一張都沒拍。真機沒驗。任務 9 新提示詞沒實跑模型、沒部署。
 
-## 📌 多米定的（別再問）
-1. 跳過 A、田 B、設定 A、週報 B。
-2. AI 貫穿流程、直接講答案；第 1 題只給輸入框，第 2、3 步給選項；預估天數由程式給（60／66／90，依據 `ai/預估天數依據.md`），不給使用者挑。
-3. 對話有綠色進度條、地瓜、大字、一頁一題。
-4. 「程式寫週報、不用模型」已推翻（`.analytics/00`）。數字、門檻、規律仍由程式算。
-5. 畫布「先試幾天」選單、page `ai` 兩個入口作廢。
-
-## 🚧 等多米
-- 真機跑一次「掃 QR → 對答 → 種下去 → 四問 → 週報」。
-- 我看了還不滿意、他沒表態的：AI 設定頁下面很空、跳過單底部留白多、田分析第一屏第三張圖被分頁列蓋住。
-
-## ⚠️ 沒驗
-- 真機：掃 QR、區網授權、防火牆、手感、旁白、字級放大。
-- 模擬器裡沒有接真的 AI：對答和週報的圖是 DEBUG 假資料（`-talkDemo`、`-weekDemo`）。真的那段只驗到 bridge 回傳。
-- 對答打中文（注音選字列較高）沒拍，鍵盤只拍了英文的。任務 1、3、4、6 沒用真 CLI 跑。
-- 週報、其他兩組圖是 cac499e 拍的（之後只改對答頁）；對答兩張是 8b876c8。
-- 週回顧日在 Limrun 是 UTC 日期，跟台灣差一天內，沒影響。
+## 📌 定了的（別再問）
+1. 多米 2026-11-25：「兩批都做」。沒先畫畫布，用模擬器實拍圖給他看（已跟他說）。
+2. 沒選的照現況不動：每天制、小工具鎖完整版、完整版賣什麼。報告最後再問一次就好。
+3. 不照研究做：藤縮、自訂換日、四問改兩週一次。
+4. 回來卡同一段漏掉只問一次（避免一直漏的人每天被問）；收掉等於不說。理由不改「漏掉」，回來照樣開花。
+5. 程式的判斷：停了一陣子跟 `longAbsence` 同算法；剛調回每天提醒的先待滿 14 天；竹籃跳過正在種、已排隊的。
+6. 提交要指定檔名；不開 worktree；不併 main、不上 TestFlight，等多米看圖點頭。
 
 ## ⏭️ 下一步
-1. 照多米真機的回饋開新分支改。2027 年 4 月起 Apple 只收 iOS 27 SDK，出版流程要改選 Xcode 27。
-2. Limrun 拍圖：`node tools/limrun/states.mjs <zip> <輸出> talk,lazy,field,done,leave,long40`、`node tools/limrun/week.mjs <zip> <輸出>`。macOS runner 常排不到，看到 job was not acquired 就 `gh run rerun <id> --failed`。
+1. `gh run view 45542873262 --json conclusion,jobs`。job was not acquired 就 `gh run rerun <id> --failed`。紅的照 `--log-failed` 修，`gh workflow run ios.yml --ref return-1125` 重跑。
+2. 綠了：`gh run download <id> -n Shuji-simulator-app` 下到 scratchpad，跑 `node tools/limrun/states.mjs <zip> <輸出> back,todo,done,missed2,absent`（`back` 那組是新寫的，還沒跑過；狀態名與 AXLabel 可能要調）。Limrun 以分鐘計價，腳本自己會關。
+3. 自己看每張（淺深色）：地瓜上的「你回來了」有沒有擠到、花放大有沒有被切、回來卡間距（8／12／20）、時間卡三個軸字、對答最後一句（`talk` 組第 4 步）變長有沒有折壞。
+4. 圖拼好放 `E:\習慣地瓜\回來與放手-1125\`，給多米看。
+5. 記憶 `shuji-ios-port-2026-11.md` 與 MEMORY.md 那一行更新。
+
+## 🧩 剩下的工作
+- [ ] A：CI 三個工作全綠｜run 綠｜ShujiTests、有錯的 Swift｜無
+- [ ] B：拍圖、自看、修畫面｜back 組淺深色都看過｜tools/limrun/states.mjs、Views｜依賴 A
+- [ ] C：給多米看圖加總報告｜圖在上面那個資料夾｜無程式｜依賴 B
+- [ ] D（順手，可不做）：`server/src/checks.ts` 的 `wrongNumbers` 正則 `s*` 應是 `\s*`，「5 天」帶空格時沒被核對（舊 bug）
+
+## ⚠️ 已知沒處理
+- M18、checks、提醒三種 Mark 在 `.analytics/01-問題清單.md` 沒有題號；04 的新結構沒請多米過閘門 2。
+- 調回每天提醒之後連漏到第 3 天，照安靜規則 6 又會安靜（沿用舊規則）。
