@@ -83,6 +83,8 @@ struct AskSheet: View {
 
     var body: some View {
         switch ask {
+        case .back:
+            BackSheet(gap: store.state.pendingGap(today: store.today) ?? PendingGap(from: store.today, to: store.today))
         case .review:
             WeekSheet()
         case .dig:
@@ -105,10 +107,44 @@ struct AskSheet: View {
                 store.startLetGo()
                 dismiss()
             }, onNo: { dismiss() })
+        case .remindOff:
+            AskCard(potato: true, title: "你已經不需要我提醒了", yes: "好", no: "繼續提醒", onYes: {
+                store.stopReminder()
+                dismiss()
+            }, onNo: { dismiss() })
+        case .remindOn:
+            AskCard(title: "要不要再提醒你一陣子？", yes: "好", no: "不用", onYes: {
+                let s = store
+                Task {
+                    if await CheckNotification.requestAuthorization() { s.setReminder(true) }
+                }
+                dismiss()
+            }, onNo: { dismiss() })
+        case .basket:
+            BasketAsk(potato: store.state.basketAsk(today: store.today))
         }
     }
 
     private var floor: String { store.state.habit?.floor ?? "" }
+}
+
+/// 竹籃裡的一顆，每週問一句。答完 basketAsk 會換人，所以打開那一刻的留著
+private struct BasketAsk: View {
+    @State private var potato: Potato?
+    @Environment(Store.self) private var store
+    @Environment(\.dismiss) private var dismiss
+
+    init(potato: Potato?) { _potato = State(initialValue: potato) }
+
+    var body: some View {
+        AskCard(potato: true, title: "「\(potato?.floor ?? "")」\n現在還會做嗎？", yes: "會", no: "有點掉了",
+                onYes: { answer(true) }, onNo: { answer(false) })
+    }
+
+    private func answer(_ still: Bool) {
+        if let potato { store.answerBasket(potato, still: still) }
+        dismiss()
+    }
 }
 
 /// 一句話、兩顆按鈕

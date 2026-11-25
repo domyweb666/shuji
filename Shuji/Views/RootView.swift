@@ -62,7 +62,7 @@ struct RootView: View {
     /// 四問答完、壓力週答完，剛好長好了就接著問要不要挖；其他的等下次打開
     private func afterAsk() {
         guard let next = store.nextAsk() else { return }
-        if next == .dig || lastAsk == .review { ask = next }
+        if next == .dig || (lastAsk == .review && next.followsReview) { ask = next }
         lastAsk = nil
     }
 

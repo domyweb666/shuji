@@ -482,7 +482,7 @@ extension AppState {
     func lineGrown(today t: DayKey) -> String {
         let sg = signals(today: t)
         if sg.n < 6 { return Copy.t(.w3few, ["k": sg.passCount, "n": sg.n]) }
-        if sg.passCount >= 2 { return Copy.t(.w3dig, ["k": sg.passCount]) }
+        if sg.grown { return Copy.t(.w3dig, ["k": sg.passCount]) }
         return Copy.t(.w3, ["k": sg.passCount])
     }
 

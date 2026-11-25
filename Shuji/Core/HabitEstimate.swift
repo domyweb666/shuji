@@ -27,11 +27,11 @@ extension AppState {
         return (doneKeys.filter { $0 <= today }.count, total)
     }
 
-    /// 照最近的記錄率，大概哪一天走完。走完了回 today
+    /// 照最近的記錄率，大概哪一天走完。走完了沒有日期（長好沒有看三個訊號）
     func estimateDate(today: DayKey) -> DayKey? {
         guard let h = habit, let p = estimateProgress(today: today) else { return nil }
         let left = p.total - p.done
-        guard left > 0 else { return today }
+        guard left > 0 else { return nil }
         // 看今天以前的 14 天（今天還沒過完，不算進來，日期才不會早晚不一樣）
         let window = min(AppState.estimateWindow, max(0, DayKey.days(from: h.planted, to: today)))
         var rate = 1.0

@@ -66,6 +66,9 @@ final class VineModel {
         var vx: Double
         var vy: Double
         var life: Double = 0
+        /// 回來那一下散開的花瓣
+        var petal = false
+        var spin = 0.0
     }
 
     struct Grow {
@@ -318,10 +321,16 @@ final class VineModel {
 
             if L.ret {
                 var fs = 1.0
-                if let gr = grow, i == gr.index { fs = a < 0.8 ? 0 : spring((a - 0.8) / 0.5) }
+                var rise = 1.0
+                if let gr = grow, i == gr.index {
+                    // 回來：先開得很大，停一下再收回來
+                    rise = a < 0.8 ? 0 : spring((a - 0.8) / 0.5)
+                    let back = max(0, min(1, (a - 2.0) / 0.8))
+                    fs = rise * (1 + 1.4 * (1 - ease(back)))
+                }
                 if fs > 0 {
                     drawFlower(in: &gc, x: x + (i % 2 == 1 ? -14 : 14), y: y - 10, s: fs * 1.05,
-                               rot: (1 - fs) * 0.8 + L.a * 0.5, garden: garden)
+                               rot: (1 - rise) * 0.8 + L.a * 0.5, garden: garden)
                 }
             }
         }
@@ -331,6 +340,14 @@ final class VineModel {
             g.spawned = true
             grow = g
             let (x, y) = nodePos(g.index)
+            if g.ret {
+                for k in 0..<22 {
+                    let out = k % 2 == 0 ? 1.0 : -1.0
+                    parts.append(Particle(x: x, y: y - 14, vx: out * (20 + Double.random(in: 0..<1) * 130),
+                                          vy: -40 - Double.random(in: 0..<1) * 90, life: -0.3,
+                                          petal: true, spin: Double.random(in: -5..<5)))
+                }
+            }
             for _ in 0..<8 {
                 parts.append(Particle(x: x + (Double.random(in: 0..<1) - 0.5) * 14, y: y + 4,
                                       vx: (Double.random(in: 0..<1) - 0.5) * 80,
@@ -340,10 +357,23 @@ final class VineModel {
         var alive: [Particle] = []
         for var p in parts {
             p.life += dt
-            p.vy += 420 * dt
+            // 花瓣等花開了才散，飄得比土粒慢
+            if p.petal && p.life < 0 {
+                alive.append(p)
+                continue
+            }
+            p.vy += (p.petal ? 90 : 420) * dt
             p.x += p.vx * dt
             p.y += p.vy * dt
             var g = gc
+            if p.petal {
+                g.opacity = max(0, 1 - p.life / 2)
+                g.translateBy(x: p.x, y: p.y)
+                g.rotate(by: .radians(p.spin * p.life))
+                g.fill(Path(ellipseIn: CGRect(x: -3.2, y: -4.6, width: 6.4, height: 9.2)), with: .color(garden.flower))
+                if p.life < 2 { alive.append(p) }
+                continue
+            }
             g.opacity = max(0, 1 - p.life / 0.7)
             g.fill(Path(CGRect(x: p.x, y: p.y, width: 3, height: 3)), with: .color(garden.soilDeep))
             if p.life < 0.7 { alive.append(p) }
@@ -362,7 +392,7 @@ final class VineModel {
             g.fill(leafPath(0.45), with: .color(garden.leaf))
         }
 
-        if grow != nil && a > 2.2 { grow = nil }
+        if let g = grow, a > (g.ret ? 3.0 : 2.2) { grow = nil }
     }
 
     private func leafPath(_ s: Double) -> Path {

@@ -74,16 +74,20 @@ struct SkipSheet: View {
 
     var body: some View {
         SheetFrame(fit: true) {
-            SkipPicker(day: store.today, title: "今天跳過，因為") { dismiss() }
+            SkipPicker(title: "今天跳過，因為") { reason in
+                Haptic.select()
+                store.skip(day: store.today, reason: reason)
+                dismiss()
+            }
         }
     }
 }
 
 /// 兩欄理由，點一下就記；最下面「不說理由」也是點了就記
 struct SkipPicker: View {
-    var day: DayKey
     var title: String
-    var done: () -> Void
+    var quiet = "不說理由"
+    var pick: (String) -> Void
     @Environment(Store.self) private var store
 
     private var rows: [[String]] {
@@ -108,14 +112,14 @@ struct SkipPicker: View {
                     }
                 }
             }
-            DomyButton("不說理由", variant: .plain, fullWidth: true) { skip("") }
+            DomyButton(quiet, variant: .plain, fullWidth: true) { pick("") }
         }
         .frame(maxWidth: .infinity)
     }
 
     private func reasonButton(_ r: String) -> some View {
         let shape = RoundedRectangle(cornerRadius: Rd.xl, style: .continuous)
-        return Button { skip(r) } label: {
+        return Button { pick(r) } label: {
             Text(r)
                 .domyType(Ty.headline)
                 .lineLimit(1)
@@ -127,12 +131,6 @@ struct SkipPicker: View {
                 .contentShape(shape)
         }
         .buttonStyle(DomyPressStyle())
-    }
-
-    private func skip(_ reason: String) {
-        Haptic.select()
-        store.skip(day: day, reason: reason)
-        done()
     }
 }
 
@@ -223,7 +221,11 @@ struct DaySheet: View {
     var body: some View {
         SheetFrame(fit: true) {
             if skipping {
-                SkipPicker(day: day, title: "\(dayName)跳過，因為") { dismiss() }
+                SkipPicker(title: "\(dayName)跳過，因為") { reason in
+                    Haptic.select()
+                    store.skip(day: day, reason: reason)
+                    dismiss()
+                }
             } else {
                 VStack(spacing: Sp.s5) {
                     VStack(spacing: Sp.s1) {

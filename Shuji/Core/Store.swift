@@ -178,6 +178,8 @@ final class Store {
             stopTrials(of: old.id)
             if !state.pastHabits.contains(where: { $0.id == old.id }) { state.pastHabits.append(old) }
         }
+        // 上一個習慣讓提醒退場了：新的重新開始每天提醒
+        if state.marks.last(where: { $0.kind.isReminder })?.kind == .remindOff { state.settings.check = true }
         state.justDug = nil
         state.habit = Habit(floor: floor, trigger: trigger, planted: t, id: makeID("hab"), plantedAt: st.at, tz: st.tz,
                             estimatedDays: estimatedDays)
@@ -227,6 +229,15 @@ final class Store {
     }
 
     func leaveToday(reason: String) { skip(day: today, reason: reason) }
+
+    /// 回來卡答完（或收掉）。那幾天照樣算漏掉，只記下理由
+    func closeGap(_ gap: PendingGap, reason: String) {
+        guard let h = state.habit, !state.habitGaps.contains(where: { $0.covers(gap.to) }) else { return }
+        let st = stamp()
+        state.gaps.append(Gap(id: makeID("gap"), habit: h.id, from: gap.from, to: gap.to,
+                              reason: reason.trimmingCharacters(in: .whitespacesAndNewlines), at: st.at, tz: st.tz))
+        save()
+    }
 
     /// 今天和昨天可以改；放手測試中、剛挖出來、種下去之前不行
     func canEdit(day: DayKey) -> Bool {
@@ -336,17 +347,59 @@ final class Store {
         state.habit.map { "shuji.ask.\(a.rawValue).\($0.id)" }
     }
 
-    /// 現在要不要跳一張出來。跳過的話隔幾天再問（四問隔天，其他兩週）
+    /// 現在要不要跳一張出來。跳過的話隔幾天再問（AutoAsk.cooldown）。問過回來卡那天，其他都不問
     func nextAsk() -> AutoAsk? {
-        guard let a = state.autoAsk(today: today), let key = askKey(a) else { return nil }
-        if let last = UserDefaults.standard.string(forKey: key).flatMap({ DayKey($0) }),
-           abs(DayKey.days(from: last, to: today)) < a.cooldown { return nil }
-        return a
+        if daysSinceAsked(.back) == 0 { return nil }
+        return state.autoAsks(today: today).first { a in
+            guard let n = daysSinceAsked(a) else { return true }
+            return n >= a.cooldown
+        }
+    }
+
+    private func daysSinceAsked(_ a: AutoAsk) -> Int? {
+        guard let key = askKey(a),
+              let last = UserDefaults.standard.string(forKey: key).flatMap({ DayKey($0) }) else { return nil }
+        return abs(DayKey.days(from: last, to: today))
     }
 
     func markAsked(_ a: AutoAsk) {
         guard let key = askKey(a) else { return }
         UserDefaults.standard.set(today.string, forKey: key)
+    }
+
+    // MARK: 提醒、竹籃
+
+    /// 設定裡自己開關：從每天提醒重新算
+    func setReminder(_ on: Bool) {
+        state.settings.check = on
+        if let h = state.habit { addMark(.remindDaily, habit: h.id) }
+        save()
+    }
+
+    /// 提醒退場：這件事不用再提醒了
+    func stopReminder() {
+        guard let h = state.habit else { return }
+        state.settings.check = false
+        addMark(.remindOff, habit: h.id)
+        save()
+    }
+
+    /// 回到 app 時看一下提醒該不該換一段
+    func settleReminder() {
+        guard let h = state.habit, let kind = state.reminderShift(today: today) else { return }
+        addMark(kind, habit: h.id)
+        save()
+    }
+
+    /// 竹籃那一句。連兩次有點掉了，就排到最前面，不搶正在種的
+    func answerBasket(_ p: Potato, still: Bool) {
+        let st = stamp()
+        state.checks.append(BasketCheck(id: makeID("chk"), potato: p.key, day: today, still: still, at: st.at, tz: st.tz))
+        if state.faded(p), !state.queue.contains(p.floor) {
+            state.queue.insert(p.floor, at: 0)
+            show("排到下一個種。")
+        }
+        save()
     }
 
     // MARK: 挖
