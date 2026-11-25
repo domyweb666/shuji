@@ -267,6 +267,7 @@ describe('任務 9 每週看紀錄', () => {
   it('數字要跟輸入對得上', () => {
     expect(go({ finding: '這週漏了三天' }).ok).toBe(false);
     expect(go({ finding: '這週做了 5 天' }).ok).toBe(true);
+    for (const f of ['這週做了 4 天', '這週漏了 5 天', '這週漏了5 天']) expect(go({ finding: f }).ok, f).toBe(false);
     expect(go({ finding: '這週七天都做了' }).ok).toBe(false);
   });
   it('不講原因、不講理由、不寫百分比', () => {
