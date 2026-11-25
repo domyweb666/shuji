@@ -54,6 +54,7 @@ struct BackSheet: View {
     @ViewBuilder
     private var reasons: some View {
         TalkPotato(width: BackSheet.potato)
+            .padding(.top, Sp.s3)
         if !gap.onlyYesterday { title("你回來了") }
         SkipPicker(title: gap.onlyYesterday ? "昨天是？" : "那幾天是？", quiet: "不說") { reason in
             answered = true

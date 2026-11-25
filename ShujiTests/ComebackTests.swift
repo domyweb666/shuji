@@ -229,6 +229,7 @@ final class UsualTimeTests: XCTestCase {
         let u = g.s.usualTime(today: T)
         XCTAssertEqual(u?.points.count, 10)
         XCTAssertEqual(u?.text, "早上 7 點多")
+        XCTAssertEqual(u?.start, 152, "7:15 到 7:50 排在兩小時的正中間")
         XCTAssertEqual(g.s.fieldCards(today: T).time?.answer, "多半早上 7 點多")
     }
 

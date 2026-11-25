@@ -360,7 +360,7 @@ struct WeekBarsView: View {
     }
 }
 
-/// 一天一條線（清晨四點到隔天四點），每一次一個點，淡色帶是多半在做的那兩小時
+/// 一天一條線（清晨四點到隔天四點），每一次一個點，擠在一起的往上下疊，淡色帶是多半在做的那兩小時
 struct TimeDots: View {
     var time: UsualTime
     private static let tall: CGFloat = 56 // domy-ignore: 圖表高度
@@ -379,9 +379,16 @@ struct TimeDots: View {
                 line.move(to: CGPoint(x: 0, y: mid))
                 line.addLine(to: CGPoint(x: size.width, y: mid))
                 ctx.stroke(line, with: .color(Theme.separator), lineWidth: Sz.hairline)
-                for p in time.points {
-                    ctx.fill(Path(ellipseIn: CGRect(x: X(p) - r, y: mid - r, width: r * 2, height: r * 2)),
-                             with: .color(Theme.accent.opacity(0.6)))
+                let columns = Dictionary(grouping: time.points) { Int(X($0) / (r * 2)) }
+                for (key, column) in columns {
+                    let x = min((CGFloat(key) + 0.5) * r * 2, size.width - r)
+                    let n = CGFloat(column.count)
+                    let step = n > 1 ? min(r * 2, (size.height - r * 2) / (n - 1)) : 0
+                    for i in column.indices {
+                        let y = mid + (CGFloat(i) - (n - 1) / 2) * step
+                        ctx.fill(Path(ellipseIn: CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2)),
+                                 with: .color(Theme.accent.opacity(0.6)))
+                    }
                 }
             }
             .frame(height: TimeDots.tall)

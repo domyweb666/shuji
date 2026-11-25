@@ -4,6 +4,9 @@ import CoreMotion
 /// 地瓜藤：每做一節長一片葉、往下紮一條根；回來那一節開一朵花。
 /// 原型是 canvas 2D，這裡用 Canvas + TimelineView 逐幀畫，數字全部照搬。
 struct VineView: View {
+    /// 土面以上再多畫多高
+    private static let sky: CGFloat = 120 // domy-ignore: 插畫畫布高度
+
     /// 土面離畫布頂多高
     var soilTop: CGFloat
     /// 地瓜頂端的位置，最後一節的根連到這裡（地瓜在正中間）
@@ -17,31 +20,42 @@ struct VineView: View {
     @State private var model = VineModel()
 
     var body: some View {
+        Color.clear
+            .contentShape(Rectangle())
+            .onTapGesture { point in model.tap(at: point) }
+            .background { canvas }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("地瓜藤，共 \(store.state.doneKeys.count) 節")
+            .onAppear {
+                sync()
+                if store.page == 1 { model.startMotion() }
+            }
+            .onChange(of: store.page) { _, page in
+                if page == 1 { model.startMotion() } else { model.stopMotion() }
+            }
+            .onDisappear { model.stopMotion() }
+            .onChange(of: store.state.records) { _, _ in sync() }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active && store.page == 1 { model.startMotion() } else { model.stopMotion() }
+            }
+    }
+
+    /// 畫布往上多留一截給花瓣飄，只管畫，那一截底下的字照樣點得到
+    private var canvas: some View {
         // 三頁都一直在，沒看著這頁就不畫
         TimelineView(.animation(paused: store.page != 1)) { timeline in
             Canvas { context, size in
+                let ground = CGSize(width: size.width, height: size.height - VineView.sky)
+                context.translateBy(x: 0, y: VineView.sky)
                 model.soilTop = soilTop
                 model.potatoTop = potatoTop
                 model.baked = baked
-                model.step(now: timeline.date, size: size, reduce: reduceMotion)
-                model.draw(in: &context, size: size, garden: Theme.garden(scheme), now: timeline.date, reduce: reduceMotion)
+                model.step(now: timeline.date, size: ground, reduce: reduceMotion)
+                model.draw(in: &context, size: ground, garden: Theme.garden(scheme), now: timeline.date, reduce: reduceMotion)
             }
         }
-        .contentShape(Rectangle())
-        .onTapGesture { point in model.tap(at: point) }
-        .accessibilityLabel("地瓜藤，共 \(store.state.doneKeys.count) 節")
-        .onAppear {
-            sync()
-            if store.page == 1 { model.startMotion() }
-        }
-        .onChange(of: store.page) { _, page in
-            if page == 1 { model.startMotion() } else { model.stopMotion() }
-        }
-        .onDisappear { model.stopMotion() }
-        .onChange(of: store.state.records) { _, _ in sync() }
-        .onChange(of: scenePhase) { _, phase in
-            if phase == .active && store.page == 1 { model.startMotion() } else { model.stopMotion() }
-        }
+        .padding(.top, -VineView.sky)
+        .allowsHitTesting(false)
     }
 
     private func sync() {

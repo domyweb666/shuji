@@ -24,7 +24,8 @@ const simctl = async a => { try { await c.simctl(a).wait(); } catch (e) { log('s
 const tap = async (l, wait = 900) => { try { await c.tapElement({ AXLabel: l }); log('tap', l); await sleep(wait); return true; } catch (e) { log('tap FAIL', l, (e.message || '').slice(0, 120)); return false; } };
 const frame = async l => (await nodes()).find(x => x.AXLabel === l)?.frame;
 const ymd = d => d.toISOString().slice(0, 10);
-let TODAY = new Date(Date.UTC(2026, 10, 24));
+// 模擬器是 UTC，薯記的一天從凌晨四點起算
+let TODAY = new Date(ymd(new Date(Date.now() - 4 * 36e5)) + "T00:00:00Z");
 const day = n => ymd(new Date(TODAY.getTime() + n * 864e5));
 function make({ skipLast = 0, log: lg, letgo, reviewDay = 0, lastReview = -1, n = 45, trigger = '起床喝完第一杯水', floor = '打開檔案寫一句', backup = '如果中午前還沒打開過檔案，就在第一餐吃完時打開', why = '把複雜的事想清楚、寫下來', empty = false, travel = false, flat = false } = {}) {
   const s = { logs: {}, weekly: [], queue: ['坐上蒲團按計時器'], basket: [], travel, settings: { reviewDay },

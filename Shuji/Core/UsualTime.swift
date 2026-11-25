@@ -5,7 +5,7 @@ import Foundation
 struct UsualTime: Equatable {
     /// 每一筆從凌晨四點起算的分鐘，由小到大
     var points: [Int]
-    /// 裝得下七成的那兩小時，從哪裡開始
+    /// 裝得下七成的那兩小時，從哪裡開始（那些點排在正中間）
     var start: Int
     /// 那段裡的中位數
     var middle: Int
@@ -23,9 +23,9 @@ struct UsualTime: Equatable {
             let inside = p.filter { $0 >= first && $0 <= first + UsualTime.window }
             if inside.count > best.count { best = inside }
         }
-        guard let first = best.first, Double(best.count) / Double(p.count) >= UsualTime.minRate else { return nil }
+        guard let first = best.first, let last = best.last, Double(best.count) / Double(p.count) >= UsualTime.minRate else { return nil }
         points = p
-        start = first
+        start = max(0, min(1440 - UsualTime.window, (first + last - UsualTime.window) / 2))
         middle = best[best.count / 2]
     }
 
