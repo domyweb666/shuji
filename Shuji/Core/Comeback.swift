@@ -69,15 +69,15 @@ extension AppState {
         return gaps.filter { $0.habit == id }
     }
 
-    /// 從昨天往前連續漏掉、還沒問過的那一段。停了一陣子不算。
+    /// 從昨天往前連續漏掉的那一段。停了一陣子不算；同一段問過一次就不再問，免得一直漏的人每天被問。
     func pendingGap(today t: DayKey) -> PendingGap? {
-        guard habit != nil, justDug == nil, letgo == nil else { return nil }
+        guard habit != nil, justDug == nil, letgo == nil,
+              !longAbsence(today: t), !returnedFromLong(today: t) else { return nil }
         let l = ledger(today: t)
         let asked = habitGaps
         var run = 0
         var from: DayKey? = nil
         var to: DayKey? = nil
-        var open = true
         var k = t.adding(-1)
         while k >= l.planted {
             if l.isTimezoneSkip(k) {
@@ -86,21 +86,21 @@ extension AppState {
             }
             guard l.isMissed(k) else { break }
             run += 1
-            if asked.contains(where: { $0.covers(k) }) { open = false }
-            if open {
-                from = k
-                if to == nil { to = k }
-            }
+            if asked.contains(where: { $0.covers(k) }) { return nil }
+            from = k
+            if to == nil { to = k }
             k = k.adding(-1)
         }
         guard run < ComebackRule.longDays, let first = from, let last = to else { return nil }
         return PendingGap(from: first, to: last)
     }
 
-    /// 停了一陣子之後，今天接上了
+    /// 停了一陣子之後，今天接上了（跟 longAbsence 同一個算法）
     func returnedFromLong(today t: DayKey) -> Bool {
-        guard log(on: t)?.t == .done, doneKeys.contains(where: { $0 < t }) else { return false }
-        return consecutiveMissed(today: t) >= ComebackRule.longDays
+        guard log(on: t)?.t == .done, let last = doneKeys.last(where: { $0 < t }) else { return false }
+        var anchor = last
+        if let end = letgoResult?.end, end > anchor { anchor = end }
+        return DayKey.days(from: anchor, to: t) > 14
     }
 
     /// 最近 84 天漏掉的理由，最多五個；一樣多的取比較近的。只算那段裡真的還有漏掉的日子

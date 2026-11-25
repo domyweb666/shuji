@@ -62,9 +62,9 @@ final class PendingGapTests: XCTestCase {
         g.fill(to: T.adding(-5))
         XCTAssertEqual(g.s.pendingGap(today: T), PendingGap(from: T.adding(-4), to: T.adding(-1)))
         g.gap(T.adding(-4), T.adding(-3), "")
-        XCTAssertEqual(g.s.pendingGap(today: T), PendingGap(from: T.adding(-2), to: T.adding(-1)), "問過的不再問")
-        g.gap(T.adding(-2), T.adding(-1), "太忙")
-        XCTAssertNil(g.s.pendingGap(today: T))
+        XCTAssertNil(g.s.pendingGap(today: T), "同一段問過就不再問，一直漏也不會每天問")
+        g.done(T)
+        XCTAssertEqual(g.s.pendingGap(today: T.adding(2)), PendingGap(from: T.adding(1), to: T.adding(1)), "接上之後是新的一段")
     }
 
     func testLongAbsenceHasNoCard() {
