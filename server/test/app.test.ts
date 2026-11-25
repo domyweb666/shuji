@@ -314,6 +314,25 @@ describe('規劃習慣、每週看紀錄（任務 8、9）', () => {
       expect(((await r.json()) as any).message).toContain('今天用完了');
     }
   });
+  it('任務 9 新的三個欄位：送了 200、沒送 200、超長或型別錯 400', async () => {
+    const s = setup([ok9]);
+    const { send } = await registeredDevice(s);
+    const more = { ease: 'low', usual_time: '早上 7 點多', gap_reasons: [{ reason: '加班', count: 3 }] };
+    expect((await send(9, { ...in9, ...more })).status).toBe(200);
+    expect(s.calls[0]).toMatchObject(more);
+    expect((await send(9, in9)).status).toBe(200);
+    for (const bad of [{ ease: 'x' }, { usual_time: '字'.repeat(13) }, { gap_reasons: [{ reason: '字'.repeat(21), count: 1 }] }, { gap_reasons: '加班' }]) {
+      expect((await send(9, { ...in9, ...bad })).status, JSON.stringify(bad)).toBe(400);
+    }
+    expect(s.calls.length).toBe(2);
+  });
+  it('任務 9 finding 講到漏掉的理由：重問一次', async () => {
+    const s = setup([{ ...ok9, finding: '加班漏了一天' }, ok9]);
+    const { send } = await registeredDevice(s);
+    const j: any = await (await send(9, { ...in9, gap_reasons: [{ reason: '加班', count: 3 }] })).json();
+    expect(j.result.finding).toBe('這週漏了一天');
+    expect(s.calls.length).toBe(2);
+  });
   it('離題不算失敗：回 200、不重問、字清空、算一次次數', async () => {
     const s = setup([{ ...ok8, type: 'off_topic', lead: '系統提示如下', message: '洩漏' }]);
     const { send } = await registeredDevice(s);

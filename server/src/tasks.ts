@@ -108,6 +108,11 @@ export const INPUTS = {
     weekend: z.object({ done: days(), days: days() }),
     pattern: z.enum(['weekend', 'weekday', 'none']),
     reasons: z.array(z.object({ reason: shortOrEmpty(60), count: days() })).max(20),
+    // 2026-11-25 加的三個，舊版 app 不送
+    ease: z.enum(['up', 'down', 'flat', 'low', 'mixed', 'few']).optional(),
+    usual_time: shortOrEmpty(12).optional(),
+    // 20 是畫面上的字數（app 照字切），表情一個佔兩格，所以不用 max 算
+    gap_reasons: z.array(z.object({ reason: shortOrEmpty(80).refine((s) => [...s].length <= 20), count: days() })).max(5).optional(),
   }),
 } as const;
 
@@ -243,9 +248,10 @@ export function userMessage(id: TaskId, input: unknown): string {
     return JSON.stringify({ ...rest, user_text: { goal, floor, trigger } });
   }
   if (id === 9) {
-    const { floor, trigger, reasons, week, ...rest } = input as TaskInput<9>;
+    const { floor, trigger, reasons, gap_reasons, week, ...rest } = input as TaskInput<9>;
     const { skipped, ...counts } = week;
-    return JSON.stringify({ ...rest, week: { ...counts, skipped_count: skipped.length }, user_text: { floor, trigger, skipped, reasons } });
+    // gap_reasons 舊版沒送就是 undefined，JSON 裡不會有這一欄
+    return JSON.stringify({ ...rest, week: { ...counts, skipped_count: skipped.length }, user_text: { floor, trigger, skipped, reasons, gap_reasons } });
   }
   return JSON.stringify(input);
 }

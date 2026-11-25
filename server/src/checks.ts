@@ -93,6 +93,9 @@ const tidyLine = (s: string) => s.trim().replace(/請假/g, '跳過');
 
 /** pattern=none 時不准講的：任何聽起來像規律的字 */
 const PATTERN_WORDS = /週末|周末|平日|六日|假日|上班日|總是|常常|每次|老是|通常|往往|容易|規律|多半|大多|比較|比[^比]{0,6}(少|多)|習慣性/;
+/** usual_time 只拿來挑時機，時間不寫出來。「漏了一點」這種不是鐘點，放行 */
+const CLOCK = /[0-9０-９二兩三四五六七八九十]\s*點|十一點|一點[多半鐘]/;
+const TIME_OF_DAY = /清晨|凌晨|早上|上午|中午|下午|傍晚|晚上|半夜/;
 const CAUSE = /因為|所以|由於|導致|害你|害得|原因|太累|太忙/;
 
 function cnNumber(s: string): number {
@@ -334,8 +337,12 @@ export function review<T extends TaskId>(task: T, raw: TaskOutput<T>, input?: un
       if (i) {
         problems.push(...wrongNumbers(out.finding, i));
         if (i.week.done < i.week.possible && /這週(每天|全|都)|七天都/.test(out.finding)) problems.push(`finding 說全做到：${out.finding}`);
-        for (const s of [...i.reasons.map((r) => r.reason), ...i.week.skipped.map((r) => r.reason)]) {
-          if (len(s) >= 2 && out.finding.includes(s)) problems.push('finding 講了跳過的理由');
+        for (const s of [...i.reasons, ...i.week.skipped, ...(i.gap_reasons ?? [])].map((r) => r.reason)) {
+          if (len(s) >= 2 && out.finding.includes(s)) problems.push('finding 講了跳過或漏掉的理由');
+        }
+        if (i.usual_time) {
+          if (CLOCK.test(out.finding) || TIME_OF_DAY.test(out.finding)) problems.push(`finding 講了時間：${out.finding}`);
+          for (const s of [c?.label ?? '', c?.text ?? '']) if (CLOCK.test(s)) problems.push(`改法寫了幾點：${s}`);
         }
         if (i.pattern === 'none') {
           for (const s of [out.finding, c?.label ?? '']) {
