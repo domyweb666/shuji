@@ -218,9 +218,10 @@ final class LogicTests: XCTestCase {
         d.marks = []
         d.mark(.letgoStart, T, prior: 12)
         XCTAssertNil(d.autoAsk(today: T), "放手中不問")
-        XCTAssertTrue(d.autoAsks(today: T).contains(.dig))
         d.marks = []
         d.setWeekly(weeks(2))
+        XCTAssertFalse(d.autoAsks(today: T).contains(.dig))
+        d.basket = []
         XCTAssertNil(d.autoAsk(today: T), "走平在低處，不問長好了嗎")
         d.habit?.planted = T.adding(-6)
         d.setWeekly([])
