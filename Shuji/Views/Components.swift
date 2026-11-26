@@ -314,8 +314,8 @@ struct FlowLayout: Layout {
     }
 }
 
-/// 竹籃、挖出來那頁、付費頁的地瓜。跟土裡那顆同一個 D（直立、鬚根、泥），整顆沒剝開
-/// 位子是 寬 width、高 width × 0.9，地瓜照高度塞滿置中
+/// 竹籃、挖出來那頁、付費頁的地瓜。跟土裡那顆同一個 B（橫躺彎身、細根），整顆沒剝開
+/// 位子是 寬 width、高 width × 0.9，地瓜照位子塞滿置中
 struct PotatoView: View {
     var width: CGFloat = 44
     @Environment(\.colorScheme) private var scheme

@@ -1,3 +1,4 @@
+import StoreKit
 import SwiftUI
 
 // AI 只站在設定時刻和出事時，不站在每天的畫面上（ai/AI交接.md 第一節）。
@@ -19,6 +20,8 @@ final class AICall<O: Decodable> {
 
     var phase: Phase = .idle
     var needsConsent = false
+    /// 失敗是因為點數用完：失敗那句下面多一顆「買點數」
+    var outOfCredits = false
     @ObservationIgnored private var pending: (() async -> Void)?
     /// 還在路上的那一次。畫面關掉時取消，電腦那頭才不會一直想、伺服器也不白扣一次
     @ObservationIgnored private var task: Task<Void, Never>?
@@ -75,6 +78,7 @@ final class AICall<O: Decodable> {
     /// 先把狀態設成載入中再開 Task，連點兩下也只送一次
     private func start(_ job: @escaping () async -> Void) {
         phase = .loading
+        outOfCredits = false
         task = Task { await job() }
     }
 
@@ -90,6 +94,7 @@ final class AICall<O: Decodable> {
             }
         } catch let f as AIClient.Failure {
             guard !Task.isCancelled else { return }
+            outOfCredits = f.noCredits
             phase = .failed(f.message)
             Haptic.error()
         } catch {
@@ -158,6 +163,7 @@ struct AIStatus<O: Decodable>: View {
             .frame(minHeight: Sz.touch)
         case .failed(let message):
             WarnBox { Text(message) }
+            if call.outOfCredits { BuyCreditsButton() }
         case .unfit(let referral):
             ReferralCard(text: referral)
         default:
@@ -567,8 +573,10 @@ struct PaywallSheet: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, Sp.s4)
             .background(Theme.tint, in: RoundedRectangle(cornerRadius: Rd.xl, style: .continuous))
-            SheetNote("一次買斷，不訂閱。按住記一節、這週的田、種下去助手、卡住時的三問，這些一直免費。")
+            SheetNote("一次買斷，不訂閱。按住記一節、這週的田這些一直免費。AI 幫忙想用點數，跟完整版分開。")
             Card {
+                feature("square.grid.2x2", "更多習慣格", "同時養到 \(Store.fullHabits) 個習慣（免費 \(Store.freeHabits) 個）")
+                RowSep()
                 feature("leaf", "季稽核", "一季一次，選維持、加量、換情境或退場")
                 RowSep()
                 feature("rectangle.on.rectangle", "小工具", "桌面和鎖定畫面看得到你的習慣、今天記了沒")
@@ -616,5 +624,55 @@ struct PaywallSheet: View {
         if purchases.busy { return "處理中⋯" }
         if let p = purchases.product { return "買完整版 \(p.displayPrice)" }
         return "買完整版"
+    }
+}
+
+// MARK: AI 點數
+
+/// 點數用完時，失敗那句下面這一顆
+struct BuyCreditsButton: View {
+    @State private var shopping = false
+
+    var body: some View {
+        DomyButton("買點數", variant: .secondary) { shopping = true }
+            .sheet(isPresented: $shopping) { CreditsSheet() }
+    }
+}
+
+/// 買點數。點數記在伺服器，換手機也在；連電腦的 Claude 不用點數
+struct CreditsSheet: View {
+    private let credits = Credits.shared
+
+    var body: some View {
+        SheetFrame {
+            SheetTitle("AI 點數")
+            Card {
+                RowLabel(text: "現在", value: credits.balanceText ?? "⋯")
+                    .accessibilityElement(children: .combine)
+            }
+            SheetNote("規劃一個習慣 3 點，找對手與犒賞 2 點，季稽核 5 點，其他每次 1 點。點數不會過期，連電腦的 Claude 不用點數。")
+            VStack(spacing: Sp.s2) {
+                if credits.products.isEmpty {
+                    DomyButton("連不到 App Store", disabled: true) {}
+                } else {
+                    ForEach(credits.products, id: \.id) { p in
+                        DomyButton(title(p), disabled: credits.busy) {
+                            Task { await credits.buy(p) }
+                        }
+                    }
+                }
+            }
+            if let m = credits.message { Foot(m) }
+        }
+        .task {
+            credits.message = nil
+            await credits.loadProducts()
+            await credits.refresh()
+        }
+    }
+
+    private func title(_ p: Product) -> String {
+        if credits.busy { return "處理中⋯" }
+        return "\(Credits.packs[p.id] ?? 0) 點 \(p.displayPrice)"
     }
 }

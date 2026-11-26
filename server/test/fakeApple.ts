@@ -169,3 +169,27 @@ export function strangerIntermediate(): Issued {
   const root = issue({ cn: 'Stranger Root', curve: 'P-384', hash: 'sha384' });
   return issue({ cn: 'Fake App Attestation CA 1', curve: 'P-384', hash: 'sha384', issuer: root });
 }
+
+// ---------- StoreKit 2 交易簽章（JWS，x5c：葉 → 中繼 → 根） ----------
+
+const ext = (id: string) => seq(oid(id), octet(Uint8Array.from([0x05, 0x00])));
+
+/** 假的 App Store：自己的根、帶 Apple 標記的中繼與葉，簽出 Transaction.jwsRepresentation 的格式 */
+export class FakeStoreKit {
+  root = issue({ cn: 'Fake Apple Root CA - G3', curve: 'P-384', hash: 'sha384' });
+  inter = issue({ cn: 'Fake Apple WWDR CA G6', curve: 'P-384', hash: 'sha384', issuer: this.root, extensions: [ext('1.2.840.113635.100.6.2.1')] });
+  leaf = issue({ cn: 'Fake Prod ECC Mac App Store', curve: 'P-256', hash: 'sha384', issuer: this.inter, extensions: [ext('1.2.840.113635.100.6.11.1')] });
+  get rootPem() {
+    return pem(this.root.der);
+  }
+
+  jws(payload: Record<string, unknown>, opts: { leaf?: Issued; noMark?: boolean } = {}): string {
+    const leaf = opts.leaf ?? (opts.noMark ? issue({ cn: 'No mark', curve: 'P-256', hash: 'sha384', issuer: this.inter }) : this.leaf);
+    const u = (b: Uint8Array | string) => Buffer.from(b).toString('base64url');
+    const x5c = [leaf.der, this.inter.der, this.root.der].map((d) => Buffer.from(d).toString('base64'));
+    const head = u(JSON.stringify({ alg: 'ES256', x5c }));
+    const body = u(JSON.stringify(payload));
+    const sig = new Uint8Array(sign('sha256', Buffer.from(`${head}.${body}`), { key: leaf.key, dsaEncoding: 'ieee-p1363' }));
+    return `${head}.${body}.${u(sig)}`;
+  }
+}

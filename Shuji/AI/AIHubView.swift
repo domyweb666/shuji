@@ -9,6 +9,7 @@ struct AIHubView: View {
     @State private var draft = ""
     @State private var connecting = false
     @State private var problem: String? = nil
+    @State private var shopping = false
     @FocusState private var typing: Bool
     private let ai = AIClient.shared
 
@@ -29,9 +30,16 @@ struct AIHubView: View {
             } else {
                 connectSection
             }
+            if ai.serverReady {
+                DomySection(footer: ai.bridge == nil ? "連電腦的 Claude 就不用點數。" : "連著電腦時不用點數。") {
+                    RowButton(text: "AI 點數", value: Credits.shared.balanceText) { shopping = true }
+                }
+            }
         }
         .navigationTitle("AI")
         .fullScreenCover(isPresented: $scanning) { scanner }
+        .sheet(isPresented: $shopping) { CreditsSheet() }
+        .task { await Credits.shared.refresh() }
     }
 
     // MARK: 連電腦

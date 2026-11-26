@@ -23,6 +23,8 @@ final class AIClient {
     struct Failure: Error {
         var message: String
         var rateLimited = false
+        /// 伺服器說點數不夠（402 no_credits）：畫面要給「買點數」
+        var noCredits = false
     }
 
     static let fallbackMessage = "現在想不出來，你先自己填，等一下再試。"
@@ -54,7 +56,8 @@ final class AIClient {
         return URL(string: s)
     }
 
-    private var serverReady: Bool {
+    /// 薯記的伺服器能不能用（點數、AI 都要）
+    var serverReady: Bool {
         guard baseURL != nil else { return false }
         return DCAppAttestService.shared.isSupported || devToken != nil
     }
@@ -166,29 +169,41 @@ final class AIClient {
     // MARK: 呼叫任務
 
     func run<I: Encodable, O: Decodable>(_ task: AITask, input: I, habitId: String? = nil, as type: O.Type) async throws -> Outcome<O> {
-        let body = try JSONEncoder().encode(AIEnvelope(ts: Int(Date().timeIntervalSince1970), habit_id: habitId, input: input))
-        if let link = bridge { return try await runOnComputer(link, task, body: body, as: O.self) }
-        guard let base = baseURL else { throw Failure(message: Self.fallbackMessage) }
-        let url = base.appendingPathComponent("v1/task/\(task.rawValue)")
+        let ts = Int(Date().timeIntervalSince1970)
+        // 電腦那條不扣點，不送帳號
+        if let link = bridge {
+            let body = try JSONEncoder().encode(AIEnvelope(ts: ts, habit_id: habitId, account: nil, input: input))
+            return try await runOnComputer(link, task, body: body, as: O.self)
+        }
+        let body = try JSONEncoder().encode(AIEnvelope(ts: ts, habit_id: habitId, account: CreditAccount.id, input: input))
+        let (data, status) = try await serverPost("v1/task/\(task.rawValue)", body: body)
+        Credits.shared.update((try? JSONDecoder().decode(CreditsProbe.self, from: data))?.credits)
+        if status == 200 { return try decode(data, as: O.self) }
+        let err = try? JSONDecoder().decode(ErrorBody.self, from: data)
+        throw Failure(message: err?.message ?? Self.fallbackMessage, rateLimited: status == 429,
+                      noCredits: status == 402 || err?.error == "no_credits")
+    }
 
+    /// 簽好 App Attest 送去伺服器，回內容和狀態碼。網路斷掉重試一次；裝置沒註冊（伺服器資料被清掉）就重新註冊一次
+    func serverPost(_ path: String, body: Data, timeout: TimeInterval = 60) async throws -> (data: Data, status: Int) {
+        guard let base = baseURL else { throw Failure(message: Self.fallbackMessage) }
+        let url = base.appendingPathComponent(path)
         var lastError: Error = Failure(message: Self.fallbackMessage)
-        // 網路斷掉重試一次；裝置沒註冊（伺服器資料被清掉）就重新註冊一次
         for attempt in 0..<2 {
             do {
-                var req = URLRequest(url: url, timeoutInterval: 60)
+                var req = URLRequest(url: url, timeoutInterval: timeout)
                 req.httpMethod = "POST"
                 req.setValue("application/json", forHTTPHeaderField: "content-type")
                 req.httpBody = body
                 try await sign(&req, body: body, base: base)
                 let (data, resp) = try await URLSession.shared.data(for: req)
                 let status = (resp as? HTTPURLResponse)?.statusCode ?? 0
-                if status == 200 { return try decode(data, as: O.self) }
-                let err = try? JSONDecoder().decode(ErrorBody.self, from: data)
-                if err?.error == "not_registered", attempt == 0 {
+                if status != 200, attempt == 0,
+                   (try? JSONDecoder().decode(ErrorBody.self, from: data))?.error == "not_registered" {
                     defaults.removeObject(forKey: Keys.registered)
                     continue
                 }
-                throw Failure(message: err?.message ?? Self.fallbackMessage, rateLimited: status == 429)
+                return (data, status)
             } catch let f as Failure {
                 throw f
             } catch {
@@ -295,7 +310,13 @@ final class AIClient {
 private struct AIEnvelope<X: Encodable>: Encodable {
     var ts: Int
     var habit_id: String?
+    /// 匿名帳號，伺服器照這個扣點。nil 就不送（電腦那條）
+    var account: String?
     var input: X
+}
+
+private struct CreditsProbe: Decodable {
+    var credits: Int?
 }
 
 private struct AIProbe: Decodable {

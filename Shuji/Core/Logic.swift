@@ -8,6 +8,16 @@ extension AppState {
 
     var habitID: String? { habit?.id }
 
+    /// 現在同時在養的全部，照種下去的先後排（切換選單用）
+    var growing: [Habit] {
+        ((habit.map { [$0] } ?? []) + others).sorted { ($0.planted, $0.id) < ($1.planted, $1.id) }
+    }
+
+    /// 某個習慣某天記好了沒（切換選單看別的習慣用；現在這個用 log(on:)）
+    func didLog(_ id: String, on k: DayKey) -> Bool {
+        records.last(where: { $0.habit == id && $0.isActive && $0.day == k })?.kind == .done
+    }
+
     /// 目前習慣、沒撤銷的每天紀錄
     var activeRecords: [DayRecord] {
         guard let id = habitID else { return [] }
@@ -261,9 +271,13 @@ extension AppState {
     /// 挖出來的在竹籃；一天都沒記過的不算；跟現在種的同一句（種回來了）也不列。
     var unfinished: [UnfinishedHabit] {
         let dug = Set(basket.compactMap(\.habit))
+        // 還在養的（切換選單裡那幾個）不算種到一半
+        let growingIDs = Set(others.map(\.id))
+        let growingFloors = Set(others.map(\.floor))
         let line = pastHabits + (habit.map { [$0] } ?? [])
         var out: [UnfinishedHabit] = []
-        for (i, h) in pastHabits.enumerated() where !dug.contains(h.id) && h.id != habit?.id && h.floor != habit?.floor {
+        for (i, h) in pastHabits.enumerated() where !dug.contains(h.id) && h.id != habit?.id && h.floor != habit?.floor
+            && !growingIDs.contains(h.id) && !growingFloors.contains(h.floor) {
             let days = Set(records.filter { $0.habit == h.id && $0.isActive && $0.kind == .done }.map(\.day))
             guard let last = days.max() else { continue }
             // 下一個種下去那天就是換掉的那天

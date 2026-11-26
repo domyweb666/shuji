@@ -101,7 +101,7 @@ final class PlanOutputTests: XCTestCase {
     func testInputMatchesServerFields() throws {
         let input = PlanInput(step: .trigger, goal: "每天運動", floor: "換上球鞋", trigger: "", exclude: ["洗完臉"])
         let obj = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(input)) as? [String: Any])
-        XCTAssertEqual(Set(obj.keys), ["step", "goal", "floor", "trigger", "exclude"])
+        XCTAssertEqual(Set(obj.keys), ["step", "goal", "floor", "trigger", "rival", "exclude"])
         XCTAssertEqual(obj["step"] as? String, "trigger")
     }
 }
@@ -124,7 +124,42 @@ final class TalkModelTests: XCTestCase {
         XCTAssertEqual(m.days, HabitDifficulty.hard.days)
         XCTAssertEqual(m.step, .plan)
         XCTAssertTrue(m.back())
-        XCTAssertEqual(m.step, .trigger)
+        XCTAssertEqual(m.step, .reward)
+    }
+
+    /// 對手、擋對手、犒賞：三選一照常收；回上一步照走過的路回去
+    func testRivalBlockRewardSteps() {
+        let m = TalkModel()
+        m.arrived(PlanOutput(type: "options", options: ["滑手機", "躺沙發", "開電視"]), at: .rival)
+        XCTAssertEqual(m.step, .rival)
+        XCTAssertTrue(m.step.skippable)
+        XCTAssertEqual(m.offer.options, ["滑手機", "躺沙發", "開電視"])
+        m.arrived(PlanOutput(type: "options", options: ["手機放客廳", "前一晚擺好", "登出"]), at: .block)
+        m.arrived(PlanOutput(type: "options", options: ["泡茶", "聽歌", "看窗外"]), at: .reward)
+        XCTAssertEqual(m.offer.options, ["泡茶", "聽歌", "看窗外"])
+        XCTAssertTrue(m.back())
+        XCTAssertEqual(m.step, .rival, "沒選對手，擋對手沒問過，直接回對手")
+        XCTAssertFalse(TalkModel.Step.trigger.skippable)
+        XCTAssertFalse(TalkModel.Step.plan.picks)
+        XCTAssertEqual(TalkModel.Step.reward.next, .plan)
+    }
+
+    /// 每一步只送用得到的：對手不帶 rival，擋對手、犒賞才帶
+    func testInputCarriesOnlyWhatTheStepNeeds() {
+        let i = { (t: TalkModel.Step) in
+            TalkModel.input(for: t, goal: "練吉他", floor: "拿起吉他", trigger: "下班進家門", rival: "滑手機", seen: ["甲"])
+        }
+        XCTAssertEqual(i(.floor).floor, "")
+        XCTAssertEqual(i(.floor).trigger, "")
+        XCTAssertEqual(i(.trigger).trigger, "")
+        XCTAssertEqual(i(.rival).step, .rival)
+        XCTAssertEqual(i(.rival).trigger, "下班進家門")
+        XCTAssertEqual(i(.rival).rival, "")
+        XCTAssertEqual(i(.block).rival, "滑手機")
+        XCTAssertEqual(i(.reward).rival, "滑手機")
+        XCTAssertEqual(i(.reward).exclude, ["甲"])
+        XCTAssertEqual(i(.plan).step, .estimate)
+        XCTAssertEqual(i(.plan).exclude, [])
     }
 
     func testOffTopicTwiceHidesInputUntilAsked() {
@@ -176,6 +211,20 @@ final class ReplanTests: XCTestCase {
         c.year = 2026; c.month = 11; c.day = 25; c.hour = 12
         let now = Calendar.current.date(from: c)!
         return Store(now: { now }, fileURL: nil, backupDir: nil)
+    }
+
+    /// 種下去時三件跟著存進習慣；舊存檔沒有這三欄讀成空字串
+    func testHabitKeepsRivalBlockReward() throws {
+        let s = makeStore()
+        s.plant(floor: "拿起吉他", trigger: "下班進家門", estimatedDays: 66, rival: "滑手機", block: "手機放客廳", reward: "泡茶")
+        XCTAssertEqual(s.state.habit?.rival, "滑手機")
+        XCTAssertEqual(s.state.habit?.block, "手機放客廳")
+        XCTAssertEqual(s.state.habit?.reward, "泡茶")
+        let old = #"{"id":"h","floor":"a","trigger":"b"}"#
+        let h = try JSONDecoder().decode(Habit.self, from: Data(old.utf8))
+        XCTAssertEqual(h.reward, "")
+        let again = try JSONDecoder().decode(Habit.self, from: JSONEncoder().encode(s.state.habit!))
+        XCTAssertEqual(again.reward, "泡茶")
     }
 
     func testPlantKeepsEstimate() {
@@ -249,7 +298,7 @@ final class ReplanTests: XCTestCase {
         XCTAssertEqual(s.state.habit?.floor, "握起啞鈴做一下", "不搶正在種的")
     }
 
-    /// 種回來：同一句同一個時機重新種，換掉的那個收進種到一半的，紀錄都留著
+    /// 種回來：同一句同一個時機重新種；還有格子時現在這個留著一起養（多米 2026-11-26 多習慣），紀錄都留著
     func testReplantUnfinishedSwapsBack() {
         let s = makeStore()
         s.plant(floor: "坐到鋪墊上", trigger: "洗完臉")
@@ -266,7 +315,8 @@ final class ReplanTests: XCTestCase {
         XCTAssertNotEqual(s.state.habit?.id, first, "新的一輪，藤從頭長")
         XCTAssertEqual(s.state.records.count, records, "紀錄留著")
         XCTAssertEqual(s.state.queue, [], "種了就從排隊拿掉")
-        XCTAssertEqual(s.state.unfinished.map(\.id), [second], "同一句種回來了就不列")
+        XCTAssertEqual(s.state.unfinished.map(\.id), [], "同一句種回來了就不列")
+        XCTAssertEqual(s.state.others.map(\.id), [second], "還有格子，現在這個不換掉、一起養")
         XCTAssertEqual(s.page, 1)
     }
 
@@ -288,7 +338,7 @@ final class ReplanTests: XCTestCase {
         XCTAssertTrue(TalkModel.dueLine(today: DayKey("2026-11-26")!, days: 90).contains("2027 年 2 月 24 日"))
     }
 
-    /// 進度條：答完一題才走四分之一
+    /// 進度條：答完一題才走一格（共七步）
     @MainActor
     func testProgressCountsAnswered() {
         let m = TalkModel()
@@ -298,7 +348,7 @@ final class ReplanTests: XCTestCase {
         m.arrived(PlanOutput(type: "options", lead: "", options: ["洗完臉"]), at: .trigger)
         XCTAssertEqual(m.answered, 2)
         m.arrived(PlanOutput(type: "estimate", difficulty: .hard), at: .plan)
-        XCTAssertEqual(m.answered, 3)
+        XCTAssertEqual(m.answered, 6, "中間還有對手、擋對手、犒賞三步")
     }
 
     func testReplanWhileJustDug() {

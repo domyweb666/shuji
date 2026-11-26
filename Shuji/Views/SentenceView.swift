@@ -40,6 +40,19 @@ struct SentenceView: View {
                     store.updateHabit { $0.why = v }
                     return true
                 }
+                // 規劃時跟地瓜一起想的三件（多米 2026-11-26 加），在這裡改
+                field("最會跟它搶的（選填）", "滑手機看訊息", habit?.rival, 30, .rival) { v in
+                    store.updateHabit { $0.rival = v }
+                    return true
+                }
+                field("先擋開（選填）", "手機放客廳充電", habit?.block, 30, .block) { v in
+                    store.updateHabit { $0.block = v }
+                    return true
+                }
+                field("做完給自己（選填）", "泡一杯喜歡的茶", habit?.reward, 30, .reward) { v in
+                    store.updateHabit { $0.reward = v }
+                    return true
+                }
                 if let trial = store.state.runningTrial, store.today < trial.end {
                     DomySection(footer: Copy.t(.d9, ["change": Copy.changeLabel(trial.change, group: trial.group),
                                                      "date": trial.end.adding(-1).short])) {

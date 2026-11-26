@@ -1,29 +1,27 @@
-# Handoff: 芹查 QC-0011 改完在 qc-0011，沒推、沒編譯
+# Handoff: 地瓜 B、規劃加對手與犒賞、多習慣切換選單、點數（伺服器＋app 端）都寫完；CI 全綠，等多米
 
-> 2026-11-26。repo `E:\習慣地瓜\shuji`，分支 `qc-0011`（從 main e36c78f 開），兩個 commit：9c52045（八筆程式）、下一個（地瓜造型 D）。上一份見 `.vibe/handoff/archive/2026-11-25-week-prompt.md`
+> 2026-11-26 深夜。repo `E:\習慣地瓜\shuji`，分支 `potato-b`（從 main cb0d48b 開出，已 push，沒併 main）。上一份 `.vibe/handoff/archive/2026-11-26-all-D.md`。
+> 規劃與多米的決定：`docs/規劃-點數收費-多習慣-AI對手與犒賞-2026-11-26.md`（開頭寫了多米定的三件）。
 
-## ✅ 現況
-- QC-0011 十一筆都處理了。#76 出 HTML（`E:\習慣地瓜\QC-0011\長好的習慣.html`）；#78 #79 造型五款在 https://claude.ai/artifact/MUmNyyL7iPguYGoD1oQyoc ，多米選 D，已做進 `Shuji/Views/HoldButton.swift`（PotatoBody 改畫直立的 D，版位 264×196 不變，外圈改直的橢圓；TodayView ringInset 20→8；VineView 記好後根不再移到左端）。
-- 其他：#77 設定拿掉不適合那列；#80 AI 頁只管連線，三個幫忙改在回來卡選理由後／連漏兩天／放手中出現；#81 送自己電腦不跳同意頁（伺服器照問）；#82 進度條照答完幾題；#83 預估頁文案加年份；#84 #85 VineView 看 habit.id 換習慣就清；#86 竹籃「種到一半的」（`AppState.unfinished`）。
-- 2026-11-26 子代理盲審過全部 Swift 改動：沒找到確定會編不過的；唯一風險（HoldButton bottom 長串 tuple 推導）已拆成 bottomTail（2a5eff5）。專案是 Swift 5.0、沒開嚴格並行。
-- 只跑過 `node tools/check-ui-tokens.mjs`（過）。Swift 是盲寫，**沒編譯、沒跑測試、沒拍圖**。新測試在 `ShujiTests/HabitEstimateTests.swift`（五個）與 BridgeTests。
+## ✅ 做完的（都在 potato-b）
+1. **地瓜換 B**（圖 1）：橫躺彎身、細根，記好了縱切攤開。只改 `Shuji/Views/HoldButton.swift` 的 PotatoArt／BShape；`PotatoArt.fit` 照位子塞滿。預覽 `E:\習慣地瓜\地瓜B-1126\預覽.html`。
+2. **規劃加對手、擋對手、犒賞**：任務 8 多 rival／block／reward 三步，三選一可「先不用」。`TalkModel` 七步（offers 字典、choose／skip、back 照走過的路）。知識包搭建第八節、提示詞、`server/src/checks.ts`。Habit 多 rival／block／reward；種下去那頁列「擋住／做完」，今天頁記好後「給自己：…」，我的習慣頁可改。
+3. **多習慣切換選單**：`AppState.others`（同時在養的其他習慣），`habit` 仍是現在看的；`Store.switchHabit／shelveHabit／addingHabit／maxHabits`（免費 2、完整版 5）。今天頁頂端習慣名稱＋向下箭頭的 Menu（切換、加一個、收起這個；別的沒記時一個小點）。`AddHabitView` 在 OnboardingView.swift。Habit 多 `name`（規劃打的想養什麼）。`ShujiTests/MultiHabitTests.swift` 八個測試。
+4. **伺服器點數帳本**：`server/src/credits.ts`（costOf、StoreKit JWS 驗證）、`/v1/credits/balance`、`/v1/credits/redeem`、任務扣點與退點、402 no_credits。伺服器測試 134 個全過。
 
-- 2026-11-26 效能審查（docs/效能審查-2026-11-26.md）與第一批修正也在 qc-0011：473b5dc 聲音預熱／震動／藤限速、f5d383c AI 離開就取消＋bridge 殺 CLI、6953589 捷徑 makeLive。同樣沒編譯；真機要看的點寫在報告「第一批已改」。第二批（tick、formatter、小工具比對、存檔移背景）也做了（cad0641），一樣沒編譯；存檔現在是背景序列佇列，讀檔與進背景前 flush，若 CI 有存檔相關測試掛掉先看這裡。
+5. **app 端點數**（2026-11-26 深夜，commit eb0c894，已 push）：`Shuji/AI/Credits.swift`（CreditAccount 存 iCloud 鑰匙圈、Credits 查餘額／買／redeem 成功才 finish／啟動補送 unfinished）；`AIClient.serverPost` 共用簽章，伺服器那條 body 帶 account、讀 credits、402 → `Failure.noCredits`；失敗下面「買點數」（AIStatus、TalkView）、`CreditsSheet`、AI 頁與設定顯示「剩 N 點」、完整版頁加「更多習慣格」。`ShujiTests/CreditsTests.swift` 三個測試。
 
-- 2026-11-26 多米點頭後 push qc-0011，手動觸發 iOS 建置與測試（run 45741842042）全綠：編譯過、191 個測試 0 失敗、Domy 代號與中繼伺服器測試都過。注意：這個分支 push 不會自動跑 CI，要 `gh workflow run ios.yml --ref qc-0011`。
-
-- 2026-11-26 qc-0011 併 main（bf63a0d），main CI 綠，TestFlight 1.0（12）已上傳（run 45744538451），等多米真機回饋；Limrun 拍圖沒做。
+## ⚠️ 沒驗過的
+- `credits.ts` 的 `APPLE_ROOT_G3_SHA256` 是憑記憶寫的 Apple Root CA - G3 指紋，**沙盒實買前要對 Apple PKI 頁面核一次**；錯了只會加點失敗，不會白送。
+- 通知與小工具只跟著「現在看的那個習慣」。
 
 ## ⏭️ 下一步
-1. ~~push 與 CI~~ 已完成（全綠）。
-2. CI 綠之後用 Limrun 拍今天頁（淺深、按住中、記好、回來那天寫字、跳過、放手），特別看 D 的煙有沒有被切、「你回來了」有沒有壓在剝開的肉上、根有沒有接到頂。`tools/limrun/states.mjs` 的 unfit 那張已拿掉。
-3. ~~併 main、出 TestFlight~~ 已完成：1.0（12）。等多米真機回饋，真機要看的點在 docs/效能審查-2026-11-26.md「第一批已改」。
+1. ✅ CI run 45831160927 全綠（編譯、單元測試、伺服器、Domy 代號）；`testReplantUnfinishedSwapsBack` 改成多習慣的新行為（有格子就一起養）。
+2. 季稽核還是「完整版」才能做（規劃表寫它扣 5 點，沒定要不要拿掉完整版限制，保守沒動）。
+3. 沒買點數時 App Store 還沒有商品，買點數頁會顯示「連不到 App Store」。
+4. **停下來問多米**：App Store Connect 建兩個消耗型商品（碰錢）；伺服器部署＋遠端 D1 跑 `schema.sql`（中文路徑下 wrangler deploy 會靜默失敗）。
+5. 之後：多米真機看 B 地瓜、七步規劃、切換選單；併 main、出 TestFlight。
 
 ## 📌 定了的（別再問）
-- 地瓜造型 D。送到自己的電腦不問同意。AI 幫忙不放選單，照時機出現。
-- 提交要指定檔名；不開 worktree。
-
-## ⚠️ 已知沒處理
-- 竹籃裡的小地瓜（PotatoView）、挖出來那頁、付費頁還是舊造型，這次只換土裡那顆。
-- 「種到一半的」只能看，不能種回來或排進排隊。
-- 送自己電腦不問同意，上架前要再對 Apple 5.1.2 的第三方 AI 條文。
+- 地瓜一律 B。收費＝習慣格子買斷＋AI 點數（新裝 20、30 點 NT$60、100 點 NT$150、電腦 Claude 不扣）。多習慣用切換選單，不強制只培養一個。
+- 提交要指定檔名；不開 worktree；repo 是 PUBLIC，推之前問（這輪多米說了 push 並開做）。

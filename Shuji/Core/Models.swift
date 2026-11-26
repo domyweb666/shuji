@@ -24,6 +24,8 @@ enum Stamp {
 struct Habit: Codable, Equatable {
     /// 習慣編號。每天的紀錄、開始四問都用它指回來
     var id: String
+    /// 規劃時打的「想養成什麼」，切換選單用。自己填的、舊的習慣是空，顯示時用最小一步
+    var name: String
     var floor: String
     var trigger: String
     var travelFloor: String
@@ -38,11 +40,19 @@ struct Habit: Codable, Equatable {
     var tz: String?
     /// 種下去時預估幾天養成；舊的習慣是空
     var estimatedDays: Int?
+    /// 規劃時選的對手：那個時機最會跟習慣搶的事（2026-11-26 起，舊的習慣是空）
+    var rival: String
+    /// 讓對手變難、或讓最小一步變簡單的那件事
+    var block: String
+    /// 做完馬上給自己的小犒賞，記好時顯示
+    var reward: String
 
     init(floor: String, trigger: String, planted: DayKey,
          travelFloor: String = "", obstacle: String = "", backup: String = "", why: String = "",
-         id: String = "", plantedAt: String? = nil, tz: String? = nil, estimatedDays: Int? = nil) {
+         id: String = "", plantedAt: String? = nil, tz: String? = nil, estimatedDays: Int? = nil,
+         rival: String = "", block: String = "", reward: String = "", name: String = "") {
         self.id = id
+        self.name = name
         self.floor = floor
         self.trigger = trigger
         self.planted = planted
@@ -53,13 +63,17 @@ struct Habit: Codable, Equatable {
         self.plantedAt = plantedAt
         self.tz = tz
         self.estimatedDays = estimatedDays
+        self.rival = rival
+        self.block = block
+        self.reward = reward
     }
 
-    enum CodingKeys: String, CodingKey { case id, floor, trigger, travelFloor, obstacle, backup, why, planted, plantedAt, tz, estimatedDays }
+    enum CodingKeys: String, CodingKey { case id, name, floor, trigger, travelFloor, obstacle, backup, why, planted, plantedAt, tz, estimatedDays, rival, block, reward }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decodeIfPresent(String.self, forKey: .id) ?? ""
+        name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
         floor = try c.decodeIfPresent(String.self, forKey: .floor) ?? ""
         trigger = try c.decodeIfPresent(String.self, forKey: .trigger) ?? ""
         travelFloor = try c.decodeIfPresent(String.self, forKey: .travelFloor) ?? ""
@@ -70,6 +84,9 @@ struct Habit: Codable, Equatable {
         plantedAt = try c.decodeIfPresent(String.self, forKey: .plantedAt)
         tz = try c.decodeIfPresent(String.self, forKey: .tz)
         estimatedDays = try c.decodeIfPresent(Int.self, forKey: .estimatedDays)
+        rival = try c.decodeIfPresent(String.self, forKey: .rival) ?? ""
+        block = try c.decodeIfPresent(String.self, forKey: .block) ?? ""
+        reward = try c.decodeIfPresent(String.self, forKey: .reward) ?? ""
     }
 }
 
@@ -510,8 +527,10 @@ struct AppState: Codable, Equatable {
     static let schemaVersion = 2
 
     var v: Int = AppState.schemaVersion
-    /// 目前種著的那一個
+    /// 現在看的那一個（今天頁、藤、田、小工具都看它）
     var habit: Habit? = nil
+    /// 同時在養的其他習慣（多米 2026-11-26：今天頁切換選單）。切過去就跟 habit 交換
+    var others: [Habit] = []
     /// 挖出來的習慣（完整的開關句留著；紀錄照樣在 records 裡）
     var pastHabits: [Habit] = []
     var records: [DayRecord] = []
@@ -535,7 +554,7 @@ struct AppState: Codable, Equatable {
     init() {}
 
     enum CodingKeys: String, CodingKey {
-        case v, habit, pastHabits, records, reviews, marks, changes, observations, trials, seen,
+        case v, habit, others, pastHabits, records, reviews, marks, changes, observations, trials, seen,
              gaps, checks, basket, queue, justDug, settings, dayOffset
     }
 
@@ -549,6 +568,7 @@ struct AppState: Codable, Equatable {
         }
         v = AppState.schemaVersion
         habit = try c.decodeIfPresent(Habit.self, forKey: .habit)
+        others = try c.decodeIfPresent([Habit].self, forKey: .others) ?? []
         pastHabits = try c.decodeIfPresent([Habit].self, forKey: .pastHabits) ?? []
         records = try c.decodeIfPresent([Lenient<DayRecord>].self, forKey: .records)?.compactMap(\.value) ?? []
         reviews = try c.decodeIfPresent([WeeklyReview].self, forKey: .reviews) ?? []

@@ -1,5 +1,6 @@
 import { AttestError, b64, verifyAssertion, verifyAttestation, type AttestEnv, type RegisteredKey } from './attest/appattest';
 import { referralFor, review } from './checks';
+import { CREDIT_PRODUCTS, FREE_CREDITS, StoreKitError, costOf, isAccount, verifyTransaction } from './credits';
 import type { ModelCaller } from './model';
 import type { Storage } from './storage';
 import { INPUTS, TASKS, isTaskId, type TaskId, type Window } from './tasks';
@@ -8,8 +9,11 @@ import { INPUTS, TASKS, isTaskId, type TaskId, type Window } from './tasks';
 //
 // POST /v1/attest/challenge   → { challenge }                         發一次性挑戰（五分鐘）
 // POST /v1/attest/register    { keyId, attestation, challenge }        驗 App Attest，存公鑰
-// POST /v1/task/{1-9}         { ts, habit_id?, input }                 header 帶 x-shuji-key、x-shuji-assertion
+// POST /v1/task/{1-9}         { ts, habit_id?, account?, input }       header 帶 x-shuji-key、x-shuji-assertion
 //                                                                      （assertion 簽的是整個 body 的原始位元組）
+// POST /v1/credits/balance    { ts, account }                          → { balance }（第一次看到的帳號送 20 點）
+// POST /v1/credits/redeem     { ts, account, jws }                     驗 StoreKit 交易，加點 → { balance, added }
+// 有 account 的任務請求會扣點（credits.ts 的 costOf），回應多一個 credits：扣完剩幾點；不夠回 402 no_credits
 // 回應一律 JSON：{ ok: true, task, result, referral? } 或 { ok: false, error, message }
 
 export interface Config {
@@ -21,6 +25,14 @@ export interface Config {
   globalDailyCap: number;
   /** 測試用：換掉 Apple 根憑證 */
   rootPem?: string;
+  /** StoreKit 交易的 bundle id（APP_ID 去掉 Team ID 那段） */
+  bundleId?: string;
+  /** 測試用：換掉 StoreKit 的 Apple Root CA - G3 */
+  storeKitRootPem?: string;
+  /** 收沙盒交易（TestFlight）。正式上架後關掉 */
+  allowSandbox?: boolean;
+  /** 任務請求一定要帶帳號（不帶就不能用）。舊版 app 還在 TestFlight 時先關著 */
+  requireAccount?: boolean;
 }
 
 export interface Deps {
@@ -100,6 +112,7 @@ function parseJson(bytes: Uint8Array): any {
 }
 
 export const BAD_OUTPUT_MSG = '現在想不出來，你先自己填，等一下再試。';
+export const NO_CREDITS_MSG = '點數用完了。可以買一包點數，或連電腦的 Claude 免費用。';
 
 export type Answer = { ok: true; body: Record<string, unknown> } | { ok: false; problems: string[] };
 
@@ -214,6 +227,8 @@ export function createApp(deps: Deps) {
     const parsed = INPUTS[id].safeParse(body.input);
     if (!parsed.success) return fail(400, 'bad_request', '輸入格式不對。');
     const habitId = typeof body.habit_id === 'string' ? body.habit_id.slice(0, 32) : undefined;
+    const account = isAccount(body.account) ? body.account : undefined;
+    if (!account && config.requireAccount) return fail(400, 'bad_request', '請更新 app。');
 
     // 次數：全站先擋，再擋這台裝置
     const spec = TASKS[id];
@@ -228,12 +243,74 @@ export function createApp(deps: Deps) {
       return fail(429, 'rate_limited', WINDOW_LIMIT_MSG[spec.quota.window]);
     }
 
+    // 點數：先扣，模型沒產出東西就退回
+    const cost = account ? costOf(id, parsed.data) : 0;
+    if (account) {
+      await storage.balance(account, FREE_CREDITS, n.getTime());
+      if (cost > 0 && !(await storage.spend(account, cost))) {
+        await storage.decr(bucket);
+        await storage.decr(`global:${day.key}`);
+        return json(402, { ok: false, error: 'no_credits', message: NO_CREDITS_MSG, credits: await storage.balance(account, FREE_CREDITS, n.getTime()) });
+      }
+    }
+
     const a = await askModel(deps.caller, id, parsed.data, log);
-    if (a.ok) return json(200, a.body);
+    if (a.ok) {
+      if (!account) return json(200, a.body);
+      return json(200, { ...a.body, credits: await storage.balance(account, FREE_CREDITS, n.getTime()) });
+    }
+    if (account && cost > 0) await storage.credit(account, cost);
     await storage.decr(bucket);
     await storage.decr(`global:${day.key}`);
     log({ ev: 'bad_output', task: id, problems: a.problems });
     return fail(502, 'bad_output', BAD_OUTPUT_MSG);
+  }
+
+  /** 點數的兩個請求共用：驗裝置、時間、帳號 */
+  async function creditsRequest(req: Request): Promise<{ body: any; account: string } | Response> {
+    const bytes = await readBody(req);
+    if (!bytes) return fail(413, 'bad_request', '內容太長了。');
+    const who = await authenticate(req, bytes);
+    if (who instanceof Response) return who;
+    const body = parseJson(bytes);
+    if (!body || typeof body.ts !== 'number' || Math.abs(now().getTime() / 1000 - body.ts) > TS_SKEW) {
+      return fail(400, 'bad_request', '手機的時間跟伺服器差太多。');
+    }
+    if (!isAccount(body.account)) return fail(400, 'bad_request', '缺少帳號。');
+    return { body, account: body.account };
+  }
+
+  async function balance(req: Request): Promise<Response> {
+    const r = await creditsRequest(req);
+    if (r instanceof Response) return r;
+    return json(200, { ok: true, balance: await storage.balance(r.account, FREE_CREDITS, now().getTime()) });
+  }
+
+  async function redeem(req: Request): Promise<Response> {
+    const r = await creditsRequest(req);
+    if (r instanceof Response) return r;
+    if (typeof r.body.jws !== 'string' || r.body.jws.length > 6000) return fail(400, 'bad_request', '缺少交易。');
+    const n = now();
+    let t;
+    try {
+      t = await verifyTransaction(r.body.jws, {
+        bundleId: config.bundleId ?? config.appId.replace(/^[A-Z0-9]+\./, ''),
+        now: n,
+        rootPem: config.storeKitRootPem,
+        allowSandbox: config.allowSandbox ?? true,
+      });
+    } catch (e) {
+      log({ ev: 'redeem_fail', reason: (e as Error).message });
+      return fail(400, 'bad_transaction', e instanceof StoreKitError ? '這筆購買驗證不過，等一下再試，或從設定恢復購買。' : '這筆購買驗證不過。');
+    }
+    const add = CREDIT_PRODUCTS[t.productId];
+    if (!add) return fail(400, 'bad_transaction', '這不是點數商品。');
+    await storage.balance(r.account, FREE_CREDITS, n.getTime());
+    // 同一筆交易只加一次：app 重送（沒收到回應又送一次）時回現在的點數，不重複加
+    const fresh = await storage.markRedeemed(t.transactionId, r.account, t.productId, n.getTime());
+    if (fresh) await storage.credit(r.account, add);
+    log({ ev: 'redeem', product: t.productId, env: t.environment, fresh });
+    return json(200, { ok: true, balance: await storage.balance(r.account, FREE_CREDITS, n.getTime()), added: fresh ? add : 0 });
   }
 
   return async function handle(req: Request): Promise<Response> {
@@ -242,6 +319,8 @@ export function createApp(deps: Deps) {
     if (req.method !== 'POST') return fail(405, 'bad_request', '只收 POST。');
     if (url.pathname === '/v1/attest/challenge') return challenge(req);
     if (url.pathname === '/v1/attest/register') return register(req);
+    if (url.pathname === '/v1/credits/balance') return balance(req);
+    if (url.pathname === '/v1/credits/redeem') return redeem(req);
     const m = url.pathname.match(/^\/v1\/task\/(\d)$/);
     if (m && isTaskId(Number(m[1]))) return task(req, Number(m[1]) as TaskId);
     return fail(404, 'bad_request', '沒有這個路徑。');

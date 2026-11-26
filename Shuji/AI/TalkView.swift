@@ -100,7 +100,7 @@ struct TalkView: View {
         model.step != .goal || model.phase != .ready || onExit != nil
     }
 
-    private var total: Int { queueOnly ? 2 : 4 }
+    private var total: Int { queueOnly ? 2 : TalkModel.Step.plan.rawValue }
     private var shownStep: Int { min(model.step.rawValue, total) }
 
     private var progress: some View {
@@ -188,9 +188,17 @@ struct TalkView: View {
             cardBox {
                 small(words.lead)
                 big(words.big, style: Ty.title1)
+                if model.step == .plan { planExtras }
                 if !words.foot.isEmpty { small(words.foot) }
             }
         }
+    }
+
+    /// 種下去那頁：擋住什麼、做完給自己什麼。跳過的不寫
+    @ViewBuilder
+    private var planExtras: some View {
+        if !model.block.isEmpty { small("擋住：\(model.block)") }
+        if !model.reward.isEmpty { small("做完：\(model.reward)") }
     }
 
     /// 第一句放大，其他的是怎麼辦
@@ -239,6 +247,15 @@ struct TalkView: View {
         case .trigger:
             return Words(lead: model.triggerOffer.lead.isEmpty ? "每天一定會做的是？" : model.triggerOffer.lead,
                          big: "接在它後面", foot: "")
+        case .rival:
+            return Words(lead: model.offer.lead.isEmpty ? "那個時候，最常把你拉走的是？" : model.offer.lead,
+                         big: "誰會跟它搶？", foot: "")
+        case .block:
+            return Words(lead: model.offer.lead.isEmpty ? "前一晚做好，那一刻就不用忍" : model.offer.lead,
+                         big: "先把它擋開", foot: "")
+        case .reward:
+            return Words(lead: model.offer.lead.isEmpty ? "做完馬上就有的" : model.offer.lead,
+                         big: "做完給自己什麼？", foot: "")
         case .plan:
             let n = model.days ?? HabitDifficulty.medium.days
             return Words(lead: "\(model.trigger)，就\(model.floor)。", big: "預估 \(n) 天",
@@ -254,6 +271,7 @@ struct TalkView: View {
             case .unfit:
                 DomyButton("換一件事", variant: .secondary) { model.restart() }
             case .failed:
+                if model.outOfCredits { BuyCreditsButton() }
                 DomyButton("再試一次") { model.retry() }
                 DomyButton(queueOnly ? "自己打" : "自己填", variant: .plain) { manual() }
             case .ready, .waiting:
@@ -268,7 +286,7 @@ struct TalkView: View {
         switch model.step {
         case .goal:
             goalControls
-        case .floor, .trigger:
+        case .floor, .trigger, .rival, .block, .reward:
             pickControls
         case .plan:
             option("種下去", primary: true) { plant() }
@@ -316,6 +334,9 @@ struct TalkView: View {
         Group {
             DomyButton("換一批", variant: .plain) { model.more() }
             DomyButton("都不是，自己打", variant: .plain) { typeOwn() }
+            if model.step.skippable {
+                DomyButton("先不用", variant: .plain) { model.skip() }
+            }
         }
         .lineLimit(1)
         .minimumScaleFactor(0.9)
@@ -396,6 +417,9 @@ struct TalkView: View {
         switch model.step {
         case .goal, .floor: return "在想最小的一步"
         case .trigger: return "在想接在哪裡"
+        case .rival: return "在想誰會跟它搶"
+        case .block: return "在想怎麼擋開"
+        case .reward: return "在想做完給你什麼"
         case .plan: return "在算要多久"
         }
     }
@@ -431,7 +455,7 @@ struct TalkView: View {
         writing = false
         switch model.step {
         case .goal: send(model.draftValue)
-        case .floor, .trigger: pick(model.draftValue)
+        case .floor, .trigger, .rival, .block, .reward: pick(model.draftValue)
         case .plan: break
         }
     }
@@ -449,8 +473,8 @@ struct TalkView: View {
     }
 
     private func pick(_ text: String) {
-        if model.step == .trigger {
-            model.pickTrigger(text)
+        if model.step != .floor {
+            model.pick(text)
         } else if queueOnly {
             store.addQueue(TalkModel.clip(text, PlanInput.floorLimit))
             store.show("排進去了。")
@@ -486,7 +510,8 @@ struct TalkView: View {
         Haptic.bloom()
         // 先拿掉排隊那一句，再種（種下去畫面就換掉了）
         store.removeQueue(model.goal)
-        store.plant(floor: model.floor, trigger: model.trigger, estimatedDays: days)
+        store.plant(floor: model.floor, trigger: model.trigger, estimatedDays: days,
+                    rival: model.rival, block: model.block, reward: model.reward, name: model.goal)
         onDone()
     }
 

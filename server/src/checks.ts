@@ -90,6 +90,10 @@ const tidyTrigger = (s: string) =>
     .replace(/(?<=.{2})(的時候|的?那一刻|之後|以後|(?<!最)後|(?<!小)時)$/, '');
 const tidyFloor = (s: string) => s.trim().replace(/^我就/, '').replace(/[。.]$/, '');
 const tidyLine = (s: string) => s.trim().replace(/請假/g, '跳過');
+/** 對手、擋對手、犒賞：去頭尾空白和句尾標點 */
+const tidyPick = (s: string) => s.trim().replace(/[。.，,]$/, '');
+/** 犒賞要緊接在做完之後：「做滿幾天」「存起來」「週末再」都太遠 */
+const DELAYED_REWARD = /做滿|連續|累積|存起來|集滿|週末再|月底|下個月|一週後|七天後/;
 
 /** pattern=none 時不准講的：任何聽起來像規律的字 */
 const PATTERN_WORDS = /週末|周末|平日|六日|假日|上班日|總是|常常|每次|老是|通常|往往|容易|規律|多半|大多|比較|比[^比]{0,6}(少|多)|習慣性/;
@@ -289,7 +293,10 @@ export function review<T extends TaskId>(task: T, raw: TaskOutput<T>, input?: un
         if (!out.difficulty) problems.push('estimate 沒有 difficulty');
       } else {
         out.difficulty = null;
-        const tidy = i?.step === 'trigger' ? tidyTrigger : tidyFloor;
+        const step = i?.step ?? 'floor';
+        const tidy = step === 'trigger' ? tidyTrigger : step === 'floor' ? tidyFloor : tidyPick;
+        // 擋對手那一步是一件要做的事，可以長一點
+        const most = step === 'block' ? 20 : 16;
         // 模型偶爾多給一個。第一個是最推薦的，留前三個
         out.options = out.options.map(tidy).filter(Boolean).slice(0, 3);
         const seen = new Set(out.options.map(same));
@@ -297,12 +304,14 @@ export function review<T extends TaskId>(task: T, raw: TaskOutput<T>, input?: un
         else if (seen.size !== 3) problems.push('選項重複');
         for (const x of i?.exclude ?? []) if (x && seen.has(same(x))) problems.push(`選項是換掉的那個：${x}`);
         for (const o of out.options as string[]) {
-          if (len(o) > 16) problems.push(`選項太長：${o}`);
-          if (i?.step === 'trigger') {
+          if (len(o) > most) problems.push(`選項太長：${o}`);
+          if (step === 'trigger') {
             if (NOT_A_MOMENT.test(o)) problems.push(`時機不是一個瞬間：${o}`);
-          } else {
+          } else if (step === 'floor') {
             if (negated(o)) problems.push(`最小一步有否定詞：${o}`);
             if (QUANTITY.test(o) || TIME_SPAN.test(o)) problems.push(`最小一步帶了量：${o}`);
+          } else if (step === 'reward') {
+            if (DELAYED_REWARD.test(o)) problems.push(`犒賞要做完馬上拿得到：${o}`);
           }
         }
       }

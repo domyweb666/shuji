@@ -1,21 +1,26 @@
 import Foundation
 
 // 任務 8 規劃習慣的輸入與輸出，欄位名跟 server/src/tasks.ts 一字不差。
-// 一步問一次：最小一步 → 時機 → 難度。天數不問 AI，HabitDifficulty 填。
+// 一步問一次：最小一步 → 時機 → 對手 → 擋對手 → 犒賞 → 難度。天數不問 AI，HabitDifficulty 填。
 
 struct PlanInput: Encodable, Equatable {
-    enum Step: String, Encodable { case floor, trigger, estimate }
+    enum Step: String, Encodable { case floor, trigger, rival, block, reward, estimate }
 
     var step: Step
     var goal: String
     var floor: String
     var trigger: String
+    /// 他選好的對手；問擋對手、犒賞時才帶
+    var rival: String = ""
     /// 給過、他不要的選項
     var exclude: [String]
 
     static let goalLimit = 60
     static let floorLimit = 40
     static let triggerLimit = 30
+    static let rivalLimit = 30
+    static let blockLimit = 30
+    static let rewardLimit = 30
     static let excludeLimit = 12
 }
 

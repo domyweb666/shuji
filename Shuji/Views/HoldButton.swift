@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// 土裡那顆地瓜的尺寸與外觀。按鈕和記好、跳過、放手的樣子共用，換狀態位置不跳。
-/// 造型是 Claude Design 的 D（QC-0011 多米選的）：直立、有鬚根和泥，記好了上半的皮剝開。
-/// 插畫座標照畫布（寬 380 高 400），地瓜中心在 (190, 221)，縮成 0.72 倍放進 264×196 的位子。
+/// 造型是 B（多米 2026-11-26 換掉 D）：橫躺、長條彎身、一根細根往上，記好了縱切攤開冒煙。
+/// 插畫座標照畫布（寬 380 高 400），地瓜身體中心在 (194, 222)，縮成 0.84 倍放進 264×196 的位子。
 struct PotatoBody<Label: View>: View {
     var fill: Color
     /// 外圈跑到哪（0 到 1）
@@ -16,10 +16,10 @@ struct PotatoBody<Label: View>: View {
     @Environment(\.colorScheme) private var scheme
 
     /// 地瓜本體、外圈、整塊佔的大小（插畫，不走代號）
-    static var bodySize: CGSize { CGSize(width: 121, height: 186) }
-    static var ringSize: CGSize { CGSize(width: 144, height: 193) }
+    static var bodySize: CGSize { CGSize(width: 222, height: 89) }
+    static var ringSize: CGSize { CGSize(width: 252, height: 136) }
     static var frameSize: CGSize { CGSize(width: 264, height: 196) }
-    /// 畫布比佔的位子高，上面多出來的給煙
+    /// 畫布比佔的位子高，上面多出來的給煙和細根
     private static var drawSize: CGSize { CGSize(width: 264, height: 260) }
 
     var body: some View {
@@ -45,39 +45,40 @@ struct PotatoBody<Label: View>: View {
     }
 }
 
-/// D 的地瓜。open：上半的皮剝開、冒煙。竹籃、挖出來、付費頁的小地瓜（PotatoView）也用這個畫
+/// B 的地瓜。open：縱切攤開、冒煙。竹籃、挖出來、付費頁的小地瓜（PotatoView）也用這個畫
 struct PotatoArt: View {
     var open: Bool
     var fill: Color
     var rim: Color
+    /// 留著給呼叫的地方傳，B 沒有泥
     var mud: Color
     var written: Bool
-    /// 畫布縮放：土裡那顆是 0.72；nil 就照高度塞滿（給小地瓜用）
-    var scale: CGFloat? = 0.72
+    /// 畫布縮放：土裡那顆是 0.84；nil 就照位子塞滿（給小地瓜用）
+    var scale: CGFloat? = 0.84
 
-    /// 整顆含鬚根和泥的高度（畫布座標），照高度塞滿時用
-    static let wholeHeight: CGFloat = 272
+    /// 地瓜身體中心（固定縮放時對準位子中心）
+    static let center = CGPoint(x: 194, y: 222)
+    /// 整顆含細根與鬚的範圍（畫布座標），塞滿時用
+    static let whole = CGRect(x: 60, y: 104, width: 274, height: 182)
+
+    /// 畫布座標換到位子裡：回傳縮放和畫布中心要對到的點
+    static func fit(_ size: CGSize, scale: CGFloat?) -> (s: CGFloat, anchor: CGPoint) {
+        if let scale { return (scale, center) }
+        let s = min(size.width / whole.width, size.height / whole.height)
+        return (s, CGPoint(x: whole.midX, y: whole.midY))
+    }
 
     var body: some View {
         Canvas { ctx, size in
             var g = ctx
-            let s = scale ?? size.height / Self.wholeHeight
+            let (s, a) = Self.fit(size, scale: scale)
             g.translateBy(x: size.width / 2, y: size.height / 2)
             g.scaleBy(x: s, y: s)
-            g.translateBy(x: -190, y: -221)
+            g.translateBy(x: -a.x, y: -a.y)
             if open { drawOpen(&g) } else { drawWhole(&g) }
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
-    }
-
-    private func strokeLines(_ g: inout GraphicsContext, _ pts: [(CGFloat, CGFloat, CGFloat, CGFloat)], _ c: Color, _ w: CGFloat) {
-        var p = Path()
-        for (x1, y1, x2, y2) in pts {
-            p.move(to: CGPoint(x: x1, y: y1))
-            p.addLine(to: CGPoint(x: x2, y: y2))
-        }
-        g.stroke(p, with: .color(c), style: StrokeStyle(lineWidth: w, lineCap: .round))
     }
 
     /// 每一條是 起點、控制點、終點
@@ -91,45 +92,43 @@ struct PotatoArt: View {
     }
 
     private func drawWhole(_ g: inout GraphicsContext) {
-        g.fill(DShape.body, with: .color(fill))
-        g.fill(DShape.shade, with: .color(.black.opacity(0.2)))
+        // 往上的那根細根，畫在身體後面
+        var root = Path()
+        root.move(to: CGPoint(x: 116, y: 182))
+        root.addCurve(to: CGPoint(x: 150, y: 106), control1: CGPoint(x: 126, y: 150), control2: CGPoint(x: 152, y: 136))
+        g.stroke(root, with: .color(rim.opacity(0.85)), style: StrokeStyle(lineWidth: 3, lineCap: .round))
+        g.fill(BShape.body, with: .color(fill))
+        g.fill(BShape.shade, with: .color(.black.opacity(0.2)))
         var shine = Path()
-        shine.move(to: CGPoint(x: 134, y: 172))
-        shine.addCurve(to: CGPoint(x: 176, y: 132), control1: CGPoint(x: 142, y: 152), control2: CGPoint(x: 158, y: 140))
+        shine.move(to: CGPoint(x: 112, y: 184))
+        shine.addCurve(to: CGPoint(x: 236, y: 186), control1: CGPoint(x: 140, y: 166), control2: CGPoint(x: 200, y: 164))
         g.stroke(shine, with: .color(.white.opacity(0.3)), style: StrokeStyle(lineWidth: 9, lineCap: .round))
-        let hairs = quads([[108, 196, 86, 200, 72, 216], [112, 226, 94, 236, 88, 254],
-                           [270, 188, 292, 188, 310, 202], [258, 238, 278, 246, 286, 262]])
+        let hairs = quads([[146, 252, 142, 266, 134, 280], [224, 262, 228, 274, 236, 284], [276, 220, 286, 212, 298, 210]])
         g.stroke(hairs, with: .color(rim.opacity(0.75)), style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
-        strokeLines(&g, [(134, 164, 156, 164), (224, 156, 242, 156), (146, 262, 166, 262), (208, 276, 230, 276)],
-                    .black.opacity(0.22), 3)
-        g.fill(Path(ellipseIn: CGRect(x: 134, y: 278, width: 32, height: 16)), with: .color(mud))
-        g.fill(Path(ellipseIn: CGRect(x: 224, y: 140, width: 24, height: 12)), with: .color(mud))
     }
 
     private func drawOpen(_ g: inout GraphicsContext) {
         var steam = Path()
-        for x in [150.0, 194.0, 238.0] {
-            let top = x == 194 ? 84.0 : 92.0
+        for x in [158.0, 196.0, 234.0] {
+            let top = x == 196 ? 150.0 : 156.0
             steam.move(to: CGPoint(x: x, y: top))
-            steam.addQuadCurve(to: CGPoint(x: x, y: top - 26), control: CGPoint(x: x - 12, y: top - 13))
-            steam.addQuadCurve(to: CGPoint(x: x, y: top - 52), control: CGPoint(x: x + 12, y: top - 39))
+            steam.addQuadCurve(to: CGPoint(x: x, y: top - 22), control: CGPoint(x: x - 10, y: top - 11))
+            steam.addQuadCurve(to: CGPoint(x: x, y: top - 44), control: CGPoint(x: x + 10, y: top - 33))
         }
         g.stroke(steam, with: .color(rim), style: StrokeStyle(lineWidth: 5, lineCap: .round))
-        g.fill(DShape.flesh, with: .color(Theme.bakedFlesh))
-        g.fill(DShape.core, with: .color(Theme.bakedCore))
+        g.fill(BShape.boat, with: .color(fill))
+        g.fill(BShape.boat, with: .color(.black.opacity(0.2)))
+        g.fill(BShape.cream, with: .color(Theme.bakedRim))
+        g.fill(BShape.flesh, with: .color(Theme.bakedFlesh))
+        g.fill(BShape.core, with: .color(Theme.bakedCore))
         if !written {
-            let lines = quads([[168, 176, 178, 182, 190, 178], [194, 206, 206, 212, 218, 207], [160, 218, 170, 223, 178, 220]])
+            let lines = quads([[162, 218, 176, 224, 190, 220], [196, 226, 210, 232, 226, 228], [178, 236, 190, 240, 202, 237]])
             g.stroke(lines, with: .color(Theme.bakedLine.opacity(0.6)), style: StrokeStyle(lineWidth: 3, lineCap: .round))
         }
-        g.fill(DShape.flaps, with: .color(fill))
-        g.fill(DShape.flaps, with: .color(.black.opacity(0.2)))
-        g.fill(DShape.bottom, with: .color(fill))
-        g.stroke(DShape.edge, with: .color(Theme.bakedRim), style: StrokeStyle(lineWidth: 6, lineCap: .round, lineJoin: .round))
-        strokeLines(&g, [(160, 284, 178, 284), (206, 290, 222, 290)], .black.opacity(0.22), 3)
     }
 }
 
-/// 有眼睛的 D：回來卡、對話、這週的田、田的「還太少」共用。照高度塞滿置中，位子由呼叫的地方給
+/// 有眼睛的 B：回來卡、對話、這週的田、田的「還太少」共用。照位子塞滿置中，位子由呼叫的地方給
 /// dots：想的時候三個點的透明度；nil 畫兩隻眼睛。眼睛顏色跟著壓在產品色上的字色走，深色模式才看得到
 struct PotatoFace: View {
     var dots: [Double]? = nil
@@ -140,18 +139,18 @@ struct PotatoFace: View {
             PotatoArt(open: false, fill: Theme.accent, rim: Theme.potatoRing(scheme),
                       mud: Theme.garden(scheme).soilDeep, written: false, scale: nil)
             Canvas { ctx, size in
-                let s = size.height / PotatoArt.wholeHeight
+                let (s, a) = PotatoArt.fit(size, scale: nil)
                 func dot(_ x: CGFloat, _ y: CGFloat, _ opacity: Double) {
-                    let c = CGPoint(x: size.width / 2 + (x - 190) * s, y: size.height / 2 + (y - 221) * s)
+                    let c = CGPoint(x: size.width / 2 + (x - a.x) * s, y: size.height / 2 + (y - a.y) * s)
                     let r = 9 * s
                     ctx.fill(Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2)),
                              with: .color(Theme.onAccent.opacity(opacity)))
                 }
                 if let dots {
-                    for (i, o) in dots.prefix(3).enumerated() { dot(156 + CGFloat(i) * 34, 212, o) }
+                    for (i, o) in dots.prefix(3).enumerated() { dot(150 + CGFloat(i) * 32, 220, o) }
                 } else {
-                    dot(168, 208, 1)
-                    dot(214, 202, 1)
+                    dot(158, 218, 1)
+                    dot(204, 216, 1)
                 }
             }
         }
@@ -160,8 +159,8 @@ struct PotatoFace: View {
     }
 }
 
-/// D 的外形（畫布座標）
-private enum DShape {
+/// B 的外形（畫布座標）
+private enum BShape {
     /// 起點，之後每三點一段曲線
     static func curves(_ p: [(CGFloat, CGFloat)], close: Bool = true) -> Path {
         var path = Path()
@@ -176,40 +175,26 @@ private enum DShape {
         return path
     }
 
-    static let body = curves([(196, 92), (214, 108), (258, 122), (272, 166), (288, 218), (262, 262), (224, 290),
-                              (208, 302), (200, 322), (190, 350), (180, 322), (166, 304), (150, 290),
-                              (112, 260), (92, 214), (108, 166), (122, 124), (176, 110), (196, 92)])
-    static let shade = curves([(272, 166), (288, 218), (262, 262), (224, 290), (208, 302), (200, 322), (190, 350),
-                               (186, 330), (196, 300), (214, 276), (246, 236), (258, 206), (256, 140),
-                               (264, 148), (270, 156), (272, 166)])
-    /// 剝開的鋸齒邊，左到右
-    static let jag: [(CGFloat, CGFloat)] = [(106, 214), (120, 236), (134, 222), (148, 240), (164, 258), (178, 230),
-                                            (194, 246), (210, 260), (226, 230), (240, 240), (254, 248), (262, 226), (274, 212)]
-    static let edge = curves(jag, close: false)
-    private static let bottomTail: [(CGFloat, CGFloat)] = [(272, 250), (252, 270), (224, 290), (208, 302), (200, 322), (190, 350),
-                                                           (180, 322), (166, 304), (150, 290), (122, 268), (106, 244), (106, 214)]
-    static let bottom = curves(jag + bottomTail)
-    static let flaps: Path = {
-        var p = curves([(106, 216), (76, 226), (66, 256), (78, 278), (88, 258), (104, 250), (114, 250)])
-        p.addPath(curves([(272, 214), (304, 226), (312, 256), (302, 278), (292, 258), (276, 250), (264, 250)]))
-        return p
-    }()
-    static let flesh: Path = {
-        var p = curves([(194, 96), (214, 110), (254, 126), (266, 168), (274, 200), (268, 226), (256, 248)], close: false)
-        p.addLine(to: CGPoint(x: 122, y: 248))
-        p.addCurve(to: CGPoint(x: 112, y: 168), control1: CGPoint(x: 108, y: 222), control2: CGPoint(x: 104, y: 196))
-        p.addCurve(to: CGPoint(x: 194, y: 96), control1: CGPoint(x: 124, y: 126), control2: CGPoint(x: 176, y: 112))
-        p.closeSubpath()
-        return p
-    }()
-    static let core: Path = {
-        var p = curves([(190, 122), (208, 134), (232, 150), (238, 180), (242, 204), (238, 226), (230, 244)], close: false)
-        p.addLine(to: CGPoint(x: 150, y: 244))
-        p.addCurve(to: CGPoint(x: 142, y: 180), control1: CGPoint(x: 140, y: 222), control2: CGPoint(x: 136, y: 202))
-        p.addCurve(to: CGPoint(x: 190, y: 122), control1: CGPoint(x: 150, y: 150), control2: CGPoint(x: 176, y: 136))
-        p.closeSubpath()
-        return p
-    }()
+    /// 整顆：左邊尖頭，上緣拱起，右邊拖一條往下彎的尾巴
+    static let body = curves([(66, 206), (88, 164), (146, 154), (200, 168), (254, 182), (300, 222), (326, 254),
+                              (296, 262), (250, 270), (198, 262), (140, 256), (88, 240), (66, 206)])
+    /// 下緣的陰影
+    static let shade = curves([(326, 254), (296, 262), (250, 270), (198, 262), (140, 256), (88, 240), (66, 206),
+                               (100, 232), (150, 242), (200, 246), (250, 250), (296, 246), (326, 254)])
+    /// 縱切攤開的外皮：兩頭尖的船形
+    static let boat = curves([(60, 210), (94, 170), (150, 160), (198, 168), (254, 178), (304, 222), (330, 256),
+                              (294, 266), (248, 276), (196, 270), (130, 264), (80, 240), (60, 210)])
+    private static func shrink(_ p: Path, _ sx: CGFloat, _ sy: CGFloat, dx: CGFloat = 0, dy: CGFloat = 0) -> Path {
+        let c = CGPoint(x: 196, y: 222)
+        let t = CGAffineTransform(translationX: c.x + dx, y: c.y + dy).scaledBy(x: sx, y: sy).translatedBy(x: -c.x, y: -c.y)
+        return p.applying(t)
+    }
+    /// 皮裡面一圈淡色
+    static let cream = shrink(boat, 0.93, 0.8)
+    /// 烤好的肉
+    static let flesh = shrink(boat, 0.86, 0.66)
+    /// 黃色肉心，「你回來了」寫在這裡
+    static let core = shrink(boat, 0.62, 0.44, dx: -6, dy: 4)
 }
 
 /// 從正上方順時針跑的橢圓圈
@@ -318,8 +303,8 @@ struct HoldButton: View {
                         .minimumScaleFactor(0.6)
                         .foregroundStyle(Theme.bakedInk)
                         .frame(maxWidth: PotatoBody<EmptyView>.bodySize.width * 0.8)
-                        // 往上挪到黃色肉心正中間，離開皮跟肉交界的鋸齒邊（多米 2026-11-26 選 C）
-                        .offset(y: -30) // domy-ignore: 插畫位置
+                        // 放在黃色肉心正中間（B 的肉心比身體中心偏左下一點）
+                        .offset(x: -3, y: 3) // domy-ignore: 插畫位置
                         .opacity(done && back ? 1 : 0)
                 }
             }

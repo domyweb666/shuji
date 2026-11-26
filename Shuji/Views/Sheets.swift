@@ -492,7 +492,8 @@ struct UnfinishedSheet: View {
             }
             VStack(spacing: Sp.s2) {
                 DomyButton("現在種回來") {
-                    if store.state.habit == nil { replant() } else { confirmReplant = true }
+                    // 還有位子就一起養，不用問；滿了才問要不要換掉現在的
+                    if store.state.habit == nil || store.canAddHabit { replant() } else { confirmReplant = true }
                 }
                 DomyButton(queued ? "已經在排隊了" : "排進排隊", variant: .secondary, disabled: queued) {
                     store.queueUnfinished(item)
