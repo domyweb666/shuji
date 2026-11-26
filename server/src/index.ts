@@ -15,6 +15,10 @@ export interface Env {
   GLOBAL_DAILY_CAP: string;
   /** 選填，開發用（模擬器）。正式上架前刪掉：wrangler secret delete DEV_TOKEN */
   DEV_TOKEN?: string;
+  /** "false" 就不收沙盒（TestFlight）的點數購買。正式上架一陣子後再關 */
+  ALLOW_SANDBOX?: string;
+  /** "true" 就要求任務請求帶帳號（舊版 app 不能再用伺服器）。舊版都更新後再開 */
+  REQUIRE_ACCOUNT?: string;
 }
 
 export default {
@@ -30,6 +34,8 @@ export default {
         allowEnvs: env.ATTEST_ENVS.split(',').map((s) => s.trim()).filter(Boolean) as AttestEnv[],
         devToken: env.DEV_TOKEN || undefined,
         globalDailyCap: Number(env.GLOBAL_DAILY_CAP) || 5000,
+        allowSandbox: env.ALLOW_SANDBOX !== 'false',
+        requireAccount: env.REQUIRE_ACCOUNT === 'true',
       },
     });
     try {

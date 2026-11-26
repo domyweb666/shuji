@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { createApp, windowKey, type Config } from '../src/app';
 import type { ModelCaller, ModelResult } from '../src/model';
 import { MemoryStorage } from '../src/storage';
-import { FakeApple } from './fakeApple';
+import { FakeApple, FakeStoreKit } from './fakeApple';
+import { costOf } from '../src/credits';
 
 const APP = 'ABCDE12345.org.domyweb.shuji';
 const apple = new FakeApple();
@@ -364,5 +365,94 @@ describe('規劃習慣、每週看紀錄（任務 8、9）', () => {
     expect((await send(8, { ...in8, step: 'x' })).status).toBe(400);
     expect((await send(9, { ...in9, pattern: 'x' })).status).toBe(400);
     expect((await send(0, {})).status).toBe(404);
+  });
+});
+
+describe('AI 點數', () => {
+  const kit = new FakeStoreKit();
+  const ACC = '3F2504E0-4F89-11D3-9A0C-0305E82C3301';
+  const plan = { type: 'options', lead: '先從這個開始', options: ['換上球鞋', '走到巷口', '倒一杯水'], difficulty: null, category: null, message: null };
+  const in8 = { step: 'floor', goal: '每天運動', floor: '', trigger: '', exclude: [] as string[] };
+  const tx = (over: Record<string, unknown> = {}) =>
+    kit.jws({ bundleId: 'org.domyweb.shuji', productId: 'org.domyweb.shuji.credits30', transactionId: '2000000123', environment: 'Sandbox', ...over });
+
+  async function withDevice(outputs: unknown[] = [plan], over: Partial<Config> = {}) {
+    const s = setup(outputs, { storeKitRootPem: kit.rootPem, ...over });
+    const dev = await registeredDevice(s);
+    const signed = (path: string, extra: Record<string, unknown>) => {
+      const body = JSON.stringify({ ts: NOW.getTime() / 1000, account: ACC, ...extra });
+      const bytes = new TextEncoder().encode(body);
+      return s.post(path, body, { 'x-shuji-key': dev.d.keyId, 'x-shuji-assertion': dev.d.assert(bytes) });
+    };
+    return { s, ...dev, signed };
+  }
+
+  it('新帳號送 20 點；規劃開始扣 3、換一批不扣、問對手扣 2', async () => {
+    const { send, signed } = await withDevice();
+    expect(((await (await signed('/v1/credits/balance', {})).json()) as any).balance).toBe(20);
+    const r: any = await (await send(8, in8, { account: ACC })).json();
+    expect(r.credits).toBe(17);
+    expect(((await (await send(8, { ...in8, exclude: ['甲'] }, { account: ACC })).json()) as any).credits).toBe(17);
+    const rival = { ...plan, lead: '下班最想做的通常是這些', options: ['滑手機', '躺沙發', '開電視'] };
+    const t = await withDevice([rival]);
+    const r2: any = await (await t.send(8, { ...in8, step: 'rival', floor: '換上球鞋', trigger: '進家門' }, { account: ACC })).json();
+    expect(r2.credits).toBe(18);
+  });
+
+  it('點數不夠回 402，不呼叫模型；模型出錯退點', async () => {
+    const { s, send } = await withDevice([new Error('boom')]);
+    s.storage.credits.set(ACC, 3);
+    expect((await send(8, in8, { account: ACC })).status).toBe(502);
+    expect(s.storage.credits.get(ACC)).toBe(3);
+    s.storage.credits.set(ACC, 2);
+    const before = s.calls.length;
+    const r = await send(8, in8, { account: ACC });
+    expect(r.status).toBe(402);
+    expect(((await r.json()) as any).error).toBe('no_credits');
+    expect(s.calls.length).toBe(before);
+  });
+
+  it('沒帶帳號（舊版 app）照舊不扣點；requireAccount 打開就擋', async () => {
+    const a = await withDevice();
+    const r: any = await (await a.send(8, in8)).json();
+    expect(r.ok).toBe(true);
+    expect(r.credits).toBeUndefined();
+    const b = await withDevice([plan], { requireAccount: true });
+    expect((await b.send(8, in8)).status).toBe(400);
+  });
+
+  it('買點數：驗過加 30，同一筆重送不重複加', async () => {
+    const { signed } = await withDevice();
+    const r: any = await (await signed('/v1/credits/redeem', { jws: tx() })).json();
+    expect(r).toMatchObject({ ok: true, balance: 50, added: 30 });
+    const again: any = await (await signed('/v1/credits/redeem', { jws: tx() })).json();
+    expect(again).toMatchObject({ ok: true, balance: 50, added: 0 });
+    const big: any = await (await signed('/v1/credits/redeem', { jws: tx({ transactionId: '2000000999', productId: 'org.domyweb.shuji.credits100' }) })).json();
+    expect(big.balance).toBe(150);
+  });
+
+  it('假的、別的 app、退款、沙盒關掉、非點數商品都不加', async () => {
+    const { signed } = await withDevice();
+    const bad = async (jws: string) => (await signed('/v1/credits/redeem', { jws })).status;
+    const stranger = new FakeStoreKit();
+    expect(await bad(stranger.jws({ bundleId: 'org.domyweb.shuji', productId: 'org.domyweb.shuji.credits30', transactionId: '1', environment: 'Sandbox' }))).toBe(400);
+    expect(await bad(tx({ bundleId: 'com.other.app' }))).toBe(400);
+    expect(await bad(tx({ revocationDate: 1 }))).toBe(400);
+    expect(await bad(tx({ productId: 'org.domyweb.shuji.full' }))).toBe(400);
+    expect(await bad(kit.jws({ bundleId: 'org.domyweb.shuji', productId: 'org.domyweb.shuji.credits30', transactionId: '7', environment: 'Sandbox' }, { noMark: true }))).toBe(400);
+    const parts = tx().split('.');
+    expect(await bad(`${parts[0]}.${Buffer.from(JSON.stringify({ bundleId: 'org.domyweb.shuji', productId: 'org.domyweb.shuji.credits100', transactionId: '8', environment: 'Sandbox' })).toString('base64url')}.${parts[2]}`)).toBe(400);
+    expect(await bad('not.a.jws')).toBe(400);
+    const prod = await withDevice([plan], { allowSandbox: false });
+    expect((await prod.signed('/v1/credits/redeem', { jws: tx() })).status).toBe(400);
+  });
+
+  it('扣點規則：對話引導第一輪 3、季稽核 5、其他 1', () => {
+    expect(costOf(7, { turns: [{ q: '', a: 'x' }], queue: [] } as any)).toBe(3);
+    expect(costOf(7, { turns: [{ q: '', a: 'x' }, { q: 'q', a: 'y' }], queue: [] } as any)).toBe(0);
+    expect(costOf(6, {} as any)).toBe(5);
+    expect(costOf(9, {} as any)).toBe(1);
+    expect(costOf(8, { ...in8, step: 'block' } as any)).toBe(0);
+    expect(costOf(8, { ...in8, step: 'estimate' } as any)).toBe(0);
   });
 });
