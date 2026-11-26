@@ -271,6 +271,7 @@ struct TalkView: View {
             case .unfit:
                 DomyButton("換一件事", variant: .secondary) { model.restart() }
             case .failed:
+                if model.outOfCredits { BuyCreditsButton() }
                 DomyButton("再試一次") { model.retry() }
                 DomyButton(queueOnly ? "自己打" : "自己填", variant: .plain) { manual() }
             case .ready, .waiting:

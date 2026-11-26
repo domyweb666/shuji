@@ -60,6 +60,8 @@ final class TalkModel {
     var typing = false
     /// 第一次送去伺服器之前先問（送到自己的電腦不問）
     var needsConsent = false
+    /// 失敗是因為點數用完：失敗那頁多一顆「買點數」
+    private(set) var outOfCredits = false
 
     @ObservationIgnored private var pending: Step?
     @ObservationIgnored private var task: Task<Void, Never>?
@@ -279,7 +281,7 @@ final class TalkModel {
                 let out = try await AIClient.shared.run(.plan, input: input, as: PlanOutput.self)
                 self?.finished(out, at: target, round: mine)
             } catch let f as AIClient.Failure {
-                self?.fail(f.message, round: mine)
+                self?.fail(f.message, round: mine, noCredits: f.noCredits)
             } catch {
                 self?.fail(AIClient.fallbackMessage, round: mine)
             }
@@ -323,8 +325,9 @@ final class TalkModel {
         task = nil
     }
 
-    private func fail(_ message: String, round r: Int) {
+    private func fail(_ message: String, round r: Int, noCredits: Bool = false) {
         guard r == round else { return }
+        outOfCredits = noCredits
         phase = .failed(message)
         Haptic.error()
     }

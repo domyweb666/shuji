@@ -113,7 +113,7 @@ struct SettingsView: View {
                 timeRow
             }
             RowSep()
-            pushRow("sparkles", "AI", value: AIClient.shared.bridge == nil ? nil : "已連電腦") { store.route = [.ai] }
+            pushRow("sparkles", "AI", value: AIClient.shared.bridge == nil ? Credits.shared.balanceText : "已連電腦") { store.route = [.ai] }
         }
     }
 

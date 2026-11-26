@@ -3,7 +3,7 @@ import Observation
 import StoreKit
 
 /// 完整版：一次買斷，不訂閱（ai/AI交接.md 第二節）。
-/// 解鎖週回顧建議、季稽核、小工具。核心動作與其他 AI 功能永遠免費。
+/// 同時養到 5 個習慣（免費 2 個），也解鎖季稽核、小工具。AI 另外用點數（Credits.swift）。
 /// 商品要先在 App Store Connect 建好：非消耗型，Product ID 跟下面一樣。
 @MainActor
 @Observable
@@ -39,13 +39,21 @@ final class Purchases {
     private init() {
         updates = Task { [weak self] in
             for await result in Transaction.updates {
-                if case .verified(let t) = result { await t.finish() }
+                guard case .verified(let t) = result else { continue }
+                // 點數要等伺服器加完才 finish，不然沒加到也不會再送
+                if Credits.packs[t.productID] != nil {
+                    await Credits.shared.redeem(t, jws: result.jwsRepresentation)
+                    continue
+                }
+                await t.finish()
                 await self?.refresh()
             }
         }
         Task { [weak self] in
             await self?.refresh()
             await self?.loadProduct()
+            await Credits.shared.redeemUnfinished()
+            await Credits.shared.refresh()
         }
     }
 
