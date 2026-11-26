@@ -7,6 +7,7 @@ import SwiftUI
 struct TodayView: View {
     @Environment(Store.self) private var store
     @Environment(\.domyBottomInset) private var bottomInset
+    @Environment(\.scenePhase) private var scenePhase
     @State private var sheet: TodaySheet? = nil
 
     /// 土面以上：一片葉子加捲鬚的高度
@@ -45,6 +46,20 @@ struct TodayView: View {
             case .next: NextHabitSheet()
             }
         }
+        // 聲音引擎先在背景開好，第一次按住就不會頓（效能審查 2026-11-26 第 1 列）
+        .onAppear { warmSound() }
+        .onChange(of: store.page) { _, page in
+            if page == 1 { warmSound() }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active && store.page == 1 { warmSound() }
+        }
+    }
+
+    /// 今天還沒記才需要；引擎沒人用 3 秒後會自己暫停
+    private func warmSound() {
+        guard store.state.habit != nil, store.state.log(on: t) == nil else { return }
+        SoundPlayer.shared.warmUp()
     }
 
     private var t: DayKey { store.today }
@@ -196,7 +211,8 @@ struct TodayView: View {
         let fixed = TodayView.vineAbove + PotatoBody<EmptyView>.frameSize.height + Sp.s2 + bottomInset
         return GeometryReader { geo in
             let top = TodayView.vineAbove + geo.size.height - fixed
-            VineView(soilTop: TodayView.vineAbove, potatoTop: top + TodayView.ringInset, baked: baked)
+            VineView(soilTop: TodayView.vineAbove, potatoTop: top + TodayView.ringInset, baked: baked,
+                     covered: sheet != nil)
                 .overlay(alignment: .top) {
                     potato
                         .padding(.top, top)

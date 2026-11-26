@@ -26,14 +26,15 @@ enum Haptic {
         notify.notificationOccurred(.error)
     }
 
-    /// 按下去
+    /// 按下去（HoldButton 開始按住時叫）。順便把按滿那下要用的 rigid 先準備好，
+    /// 一秒半後 thunk() 震的時候馬達已經醒著（效能審查 2026-11-26 第二節）
     static func press() {
         guard VeggieHaptics.isEnabled else { return }
-        light.prepare()
         light.impactOccurred()
+        rigid.prepare()
     }
 
-    /// 按滿一秒半，記了一節
+    /// 按滿一秒半，記了一節（TodayView.recordNode 叫，rigid 已在 press() 準備好）
     static func thunk() {
         guard VeggieHaptics.isEnabled else { return }
         rigid.impactOccurred(intensity: 1.0)

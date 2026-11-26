@@ -13,11 +13,26 @@ struct VineView: View {
     var potatoTop: CGFloat
     /// 烤好剝開：外圈沒了、上面冒煙，根改接到地瓜左端
     var baked = false
+    /// 上面有表單蓋著（TodayView 的 sheet），藤先不畫
+    var covered = false
     @Environment(Store.self) private var store
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     @State private var model = VineModel()
+    /// 剛記了一節：藤在長、花在開、土粒在飛，這段時間不限速
+    @State private var fast = false
+    @State private var fastTask: Task<Void, Never>? = nil
+
+    /// 平常 30fps 就夠（傾斜感測本來就 30Hz）；長藤那幾秒才全速
+    private static let calmInterval: Double = 1.0 / 30
+    /// 長藤動畫最長 3 秒（回來那節開花），花瓣飄完再多留一點
+    private static let fastSeconds: Double = 3.5
+
+    /// 沒看著「今天」、或上面蓋了表單、推進了子頁，就不畫
+    private var paused: Bool {
+        store.page != 1 || covered || !store.route.isEmpty
+    }
 
     var body: some View {
         Color.clear
@@ -47,8 +62,8 @@ struct VineView: View {
 
     /// 畫布往上多留一截給花瓣飄，只管畫，那一截底下的字照樣點得到
     private var canvas: some View {
-        // 三頁都一直在，沒看著這頁就不畫
-        TimelineView(.animation(paused: store.page != 1)) { timeline in
+        // 三頁都一直在，沒看著這頁就不畫；平常限 30fps，記一節後幾秒才全速（效能審查 2026-11-26 第 2 列）
+        TimelineView(.animation(minimumInterval: fast ? nil : VineView.calmInterval, paused: paused)) { timeline in
             Canvas { context, size in
                 let ground = CGSize(width: size.width, height: size.height - VineView.sky)
                 context.translateBy(x: 0, y: VineView.sky)
@@ -66,8 +81,20 @@ struct VineView: View {
     private func sync() {
         let ledger = store.state.ledger(today: store.today)
         let returns = ledger.doneDays.map { ledger.isReturn($0) }
+        if store.vineGrow && !reduceMotion { speedUp() }
         model.configure(returns: returns, animateLast: store.vineGrow, reduce: reduceMotion)
         store.vineGrow = false
+    }
+
+    /// 記了一節：接下來幾秒不限速，時間到再回 30fps
+    private func speedUp() {
+        fast = true
+        fastTask?.cancel()
+        fastTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(VineView.fastSeconds))
+            guard !Task.isCancelled else { return }
+            fast = false
+        }
     }
 }
 
