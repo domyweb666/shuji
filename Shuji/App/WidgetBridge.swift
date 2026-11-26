@@ -8,11 +8,24 @@ enum WidgetBridge {
         WidgetSnapshot.make(state: state, today: t, full: full, now: now)
     }
 
+    /// 上次寫出去的那份。比對時不看 updated（每次都不一樣），內容一樣就不寫、不叫小工具重畫
+    private static var last: WidgetSnapshot?
+
     static func write(state: AppState, today: DayKey, full: Bool) {
         let snap = snapshot(state: state, today: today, full: full)
-        guard snap != WidgetSnapshot.read() else { return }
-        if snap.write() {
-            WidgetCenter.shared.reloadAllTimelines()
+        guard let prev = last ?? WidgetSnapshot.read(), sameContent(prev, snap) else {
+            if snap.write() {
+                last = snap
+                WidgetCenter.shared.reloadAllTimelines()
+            }
+            return
         }
+        last = prev
+    }
+
+    private static func sameContent(_ a: WidgetSnapshot, _ b: WidgetSnapshot) -> Bool {
+        var a = a
+        a.updated = b.updated
+        return a == b
     }
 }

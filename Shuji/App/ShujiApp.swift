@@ -23,6 +23,9 @@ struct ShujiApp: App {
                 store.refreshToday()
                 store.settleReminder()
                 CheckNotification.reschedule(state: store.state, today: store.today)
+            } else if phase == .background {
+                // 存檔在背景佇列寫，進背景前等它寫完，被系統收掉也不掉資料
+                Store.flush()
             }
         }
     }

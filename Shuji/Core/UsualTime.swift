@@ -52,9 +52,10 @@ extension AppState {
         let used = activeRecords.filter { r in
             r.kind == .done && (r.source == .hold || r.source == .shortcut) && r.day >= since && r.day <= t
         }
+        let base = Calendar(identifier: .gregorian)
         let points = used.compactMap { r -> Int? in
             guard let at = r.at, let date = Stamp.date(at) else { return nil }
-            var cal = Calendar(identifier: .gregorian)
+            var cal = base
             cal.timeZone = r.tz.flatMap { TimeZone(identifier: $0) } ?? TimeZone.current
             let c = cal.dateComponents([.hour, .minute], from: date)
             return ((c.hour ?? 0) * 60 + (c.minute ?? 0) + 1200) % 1440
