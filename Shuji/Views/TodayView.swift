@@ -14,8 +14,8 @@ struct TodayView: View {
     /// 土面到地瓜那一塊：留給根。字多、畫面矮的時候先縮這裡，地瓜的位置不動
     private static let rootGap: CGFloat = 76 // domy-ignore: 插畫畫布高度
     private static let rootGapMin: CGFloat = 36 // domy-ignore: 插畫畫布高度
-    /// 地瓜外框上緣到外圈上緣
-    private static let ringInset: CGFloat = 20 // domy-ignore: 插畫尺寸
+    /// 佔的位子上緣到地瓜頂（造型 D，根接在這裡）
+    private static let ringInset: CGFloat = 8 // domy-ignore: 插畫尺寸
 
     enum TodaySheet: String, Identifiable {
         case skip

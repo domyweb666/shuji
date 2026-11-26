@@ -272,8 +272,9 @@ final class VineModel {
             rx = px + (rx - px) * p
             ry = py + (ry - py) * p
         }
-        let endX = W * 0.5 - 98 * linkP
-        let endY = potatoTop + 72 * linkP
+        // 造型 D 是直立的，記好了根也接在頂上（剝開的地方）
+        let endX = W * 0.5 + 3 * linkP
+        let endY = potatoTop + 8 * linkP
         let depth = endY - ry
         if depth > 0 {
             var link = Path()
