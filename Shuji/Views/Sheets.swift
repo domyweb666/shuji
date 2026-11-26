@@ -476,6 +476,9 @@ struct PotatoSheet: View {
 
 struct UnfinishedSheet: View {
     var item: UnfinishedHabit
+    @Environment(Store.self) private var store
+    @Environment(\.dismiss) private var dismiss
+    @State private var confirmReplant = false
 
     var body: some View {
         SheetFrame {
@@ -487,6 +490,28 @@ struct UnfinishedSheet: View {
                 RowSep()
                 RowLabel(text: "種了", value: "\(item.habit.planted.short) – \(item.end.short)")
             }
+            VStack(spacing: Sp.s2) {
+                DomyButton("現在種回來") {
+                    if store.state.habit == nil { replant() } else { confirmReplant = true }
+                }
+                DomyButton(queued ? "已經在排隊了" : "排進排隊", variant: .secondary, disabled: queued) {
+                    store.queueUnfinished(item)
+                    dismiss()
+                }
+            }
         }
+        .alert("換掉現在種的？", isPresented: $confirmReplant) {
+            Button("取消", role: .cancel) {}
+            Button("種回來") { replant() }
+        } message: {
+            Text("「\(store.state.habit?.floor ?? "")」會收進種到一半的，紀錄都留著。")
+        }
+    }
+
+    private var queued: Bool { store.state.queue.contains(item.habit.floor) }
+
+    private func replant() {
+        dismiss()
+        store.replantUnfinished(item)
     }
 }

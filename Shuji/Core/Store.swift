@@ -490,6 +490,24 @@ final class Store {
         removeQueue(at: i)
     }
 
+    /// 種到一半的那個排到下一個種（排在最前面，不搶正在種的）。已經在排隊就不動
+    func queueUnfinished(_ u: UnfinishedHabit) {
+        let floor = u.habit.floor
+        guard !state.queue.contains(floor) else {
+            show("已經在排隊了。")
+            return
+        }
+        state.queue.insert(floor, at: 0)
+        save()
+        show("排到下一個種。")
+    }
+
+    /// 種回來：同一句、同一個時機重新種。現在種著的收起來，跟一般換習慣一樣，紀錄都留著
+    func replantUnfinished(_ u: UnfinishedHabit) {
+        plant(floor: u.habit.floor, trigger: u.habit.trigger)
+        page = 1
+    }
+
     func removeQueue(at i: Int) {
         guard state.queue.indices.contains(i) else { return }
         state.queue.remove(at: i)

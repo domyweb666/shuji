@@ -258,12 +258,12 @@ extension AppState {
     }
 
     /// 種到一半就換掉的習慣，最近換掉的排前面（QC-0011）。從 pastHabits 和紀錄讀出來，不另外存。
-    /// 挖出來的在竹籃；一天都沒記過的不算。
+    /// 挖出來的在竹籃；一天都沒記過的不算；跟現在種的同一句（種回來了）也不列。
     var unfinished: [UnfinishedHabit] {
         let dug = Set(basket.compactMap(\.habit))
         let line = pastHabits + (habit.map { [$0] } ?? [])
         var out: [UnfinishedHabit] = []
-        for (i, h) in pastHabits.enumerated() where !dug.contains(h.id) && h.id != habit?.id {
+        for (i, h) in pastHabits.enumerated() where !dug.contains(h.id) && h.id != habit?.id && h.floor != habit?.floor {
             let days = Set(records.filter { $0.habit == h.id && $0.isActive && $0.kind == .done }.map(\.day))
             guard let last = days.max() else { continue }
             // 下一個種下去那天就是換掉的那天
