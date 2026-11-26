@@ -85,12 +85,14 @@ export const INPUTS = {
       queue: z.array(short(40)).max(10).default([]),
     })
     .transform((v) => ({ ...v, questions_left: Math.max(0, GUIDE_MAX_QUESTIONS + 1 - v.turns.length) })),
-  // 規劃習慣：一步一次呼叫，app 記住前面選的
+  // 規劃習慣：一步一次呼叫，app 記住前面選的。
+  // rival 對手、block 擋對手、reward 做完的犒賞（多米 2026-11-26 加）；rival 是使用者選好的對手
   8: z.object({
-    step: z.enum(['floor', 'trigger', 'estimate']),
+    step: z.enum(['floor', 'trigger', 'rival', 'block', 'reward', 'estimate']),
     goal: short(60),
     floor: shortOrEmpty(40).default(''),
     trigger: shortOrEmpty(40).default(''),
+    rival: shortOrEmpty(40).default(''),
     exclude: z.array(shortOrEmpty(40)).max(12).default([]),
   }),
   // 每週看紀錄：天數全部由 app 算好
@@ -244,8 +246,8 @@ export function instructionFor(id: TaskId): string {
 /** 送給模型的使用者訊息。任務 8、9 把使用者打的字跟程式給的欄位分開 */
 export function userMessage(id: TaskId, input: unknown): string {
   if (id === 8) {
-    const { goal, floor, trigger, ...rest } = input as TaskInput<8>;
-    return JSON.stringify({ ...rest, user_text: { goal, floor, trigger } });
+    const { goal, floor, trigger, rival, ...rest } = input as TaskInput<8>;
+    return JSON.stringify({ ...rest, user_text: { goal, floor, trigger, rival } });
   }
   if (id === 9) {
     const { floor, trigger, reasons, gap_reasons, week, ...rest } = input as TaskInput<9>;

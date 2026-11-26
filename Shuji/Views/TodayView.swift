@@ -130,9 +130,11 @@ struct TodayView: View {
                 }
             } else if store.state.longAbsence(today: t) {
                 absence(h)
-            } else if store.state.log(on: t) != nil {
+            } else if let log = store.state.log(on: t) {
                 // 記好、跳過之後只留這句，今天的樣子交給地瓜
                 Sentence(trigger: h.trigger, floor: floor)
+                // 規劃時選了犒賞：記好了就提醒去拿（多米 2026-11-26）
+                if log.t == .done, !h.reward.isEmpty { note("給自己：\(h.reward)") }
                 if store.state.returnedFromLong(today: t) { textLink("上次卡在哪？") { sheet = .stuck } }
             } else {
                 Sentence(trigger: h.trigger, floor: floor)

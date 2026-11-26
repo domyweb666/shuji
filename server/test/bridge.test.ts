@@ -127,7 +127,7 @@ describe('規劃習慣與每週看紀錄（任務 8、9）', () => {
       task: 8,
       result: { ...OK8, options: ['換上球鞋站到門口', '把球鞋放到床邊', '走到巷口'], difficulty: null, message: null },
     });
-    expect(JSON.parse(seen().stdin)).toEqual({ step: 'floor', exclude: [], user_text: { goal: '每天運動', floor: '', trigger: '' } });
+    expect(JSON.parse(seen().stdin)).toEqual({ step: 'floor', exclude: [], user_text: { goal: '每天運動', floor: '', trigger: '', rival: '' } });
   });
   it('離題：模型寫的字一個都不送到手機', async () => {
     const j = (await (await post(plan('OFFTOPIC'), bridge.token, 8)).json()) as any;

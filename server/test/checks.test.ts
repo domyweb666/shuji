@@ -236,6 +236,26 @@ describe('任務 8 規劃習慣', () => {
     expect(ok({ ...good, exclude: Array(13).fill('a') })).toBe(false);
     expect(ok({ ...good, floor: '字'.repeat(41) })).toBe(false);
     expect(ok({ ...good, step: 'x' })).toBe(false);
+    for (const step of ['rival', 'block', 'reward']) expect(ok({ ...good, step }), step).toBe(true);
+    expect(ok({ ...good, rival: '字'.repeat(41) })).toBe(false);
+    expect(INPUTS[8].parse({ step: 'floor', goal: 'x' }).rival).toBe('');
+  });
+  it('對手、擋對手、犒賞：三個選項，最小一步的否定與量不管', () => {
+    const pickAt = (step: 'rival' | 'block' | 'reward', options: string[]) =>
+      review(8, { ...base, options }, inp({ step, floor: '換上球鞋', trigger: '下班進家門', rival: step === 'rival' ? '' : '滑手機' }));
+    expect(pickAt('rival', ['滑手機看訊息', '躺在沙發上', '打開電視。']).value.options[2]).toBe('打開電視');
+    expect(pickAt('block', ['手機放門口鞋櫃充電', '不把手機帶進房間', '前一晚把球鞋放門口']).problems).toEqual([]);
+    expect(pickAt('block', ['字'.repeat(20), '乙', '丙']).ok).toBe(true);
+    expect(pickAt('block', ['字'.repeat(21), '乙', '丙']).ok).toBe(false);
+    expect(pickAt('rival', ['字'.repeat(17), '乙', '丙']).ok).toBe(false);
+    expect(pickAt('reward', ['泡一杯喜歡的茶', '聽一首歌', '坐下來看一眼窗外']).problems).toEqual([]);
+    for (const s of ['做滿七天買新鞋', '連續一週吃大餐', '週末再看一部電影']) expect(pickAt('reward', [s, '乙', '丙']).ok, s).toBe(false);
+    expect(pickAt('reward', ['https://x', '乙', '丙']).ok).toBe(false);
+  });
+  it('新三步也要對 type：拿到 estimate 不行', () => {
+    for (const step of ['rival', 'block', 'reward'] as const) {
+      expect(review(8, { ...base, type: 'estimate', difficulty: 'easy' }, inp({ step })).ok, step).toBe(false);
+    }
   });
 });
 

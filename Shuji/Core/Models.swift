@@ -38,10 +38,17 @@ struct Habit: Codable, Equatable {
     var tz: String?
     /// 種下去時預估幾天養成；舊的習慣是空
     var estimatedDays: Int?
+    /// 規劃時選的對手：那個時機最會跟習慣搶的事（2026-11-26 起，舊的習慣是空）
+    var rival: String
+    /// 讓對手變難、或讓最小一步變簡單的那件事
+    var block: String
+    /// 做完馬上給自己的小犒賞，記好時顯示
+    var reward: String
 
     init(floor: String, trigger: String, planted: DayKey,
          travelFloor: String = "", obstacle: String = "", backup: String = "", why: String = "",
-         id: String = "", plantedAt: String? = nil, tz: String? = nil, estimatedDays: Int? = nil) {
+         id: String = "", plantedAt: String? = nil, tz: String? = nil, estimatedDays: Int? = nil,
+         rival: String = "", block: String = "", reward: String = "") {
         self.id = id
         self.floor = floor
         self.trigger = trigger
@@ -53,9 +60,12 @@ struct Habit: Codable, Equatable {
         self.plantedAt = plantedAt
         self.tz = tz
         self.estimatedDays = estimatedDays
+        self.rival = rival
+        self.block = block
+        self.reward = reward
     }
 
-    enum CodingKeys: String, CodingKey { case id, floor, trigger, travelFloor, obstacle, backup, why, planted, plantedAt, tz, estimatedDays }
+    enum CodingKeys: String, CodingKey { case id, floor, trigger, travelFloor, obstacle, backup, why, planted, plantedAt, tz, estimatedDays, rival, block, reward }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -70,6 +80,9 @@ struct Habit: Codable, Equatable {
         plantedAt = try c.decodeIfPresent(String.self, forKey: .plantedAt)
         tz = try c.decodeIfPresent(String.self, forKey: .tz)
         estimatedDays = try c.decodeIfPresent(Int.self, forKey: .estimatedDays)
+        rival = try c.decodeIfPresent(String.self, forKey: .rival) ?? ""
+        block = try c.decodeIfPresent(String.self, forKey: .block) ?? ""
+        reward = try c.decodeIfPresent(String.self, forKey: .reward) ?? ""
     }
 }
 

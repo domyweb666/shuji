@@ -7,6 +7,9 @@ enum SettingsTarget: Hashable {
     case floor
     case backup
     case why
+    case rival
+    case block
+    case reward
     case travelFloor
 }
 
@@ -193,7 +196,8 @@ final class Store {
     // MARK: 種
 
     /// 種下去。原本還種著的收進 pastHabits，放手測試、試兩週跟著停；紀錄都留著
-    func plant(floor: String, trigger: String, estimatedDays: Int? = nil) {
+    func plant(floor: String, trigger: String, estimatedDays: Int? = nil,
+               rival: String = "", block: String = "", reward: String = "") {
         let t = today
         let st = stamp()
         if let old = state.habit {
@@ -207,7 +211,7 @@ final class Store {
         state.justDug = nil
         vineGrow = false
         state.habit = Habit(floor: floor, trigger: trigger, planted: t, id: makeID("hab"), plantedAt: st.at, tz: st.tz,
-                            estimatedDays: estimatedDays)
+                            estimatedDays: estimatedDays, rival: rival, block: block, reward: reward)
         if let i = state.queue.firstIndex(of: floor) { state.queue.remove(at: i) }
         save()
         show("種下去了。做完最小一步，就按住。")
