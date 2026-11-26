@@ -318,6 +318,8 @@ struct HoldButton: View {
                         .minimumScaleFactor(0.6)
                         .foregroundStyle(Theme.bakedInk)
                         .frame(maxWidth: PotatoBody<EmptyView>.bodySize.width * 0.8)
+                        // 往上挪到黃色肉心正中間，離開皮跟肉交界的鋸齒邊（多米 2026-11-26 選 C）
+                        .offset(y: -30) // domy-ignore: 插畫位置
                         .opacity(done && back ? 1 : 0)
                 }
             }
