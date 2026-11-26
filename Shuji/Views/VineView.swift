@@ -13,11 +13,26 @@ struct VineView: View {
     var potatoTop: CGFloat
     /// 烤好剝開：外圈沒了、上面冒煙，根改接到地瓜左端
     var baked = false
+    /// 上面有表單蓋著（TodayView 的 sheet），藤先不畫
+    var covered = false
     @Environment(Store.self) private var store
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     @State private var model = VineModel()
+    /// 剛記了一節：藤在長、花在開、土粒在飛，這段時間不限速
+    @State private var fast = false
+    @State private var fastTask: Task<Void, Never>? = nil
+
+    /// 平常 30fps 就夠（傾斜感測本來就 30Hz）；長藤那幾秒才全速
+    private static let calmInterval: Double = 1.0 / 30
+    /// 長藤動畫最長 3 秒（回來那節開花），花瓣飄完再多留一點
+    private static let fastSeconds: Double = 3.5
+
+    /// 沒看著「今天」、或上面蓋了表單、推進了子頁，就不畫
+    private var paused: Bool {
+        store.page != 1 || covered || !store.route.isEmpty
+    }
 
     var body: some View {
         Color.clear
@@ -35,6 +50,11 @@ struct VineView: View {
             }
             .onDisappear { model.stopMotion() }
             .onChange(of: store.state.records) { _, _ in sync() }
+            // 換習慣不會動到紀錄，要自己收：舊的藤和花馬上拿掉（QC-0011）
+            .onChange(of: store.state.habit?.id) { _, _ in
+                model.clear()
+                sync()
+            }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active && store.page == 1 { model.startMotion() } else { model.stopMotion() }
             }
@@ -42,8 +62,8 @@ struct VineView: View {
 
     /// 畫布往上多留一截給花瓣飄，只管畫，那一截底下的字照樣點得到
     private var canvas: some View {
-        // 三頁都一直在，沒看著這頁就不畫
-        TimelineView(.animation(paused: store.page != 1)) { timeline in
+        // 三頁都一直在，沒看著這頁就不畫；平常限 30fps，記一節後幾秒才全速（效能審查 2026-11-26 第 2 列）
+        TimelineView(.animation(minimumInterval: fast ? nil : VineView.calmInterval, paused: paused)) { timeline in
             Canvas { context, size in
                 let ground = CGSize(width: size.width, height: size.height - VineView.sky)
                 context.translateBy(x: 0, y: VineView.sky)
@@ -61,8 +81,20 @@ struct VineView: View {
     private func sync() {
         let ledger = store.state.ledger(today: store.today)
         let returns = ledger.doneDays.map { ledger.isReturn($0) }
+        if store.vineGrow && !reduceMotion { speedUp() }
         model.configure(returns: returns, animateLast: store.vineGrow, reduce: reduceMotion)
         store.vineGrow = false
+    }
+
+    /// 記了一節：接下來幾秒不限速，時間到再回 30fps
+    private func speedUp() {
+        fast = true
+        fastTask?.cancel()
+        fastTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(VineView.fastSeconds))
+            guard !Task.isCancelled else { return }
+            fast = false
+        }
     }
 }
 
@@ -107,6 +139,11 @@ final class VineModel {
     private var width = 0.0
     private var height = 0.0
     private let motion = CMMotionManager()
+
+    /// 換了一個習慣：根直接回到地瓜頂，不從上一個的樣子滑過去
+    func clear() {
+        lastTime = nil
+    }
 
     func configure(returns: [Bool], animateLast: Bool, reduce: Bool) {
         leaves = returns.enumerated().map { Leaf(index: $0.offset, ret: $0.element) }
@@ -262,8 +299,9 @@ final class VineModel {
             rx = px + (rx - px) * p
             ry = py + (ry - py) * p
         }
-        let endX = W * 0.5 - 98 * linkP
-        let endY = potatoTop + 72 * linkP
+        // 造型 D 是直立的，記好了根也接在頂上（剝開的地方）
+        let endX = W * 0.5 + 3 * linkP
+        let endY = potatoTop + 8 * linkP
         let depth = endY - ry
         if depth > 0 {
             var link = Path()

@@ -7,6 +7,7 @@ import SwiftUI
 struct TodayView: View {
     @Environment(Store.self) private var store
     @Environment(\.domyBottomInset) private var bottomInset
+    @Environment(\.scenePhase) private var scenePhase
     @State private var sheet: TodaySheet? = nil
 
     /// 土面以上：一片葉子加捲鬚的高度
@@ -14,14 +15,15 @@ struct TodayView: View {
     /// 土面到地瓜那一塊：留給根。字多、畫面矮的時候先縮這裡，地瓜的位置不動
     private static let rootGap: CGFloat = 76 // domy-ignore: 插畫畫布高度
     private static let rootGapMin: CGFloat = 36 // domy-ignore: 插畫畫布高度
-    /// 地瓜外框上緣到外圈上緣
-    private static let ringInset: CGFloat = 20 // domy-ignore: 插畫尺寸
+    /// 佔的位子上緣到地瓜頂（造型 D，根接在這裡）
+    private static let ringInset: CGFloat = 8 // domy-ignore: 插畫尺寸
 
     enum TodaySheet: String, Identifiable {
         case skip
         case tips
         case diagnose
         case stuck
+        case next
         var id: String { rawValue }
     }
 
@@ -41,8 +43,23 @@ struct TodayView: View {
             case .tips: TipsSheet()
             case .diagnose: DiagnoseSheet()
             case .stuck: StuckSheet { stuck($0) }
+            case .next: NextHabitSheet()
             }
         }
+        // 聲音引擎先在背景開好，第一次按住就不會頓（效能審查 2026-11-26 第 1 列）
+        .onAppear { warmSound() }
+        .onChange(of: store.page) { _, page in
+            if page == 1 { warmSound() }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active && store.page == 1 { warmSound() }
+        }
+    }
+
+    /// 今天還沒記才需要；引擎沒人用 3 秒後會自己暫停
+    private func warmSound() {
+        guard store.state.habit != nil, store.state.log(on: t) == nil else { return }
+        SoundPlayer.shared.warmUp()
     }
 
     private var t: DayKey { store.today }
@@ -107,6 +124,10 @@ struct TodayView: View {
             if let left = store.state.letgoDaysLeft(today: t) {
                 Sentence(trigger: h.trigger, floor: floor)
                 note("放手測試中，照常做就好，不用記。還有 \(left) 天。")
+                // 這兩週沒事做，快長好了：先想下一個
+                if store.state.queue.isEmpty, AIClient.shared.isAvailable {
+                    textLink("先想下一個要種什麼") { sheet = .next }
+                }
             } else if store.state.longAbsence(today: t) {
                 absence(h)
             } else if store.state.log(on: t) != nil {
@@ -116,7 +137,11 @@ struct TodayView: View {
             } else {
                 Sentence(trigger: h.trigger, floor: floor)
                 if store.state.consecutiveMissed(today: t) >= 2 {
-                    textLink("卡住的話，看看時機對不對，或最小一步太大") { goSentence(nil) }
+                    if AIClient.shared.isAvailable {
+                        textLink("連著沒做，找找看哪裡卡住") { sheet = .diagnose }
+                    } else {
+                        textLink("卡住的話，看看時機對不對，或最小一步太大") { goSentence(nil) }
+                    }
                     if !h.backup.isEmpty { note("不順的時候：\(h.backup)") }
                 }
             }
@@ -186,7 +211,8 @@ struct TodayView: View {
         let fixed = TodayView.vineAbove + PotatoBody<EmptyView>.frameSize.height + Sp.s2 + bottomInset
         return GeometryReader { geo in
             let top = TodayView.vineAbove + geo.size.height - fixed
-            VineView(soilTop: TodayView.vineAbove, potatoTop: top + TodayView.ringInset, baked: baked)
+            VineView(soilTop: TodayView.vineAbove, potatoTop: top + TodayView.ringInset, baked: baked,
+                     covered: sheet != nil)
                 .overlay(alignment: .top) {
                     potato
                         .padding(.top, top)

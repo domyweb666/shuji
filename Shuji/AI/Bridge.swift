@@ -49,7 +49,8 @@ struct BridgeLink: Codable, Equatable {
     }
 }
 
-/// 字要送去哪裡。換了去處就要再問一次同意
+/// 字要送去哪裡。送到自己的電腦不問：掃了那台電腦的 QR code 就是要用它（QC-0011，多米定）。
+/// 送到薯記的伺服器要先問，換了伺服器再問一次
 enum AIDestination: Equatable {
     case computer(name: String)
     case server(host: String)
@@ -61,9 +62,10 @@ enum AIDestination: Equatable {
         return nil
     }
 
-    var consentKey: String {
+    /// 存同意的那把 key；nil 是不用問
+    var consentKey: String? {
         switch self {
-        case .computer(let name): return "shuji.ai.consent.computer.\(name)"
+        case .computer: return nil
         case .server(let host): return "shuji.ai.consent.server.\(host)"
         }
     }

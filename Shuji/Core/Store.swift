@@ -41,6 +41,8 @@ final class Store {
     /// 從這週的田過去改設定時，下一次存下去的改版記成「從這週的田」
     var pendingVia: HabitChange.Via? = nil
     private(set) var tick = 0
+    /// 上次 refreshToday 算到的那天；沒換日就不加 tick，畫面不用每分鐘全部重算（效能審查 2026-11-26）
+    @ObservationIgnored private var lastDay: DayKey? = nil
 
     let now: () -> Date
     let timeZone: () -> TimeZone
@@ -79,14 +81,23 @@ final class Store {
 
     var today: DayKey {
         _ = tick
-        // 曆法照手機（跟 v1 一樣），時區可以換（測試、換時區）
+        return computeToday()
+    }
+
+    /// 曆法照手機（跟 v1 一樣），時區可以換（測試、換時區）
+    private func computeToday() -> DayKey {
         var cal = Calendar.current
         cal.timeZone = timeZone()
         return DayKey.today(now: now(), offset: state.dayOffset, calendar: cal)
     }
 
-    /// 回到前景、或過了凌晨四點時叫一下，畫面會重算「今天」
-    func refreshToday() { tick &+= 1 }
+    /// 回到前景、或過了凌晨四點時叫一下。真的換日了才讓畫面重算「今天」
+    func refreshToday() {
+        let d = computeToday()
+        guard d != lastDay else { return }
+        lastDay = d
+        tick &+= 1
+    }
 
     /// 這一刻的世界標準時間與時區
     private func stamp() -> (at: String, tz: String) {
@@ -116,7 +127,14 @@ final class Store {
         return url
     }
 
+    /// 存檔只在這條序列佇列寫：先存的先寫完，主執行緒不等編碼與寫檔
+    nonisolated private static let writer = DispatchQueue(label: "shuji.save", qos: .utility)
+
+    /// 等還在排隊的存檔都寫完（進背景、讀檔之前叫）
+    nonisolated static func flush() { writer.sync {} }
+
     nonisolated private static func load(from url: URL?) -> AppState {
+        flush()
         guard let url, let data = try? Data(contentsOf: url) else { return AppState() }
         // 第一次用 v2 打開 v1 的存檔：轉換之前，原檔先原封不動留一份 state.v1.json
         if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any], obj["records"] == nil {
@@ -132,8 +150,14 @@ final class Store {
     }
 
     func save() {
-        if let url = fileURL, let data = try? JSONEncoder().encode(state) {
-            try? data.write(to: url, options: .atomic)
+        if let url = fileURL {
+            // AppState 是值型別，這裡複製一份就好；編碼和寫檔丟背景（效能審查 2026-11-26 第四節）
+            let snapshot = state
+            Store.writer.async {
+                if let data = try? JSONEncoder().encode(snapshot) {
+                    try? data.write(to: url, options: .atomic)
+                }
+            }
         }
         onSaved?(state, today)
     }
@@ -181,6 +205,7 @@ final class Store {
         // 上一個習慣讓提醒退場了：新的重新開始每天提醒
         if state.marks.last(where: { $0.kind.isReminder })?.kind == .remindOff { state.settings.check = true }
         state.justDug = nil
+        vineGrow = false
         state.habit = Habit(floor: floor, trigger: trigger, planted: t, id: makeID("hab"), plantedAt: st.at, tz: st.tz,
                             estimatedDays: estimatedDays)
         if let i = state.queue.firstIndex(of: floor) { state.queue.remove(at: i) }
@@ -365,6 +390,22 @@ final class Store {
     func markAsked(_ a: AutoAsk) {
         guard let key = askKey(a) else { return }
         UserDefaults.standard.set(today.string, forKey: key)
+    }
+
+    // MARK: 不順的時候
+
+    private static func backupKey(_ habit: String) -> String { "shuji.ask.backup.\(habit)" }
+
+    /// 要不要在回來卡後面問「下次怎麼辦」：還沒想過、最近兩週也沒問過
+    var shouldOfferBackup: Bool {
+        guard let h = state.habit, h.backup.isEmpty else { return false }
+        guard let last = UserDefaults.standard.string(forKey: Store.backupKey(h.id)).flatMap({ DayKey($0) }) else { return true }
+        return abs(DayKey.days(from: last, to: today)) >= 14
+    }
+
+    func markBackupOffered() {
+        guard let h = state.habit else { return }
+        UserDefaults.standard.set(today.string, forKey: Store.backupKey(h.id))
     }
 
     // MARK: 提醒、竹籃

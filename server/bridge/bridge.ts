@@ -166,9 +166,21 @@ export function createBridge(options: BridgeOptions = {}) {
     if (waiting >= WAIT_MAX) return fail(res, 429, 'rate_limited', '電腦還在想前面那幾句，等一下再試。');
     const ahead = waiting + (busy ? 1 : 0);
     print(`收到任務 ${id}（${raw.length} 位元組）${ahead ? `，前面還有 ${ahead} 句` : ''}`);
+    // 手機那頭關掉畫面或放棄了：還沒回就斷線，就不用再想。
+    // 只有輪到這一句、CLI 正在跑的時候才殺（同時只跑一句，這時的 running 一定是這一句的）；還在排隊的只記下來，輪到時跳過
+    let gone = false;
+    let mine = false;
+    res.on('close', () => {
+      if (res.writableEnded) return;
+      gone = true;
+      if (mine && running) {
+        print(`任務 ${id}：手機斷線，停掉這一句的 CLI`);
+        killTree(running);
+      }
+    });
     await enqueue(async () => {
       // 排隊時 app 那頭已經放棄了，就不用再跑
-      if (res.destroyed) return print(`任務 ${id}：手機已經斷線，沒跑`);
+      if (gone || res.destroyed) return print(`任務 ${id}：手機已經斷線，沒跑`);
       const t0 = Date.now();
       deadline = t0 + limit;
       // CLI 的原話可能有這台電腦的路徑：只印在這個終端機，手機那頭只拿到固定的一句
@@ -179,7 +191,15 @@ export function createBridge(options: BridgeOptions = {}) {
           print(`第 ${e.attempt} 次不合規：${(e.problems as string[]).map((p) => p.split(/[：（]/)[0]).join('、')}`);
         }
       };
-      const a = await askModel(caller, id, parsed.data, log, () => res.destroyed || Date.now() >= deadline);
+      let a: Awaited<ReturnType<typeof askModel>>;
+      mine = true;
+      try {
+        // 斷線時 CLI 被殺會丟錯，askModel 接住後看到 stop 就不重問，這一句結束、排隊往下走
+        a = await askModel(caller, id, parsed.data, log, () => gone || res.destroyed || Date.now() >= deadline);
+      } finally {
+        mine = false;
+      }
+      if (gone) return print(`任務 ${id}：手機已經斷線，不回了`);
       const sec = ((Date.now() - t0) / 1000).toFixed(1);
       if (a.ok) {
         print(`任務 ${id} 回了，花 ${sec} 秒`);

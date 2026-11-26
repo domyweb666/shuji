@@ -41,7 +41,7 @@ final class TalkModel {
     var draft = ""
     /// 按了「自己打」
     var typing = false
-    /// 第一次送出前先問資料去哪
+    /// 第一次送去伺服器之前先問（送到自己的電腦不問）
     var needsConsent = false
 
     @ObservationIgnored private var pending: Step?
@@ -74,6 +74,15 @@ final class TalkModel {
         case .floor, .trigger: return typing || offer.options.isEmpty
         case .plan: return false
         }
+    }
+
+    /// 答好幾題了：進度條照這個走。還在問的、還在想的那題不算（QC-0011）
+    var answered: Int { step.rawValue - 1 }
+
+    /// 種下去那頁的小字：照這樣做大概哪一天，連年份
+    static func dueLine(today: DayKey, days: Int) -> String {
+        let d = today.adding(days)
+        return "順利的話，大約 \(d.year) 年 \(d.month) 月 \(d.day) 日養成。快慢每個人不同，我每週會跟你說走到哪。"
     }
 
     /// 上一步選的那句，靠右的泡泡
@@ -188,6 +197,12 @@ final class TalkModel {
     /// 改成自己填：等的時候不等了，回到問之前那一步
     func leave() {
         if phase != .ready { back() }
+    }
+
+    /// 畫面關掉：還在等就不等了，跟按「不等了」一樣回到問之前那一步；沒在等就什麼都不動
+    func cancel() {
+        guard phase == .waiting else { return }
+        leave()
     }
 
     func restart() {

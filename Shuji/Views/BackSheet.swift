@@ -3,6 +3,7 @@ import SwiftUI
 /// 回來卡：打開 app 發現有空的日子，只跳一張。
 /// 只有昨天：先問有沒有做。兩天以上：你回來了，那幾天是？
 /// 收掉就當作不說，同一段不再問。
+/// 說了理由、還沒想過不順的時候怎麼辦，就接著問要不要幫忙想（QC-0011）。
 struct BackSheet: View {
     @Environment(Store.self) private var store
     @Environment(\.dismiss) private var dismiss
@@ -10,6 +11,9 @@ struct BackSheet: View {
     @State private var gap: PendingGap
     @State private var asking: Bool
     @State private var answered = false
+    /// 剛選的理由，接著問下次怎麼辦
+    @State private var reason: String? = nil
+    @State private var thinking = false
 
     private static let potato: CGFloat = 108 // domy-ignore: 插畫尺寸
 
@@ -21,13 +25,18 @@ struct BackSheet: View {
     var body: some View {
         SheetFrame(fit: true) {
             VStack(spacing: Sp.s5) {
-                if asking {
+                if let reason {
+                    nextTime(reason)
+                } else if asking {
                     question
                 } else {
                     reasons
                 }
             }
             .frame(maxWidth: .infinity)
+        }
+        .sheet(isPresented: $thinking, onDismiss: { dismiss() }) {
+            ObstacleSheet(interruption: reason ?? "")
         }
         .onDisappear {
             if !answered { store.closeGap(gap, reason: "") }
@@ -56,11 +65,28 @@ struct BackSheet: View {
         TalkPotato(width: BackSheet.potato)
             .padding(.top, Sp.s3)
         if !gap.onlyYesterday { title("你回來了") }
-        SkipPicker(title: gap.onlyYesterday ? "昨天是？" : "那幾天是？", quiet: "不說") { reason in
+        SkipPicker(title: gap.onlyYesterday ? "昨天是？" : "那幾天是？", quiet: "不說") { picked in
             answered = true
             Haptic.select()
-            store.closeGap(gap, reason: reason)
-            dismiss()
+            store.closeGap(gap, reason: picked)
+            if !picked.isEmpty, AIClient.shared.isAvailable, store.shouldOfferBackup {
+                store.markBackupOffered()
+                withAnimation(Feel.transition) { reason = picked }
+            } else {
+                dismiss()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func nextTime(_ reason: String) -> some View {
+        TalkPotato(width: BackSheet.potato)
+            .padding(.top, Sp.s3)
+        title("下次遇到「\(reason)」，怎麼辦？")
+            .fixedSize(horizontal: false, vertical: true)
+        HStack(spacing: Sp.s3) {
+            DomyButton("先不用", variant: .secondary) { dismiss() }
+            DomyButton("幫我想") { thinking = true }
         }
     }
 

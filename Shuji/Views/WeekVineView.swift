@@ -49,7 +49,7 @@ struct WeekVineView: View {
         .tint(Theme.accent)
         .task(id: round) { await load() }
         .sheet(isPresented: $needsConsent, onDismiss: afterConsent) {
-            AIConsentSheet(destination: AIClient.shared.destination, agree: agree, decline: { needsConsent = false })
+            AIConsentSheet(agree: agree, decline: { needsConsent = false })
         }
     }
 

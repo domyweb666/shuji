@@ -7,17 +7,16 @@ import Foundation
 
 /// 世界標準時間的字串，例「2026-11-22T00:12:40Z」。存字串，不管誰用哪種日期格式解碼都讀得回來。
 enum Stamp {
-    static func string(_ date: Date) -> String {
+    /// 共用一個就好（ISO8601DateFormatter 可跨執行緒用），不要每筆紀錄 new 一個
+    private static let formatter: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime]
-        return f.string(from: date)
-    }
+        return f
+    }()
 
-    static func date(_ s: String) -> Date? {
-        let f = ISO8601DateFormatter()
-        f.formatOptions = [.withInternetDateTime]
-        return f.date(from: s)
-    }
+    static func string(_ date: Date) -> String { formatter.string(from: date) }
+
+    static func date(_ s: String) -> Date? { formatter.date(from: s) }
 }
 
 // MARK: - 習慣
