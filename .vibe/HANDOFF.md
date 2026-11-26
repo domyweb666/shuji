@@ -1,6 +1,6 @@
-# Handoff: 地瓜 B、規劃加對手與犒賞、多習慣切換選單、點數（伺服器＋app 端）都寫完；CI 全綠，等多米
+# Handoff: potato-b 已併 main（b4eb789），TestFlight 1.0（14）已上傳，等多米真機
 
-> 2026-11-26 深夜。repo `E:\習慣地瓜\shuji`，分支 `potato-b`（從 main cb0d48b 開出，已 push，沒併 main）。上一份 `.vibe/handoff/archive/2026-11-26-all-D.md`。
+> 2026-11-26 深夜。repo `E:\習慣地瓜\shuji`，分支 `potato-b` 已併 main（b4eb789，main CI run 45899049967 全綠），TestFlight 1.0（14）run 45899075225 已上傳。上一份 `.vibe/handoff/archive/2026-11-26-all-D.md`。
 > 規劃與多米的決定：`docs/規劃-點數收費-多習慣-AI對手與犒賞-2026-11-26.md`（開頭寫了多米定的三件）。
 
 ## ✅ 做完的（都在 potato-b）
@@ -20,7 +20,7 @@
 2. 季稽核還是「完整版」才能做（規劃表寫它扣 5 點，沒定要不要拿掉完整版限制，保守沒動）。
 3. 沒買點數時 App Store 還沒有商品，買點數頁會顯示「連不到 App Store」。
 4. **停下來問多米**：App Store Connect 建兩個消耗型商品（碰錢）；伺服器部署＋遠端 D1 跑 `schema.sql`（中文路徑下 wrangler deploy 會靜默失敗）。
-5. 之後：多米真機看 B 地瓜、七步規劃、切換選單；併 main、出 TestFlight。
+5. 多米在 1.0（14）真機看 B 地瓜、七步規劃、切換選單（伺服器沒部署前點數不會動，電腦 Claude 照常）。
 
 ## 📌 定了的（別再問）
 - 地瓜一律 B。收費＝習慣格子買斷＋AI 點數（新裝 20、30 點 NT$60、100 點 NT$150、電腦 Claude 不扣）。多習慣用切換選單，不強制只培養一個。
