@@ -5,6 +5,7 @@
 ## ✅ 現況
 - QC-0011 十一筆都處理了。#76 出 HTML（`E:\習慣地瓜\QC-0011\長好的習慣.html`）；#78 #79 造型五款在 https://claude.ai/artifact/MUmNyyL7iPguYGoD1oQyoc ，多米選 D，已做進 `Shuji/Views/HoldButton.swift`（PotatoBody 改畫直立的 D，版位 264×196 不變，外圈改直的橢圓；TodayView ringInset 20→8；VineView 記好後根不再移到左端）。
 - 其他：#77 設定拿掉不適合那列；#80 AI 頁只管連線，三個幫忙改在回來卡選理由後／連漏兩天／放手中出現；#81 送自己電腦不跳同意頁（伺服器照問）；#82 進度條照答完幾題；#83 預估頁文案加年份；#84 #85 VineView 看 habit.id 換習慣就清；#86 竹籃「種到一半的」（`AppState.unfinished`）。
+- 2026-11-26 子代理盲審過全部 Swift 改動：沒找到確定會編不過的；唯一風險（HoldButton bottom 長串 tuple 推導）已拆成 bottomTail（2a5eff5）。專案是 Swift 5.0、沒開嚴格並行。
 - 只跑過 `node tools/check-ui-tokens.mjs`（過）。Swift 是盲寫，**沒編譯、沒跑測試、沒拍圖**。新測試在 `ShujiTests/HabitEstimateTests.swift`（五個）與 BridgeTests。
 
 ## ⏭️ 下一步
