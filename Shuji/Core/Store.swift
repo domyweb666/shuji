@@ -195,12 +195,26 @@ final class Store {
 
     // MARK: 種
 
-    /// 種下去。原本還種著的收進 pastHabits，放手測試、試兩週跟著停；紀錄都留著
+    /// 「加一個習慣」那頁開著：種下去時現在這個不收掉，放進 others 一起養。不存檔
+    var addingHabit = false
+
+    /// 同時最多養幾個：免費 2 個，完整版 5 個（docs/規劃-點數收費-多習慣-AI對手與犒賞-2026-11-26.md）
+    static let freeHabits = 2
+    static let fullHabits = 5
+    var maxHabits: Int { Purchases.shared.isFull ? Store.fullHabits : Store.freeHabits }
+    var canAddHabit: Bool { state.growing.count < maxHabits }
+
+    /// 種下去。一般是換掉現在這個（收進 pastHabits，放手測試、試兩週跟著停；紀錄都留著）；
+    /// addingHabit 時現在這個放進 others 一起養，新的變成現在看的
     func plant(floor: String, trigger: String, estimatedDays: Int? = nil,
-               rival: String = "", block: String = "", reward: String = "") {
+               rival: String = "", block: String = "", reward: String = "", name: String = "") {
         let t = today
         let st = stamp()
-        if let old = state.habit {
+        let alongside = addingHabit && canAddHabit
+        addingHabit = false
+        if alongside, let current = state.habit {
+            state.others.append(current)
+        } else if let old = state.habit {
             // 沒有判定，只是收掉
             if let lg = state.letgo { addMark(.letgoEnd, habit: old.id, prior: lg.prior) }
             stopTrials(of: old.id)
@@ -211,7 +225,8 @@ final class Store {
         state.justDug = nil
         vineGrow = false
         state.habit = Habit(floor: floor, trigger: trigger, planted: t, id: makeID("hab"), plantedAt: st.at, tz: st.tz,
-                            estimatedDays: estimatedDays, rival: rival, block: block, reward: reward)
+                            estimatedDays: estimatedDays, rival: rival, block: block, reward: reward,
+                            name: name.trimmingCharacters(in: .whitespacesAndNewlines))
         if let i = state.queue.firstIndex(of: floor) { state.queue.remove(at: i) }
         save()
         show("種下去了。做完最小一步，就按住。")
@@ -472,11 +487,35 @@ final class Store {
         }
     }
 
-    /// 挖出來那頁按「種下一個」
+    /// 挖出來那頁按「種下一個」：還有別的在養就換到那個，沒有才回到種新的
     func plantNext() {
         state.justDug = nil
-        state.habit = nil
+        state.habit = state.others.isEmpty ? nil : state.others.removeFirst()
         save()
+    }
+
+    // MARK: 同時養好幾個
+
+    /// 切換選單：換成看另一個。兩個交換位置，紀錄、藤、田都跟著習慣編號走
+    func switchHabit(to id: String) {
+        guard let i = state.others.firstIndex(where: { $0.id == id }) else { return }
+        let next = state.others.remove(at: i)
+        if let current = state.habit { state.others.insert(current, at: i) }
+        state.habit = next
+        vineGrow = false
+        save()
+    }
+
+    /// 收起現在這個：跟換習慣一樣收進 pastHabits（竹籃「種到一半的」找得到，可以種回來），換到下一個
+    func shelveHabit() {
+        guard let h = state.habit else { return }
+        if let lg = state.letgo { addMark(.letgoEnd, habit: h.id, prior: lg.prior) }
+        stopTrials(of: h.id)
+        if !state.pastHabits.contains(where: { $0.id == h.id }) { state.pastHabits.append(h) }
+        state.habit = state.others.isEmpty ? nil : state.others.removeFirst()
+        vineGrow = false
+        save()
+        show("收起來了，竹籃裡找得到。")
     }
 
     // MARK: 排隊
@@ -508,7 +547,10 @@ final class Store {
 
     /// 種回來：同一句、同一個時機重新種。現在種著的收起來，跟一般換習慣一樣，紀錄都留著
     func replantUnfinished(_ u: UnfinishedHabit) {
-        plant(floor: u.habit.floor, trigger: u.habit.trigger)
+        // 還有位子就一起養，不換掉現在的
+        addingHabit = state.habit != nil && canAddHabit
+        plant(floor: u.habit.floor, trigger: u.habit.trigger, rival: u.habit.rival, block: u.habit.block,
+              reward: u.habit.reward, name: u.habit.name)
         page = 1
     }
 

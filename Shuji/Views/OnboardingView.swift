@@ -63,6 +63,24 @@ struct ReplanView: View {
     }
 }
 
+/// 今天頁切換選單的「加一個習慣」：整頁蓋上來，種下去時現在養的那些都留著，新的變成現在看的
+struct AddHabitView: View {
+    @Environment(Store.self) private var store
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        PlantFlow(onExit: { dismiss() }, onDone: {
+            store.page = 1
+            dismiss()
+        })
+        .background(Theme.canvas.ignoresSafeArea())
+        .environment(\.domyBottomInset, Sp.s8)
+        .tint(Theme.accent)
+        .onAppear { store.addingHabit = true }
+        .onDisappear { store.addingHabit = false }
+    }
+}
+
 /// 自己填：最小一步、掛在哪個瞬間後面，兩格。預估天數當中等難度
 struct ManualPlantView: View {
     @Environment(Store.self) private var store

@@ -9,6 +9,9 @@ struct TodayView: View {
     @Environment(\.domyBottomInset) private var bottomInset
     @Environment(\.scenePhase) private var scenePhase
     @State private var sheet: TodaySheet? = nil
+    @State private var adding = false
+    @State private var paywall = false
+    @State private var confirmShelve = false
 
     /// 土面以上：一片葉子加捲鬚的高度
     private static let vineAbove: CGFloat = 60 // domy-ignore: 插畫畫布高度
@@ -46,6 +49,14 @@ struct TodayView: View {
             case .next: NextHabitSheet()
             }
         }
+        .fullScreenCover(isPresented: $adding) { AddHabitView() }
+        .sheet(isPresented: $paywall) { PaywallSheet() }
+        .alert("收起這個習慣？", isPresented: $confirmShelve) {
+            Button("取消", role: .cancel) {}
+            Button("收起來", role: .destructive) { store.shelveHabit() }
+        } message: {
+            Text("紀錄都留著，竹籃「種到一半的」找得到，隨時可以種回來。")
+        }
         // 聲音引擎先在背景開好，第一次按住就不會頓（效能審查 2026-11-26 第 1 列）
         .onAppear { warmSound() }
         .onChange(of: store.page) { _, page in
@@ -69,7 +80,10 @@ struct TodayView: View {
             ScrollView {
                 VStack(spacing: 0) {
                     VStack(alignment: .leading, spacing: Sp.s5) {
-                        header
+                        VStack(alignment: .leading, spacing: Sp.s2) {
+                            if store.state.habit != nil { switcher }
+                            header
+                        }
                         words
                     }
                     .animation(Feel.transition, value: store.state.log(on: t)?.t)
@@ -100,6 +114,71 @@ struct TodayView: View {
             if store.state.habit != nil && store.state.letgo == nil { corner }
         }
         .frame(minHeight: Sz.iconButton)
+    }
+
+    // MARK: 切換選單
+
+    /// 習慣名稱加一個向下箭頭：點開換看哪一個、加一個、收起這個（多米 2026-11-26）
+    private var switcher: some View {
+        let all = store.state.growing
+        let current = store.state.habit?.id
+        return Menu {
+            Section {
+                ForEach(all, id: \.id) { h in
+                    Button {
+                        Haptic.select()
+                        store.switchHabit(to: h.id)
+                    } label: {
+                        if h.id == current {
+                            Label(TodayView.title(h), systemImage: "checkmark")
+                        } else if store.state.didLog(h.id, on: t) {
+                            Text("\(TodayView.title(h))（今天記好了）")
+                        } else {
+                            Text(TodayView.title(h))
+                        }
+                    }
+                }
+            }
+            Section {
+                Button {
+                    if store.canAddHabit { adding = true } else if !Purchases.shared.isFull { paywall = true }
+                } label: {
+                    Label(addLabel, systemImage: "plus")
+                }
+                .disabled(!store.canAddHabit && Purchases.shared.isFull)
+                Button(role: .destructive) { confirmShelve = true } label: {
+                    Label("收起這個習慣", systemImage: "tray.and.arrow.down")
+                }
+            }
+        } label: {
+            HStack(spacing: Sp.s1) {
+                Text(store.state.habit.map(TodayView.title) ?? "")
+                    .domyType(Ty.headline)
+                    .lineLimit(1)
+                Image(systemName: "chevron.down")
+                    .font(Ty.caption.font)
+                    .fontWeight(.semibold)
+                if all.count > 1 {
+                    // 還有別的沒記：一個小點提醒
+                    let waiting = all.contains { $0.id != current && !store.state.didLog($0.id, on: t) }
+                    if waiting {
+                        Circle().fill(Theme.accent).frame(width: Sp.s2, height: Sp.s2)
+                    }
+                }
+            }
+            .foregroundStyle(Theme.strong)
+            .frame(minHeight: Sz.touch)
+            .contentShape(Rectangle())
+        }
+        .accessibilityLabel("現在看的習慣：\(store.state.habit.map(TodayView.title) ?? "")，共 \(all.count) 個，點兩下切換")
+    }
+
+    /// 選單上的名字：規劃時打的那句；自己填、舊的習慣用最小一步
+    static func title(_ h: Habit) -> String { h.name.isEmpty ? h.floor : h.name }
+
+    private var addLabel: String {
+        if store.canAddHabit { return "加一個習慣" }
+        return Purchases.shared.isFull ? "最多同時養 \(Store.fullHabits) 個" : "加一個習慣（完整版可以養到 \(Store.fullHabits) 個）"
     }
 
     /// 還沒記是「跳過」，記了或跳過了是「復原」

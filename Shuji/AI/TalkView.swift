@@ -510,7 +510,7 @@ struct TalkView: View {
         // 先拿掉排隊那一句，再種（種下去畫面就換掉了）
         store.removeQueue(model.goal)
         store.plant(floor: model.floor, trigger: model.trigger, estimatedDays: days,
-                    rival: model.rival, block: model.block, reward: model.reward)
+                    rival: model.rival, block: model.block, reward: model.reward, name: model.goal)
         onDone()
     }
 
