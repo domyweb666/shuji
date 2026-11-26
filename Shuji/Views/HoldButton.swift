@@ -45,19 +45,25 @@ struct PotatoBody<Label: View>: View {
     }
 }
 
-/// D 的地瓜。open：上半的皮剝開、冒煙
-private struct PotatoArt: View {
+/// D 的地瓜。open：上半的皮剝開、冒煙。竹籃、挖出來、付費頁的小地瓜（PotatoView）也用這個畫
+struct PotatoArt: View {
     var open: Bool
     var fill: Color
     var rim: Color
     var mud: Color
     var written: Bool
+    /// 畫布縮放：土裡那顆是 0.72；nil 就照高度塞滿（給小地瓜用）
+    var scale: CGFloat? = 0.72
+
+    /// 整顆含鬚根和泥的高度（畫布座標），照高度塞滿時用
+    static let wholeHeight: CGFloat = 272
 
     var body: some View {
         Canvas { ctx, size in
             var g = ctx
+            let s = scale ?? size.height / Self.wholeHeight
             g.translateBy(x: size.width / 2, y: size.height / 2)
-            g.scaleBy(x: 0.72, y: 0.72)
+            g.scaleBy(x: s, y: s)
             g.translateBy(x: -190, y: -221)
             if open { drawOpen(&g) } else { drawWhole(&g) }
         }
