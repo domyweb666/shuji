@@ -443,42 +443,15 @@ private struct WeekVine: View {
     }
 }
 
-/// 有眼睛的地瓜（插畫，座標照草圖 WeekB）
+/// 有眼睛的地瓜：D（跟土裡那顆同一個），位子維持原本的 140×104
 private struct WeekPotato: View {
-    @Environment(\.colorScheme) private var scheme
-
     private static let width: CGFloat = 140 // domy-ignore: 插畫尺寸
     private static let height: CGFloat = 104 // domy-ignore: 插畫尺寸
 
     var body: some View {
-        let garden = Theme.garden(scheme)
-        Canvas { ctx, size in
-            var g = ctx
-            g.translateBy(x: size.width / 2, y: 61)
-            g.scaleBy(x: 0.85, y: 0.85)
-
-            var stem = Path()
-            stem.move(to: CGPoint(x: 0, y: -44))
-            stem.addQuadCurve(to: CGPoint(x: 18, y: -60), control: CGPoint(x: 4, y: -58))
-            g.stroke(stem, with: .color(garden.vine), style: StrokeStyle(lineWidth: 4, lineCap: .round))
-
-            var leaf = Path()
-            leaf.move(to: CGPoint(x: 18, y: -60))
-            leaf.addCurve(to: CGPoint(x: 34, y: -50), control1: CGPoint(x: 30, y: -68), control2: CGPoint(x: 42, y: -58))
-            leaf.addCurve(to: CGPoint(x: 18, y: -60), control1: CGPoint(x: 28, y: -44), control2: CGPoint(x: 20, y: -50))
-            leaf.closeSubpath()
-            g.fill(leaf, with: .color(garden.leaf))
-
-            var skin = g
-            skin.rotate(by: .degrees(-8))
-            skin.fill(Path(ellipseIn: CGRect(x: -78, y: -45, width: 156, height: 90)), with: .color(Theme.accent))
-            skin.fill(Path(ellipseIn: CGRect(x: -56, y: -31, width: 56, height: 18)), with: .color(Color.white.opacity(0.18)))
-
-            g.fill(Path(ellipseIn: CGRect(x: -22.5, y: -4.5, width: 9, height: 9)), with: .color(Theme.onAccent))
-            g.fill(Path(ellipseIn: CGRect(x: 17.5, y: -8.5, width: 9, height: 9)), with: .color(Theme.onAccent))
-        }
-        .frame(width: WeekPotato.width, height: WeekPotato.height)
-        .accessibilityHidden(true)
+        PotatoFace()
+            .frame(width: WeekPotato.width, height: WeekPotato.height)
+            .accessibilityHidden(true)
     }
 }
 

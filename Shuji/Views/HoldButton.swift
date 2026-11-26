@@ -129,6 +129,37 @@ struct PotatoArt: View {
     }
 }
 
+/// 有眼睛的 D：回來卡、對話、這週的田、田的「還太少」共用。照高度塞滿置中，位子由呼叫的地方給
+/// dots：想的時候三個點的透明度；nil 畫兩隻眼睛。眼睛顏色跟著壓在產品色上的字色走，深色模式才看得到
+struct PotatoFace: View {
+    var dots: [Double]? = nil
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        ZStack {
+            PotatoArt(open: false, fill: Theme.accent, rim: Theme.potatoRing(scheme),
+                      mud: Theme.garden(scheme).soilDeep, written: false, scale: nil)
+            Canvas { ctx, size in
+                let s = size.height / PotatoArt.wholeHeight
+                func dot(_ x: CGFloat, _ y: CGFloat, _ opacity: Double) {
+                    let c = CGPoint(x: size.width / 2 + (x - 190) * s, y: size.height / 2 + (y - 221) * s)
+                    let r = 9 * s
+                    ctx.fill(Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2)),
+                             with: .color(Theme.onAccent.opacity(opacity)))
+                }
+                if let dots {
+                    for (i, o) in dots.prefix(3).enumerated() { dot(156 + CGFloat(i) * 34, 212, o) }
+                } else {
+                    dot(168, 208, 1)
+                    dot(214, 202, 1)
+                }
+            }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
 /// D 的外形（畫布座標）
 private enum DShape {
     /// 起點，之後每三點一段曲線
