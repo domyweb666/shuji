@@ -298,7 +298,7 @@ final class ReplanTests: XCTestCase {
         XCTAssertEqual(s.state.habit?.floor, "握起啞鈴做一下", "不搶正在種的")
     }
 
-    /// 種回來：同一句同一個時機重新種，換掉的那個收進種到一半的，紀錄都留著
+    /// 種回來：同一句同一個時機重新種；還有格子時現在這個留著一起養（多米 2026-11-26 多習慣），紀錄都留著
     func testReplantUnfinishedSwapsBack() {
         let s = makeStore()
         s.plant(floor: "坐到鋪墊上", trigger: "洗完臉")
@@ -315,7 +315,8 @@ final class ReplanTests: XCTestCase {
         XCTAssertNotEqual(s.state.habit?.id, first, "新的一輪，藤從頭長")
         XCTAssertEqual(s.state.records.count, records, "紀錄留著")
         XCTAssertEqual(s.state.queue, [], "種了就從排隊拿掉")
-        XCTAssertEqual(s.state.unfinished.map(\.id), [second], "同一句種回來了就不列")
+        XCTAssertEqual(s.state.unfinished.map(\.id), [], "同一句種回來了就不列")
+        XCTAssertEqual(s.state.others.map(\.id), [second], "還有格子，現在這個不換掉、一起養")
         XCTAssertEqual(s.page, 1)
     }
 
