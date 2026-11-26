@@ -11,8 +11,8 @@ struct LogNodeIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        // app 正在跑就用它的 Store，畫面才會馬上更新；沒在跑就自己開一個讀檔
-        let store = Store.live ?? Store()
+        // app 正在跑就用它的 Store，畫面才會馬上更新；沒在跑就開一個接好小工具與提醒的
+        let store = Store.live ?? Store.makeLive()
         let reply = Self.log(into: store)
         return .result(dialog: IntentDialog(stringLiteral: reply))
     }
