@@ -1,29 +1,20 @@
-# Handoff: 芹查 QC-0011 改完在 qc-0011，沒推、沒編譯
+# Handoff: 地瓜全換 D、種到一半的可以種回來，已併 main，TestFlight 1.0（13）
 
-> 2026-11-26。repo `E:\習慣地瓜\shuji`，分支 `qc-0011`（從 main e36c78f 開），兩個 commit：9c52045（八筆程式）、下一個（地瓜造型 D）。上一份見 `.vibe/handoff/archive/2026-11-25-week-prompt.md`
+> 2026-11-26 晚上。repo `E:\習慣地瓜\shuji`，main cb0d48b（併 overnight-20261126-1104）。上一份見 `.vibe/handoff/archive/`。整晚模式的完整紀錄在 `OVERNIGHT.md`。
 
 ## ✅ 現況
-- QC-0011 十一筆都處理了。#76 出 HTML（`E:\習慣地瓜\QC-0011\長好的習慣.html`）；#78 #79 造型五款在 https://claude.ai/artifact/MUmNyyL7iPguYGoD1oQyoc ，多米選 D，已做進 `Shuji/Views/HoldButton.swift`（PotatoBody 改畫直立的 D，版位 264×196 不變，外圈改直的橢圓；TodayView ringInset 20→8；VineView 記好後根不再移到左端）。
-- 其他：#77 設定拿掉不適合那列；#80 AI 頁只管連線，三個幫忙改在回來卡選理由後／連漏兩天／放手中出現；#81 送自己電腦不跳同意頁（伺服器照問）；#82 進度條照答完幾題；#83 預估頁文案加年份；#84 #85 VineView 看 habit.id 換習慣就清；#86 竹籃「種到一半的」（`AppState.unfinished`）。
-- 2026-11-26 子代理盲審過全部 Swift 改動：沒找到確定會編不過的；唯一風險（HoldButton bottom 長串 tuple 推導）已拆成 bottomTail（2a5eff5）。專案是 Swift 5.0、沒開嚴格並行。
-- 只跑過 `node tools/check-ui-tokens.mjs`（過）。Swift 是盲寫，**沒編譯、沒跑測試、沒拍圖**。新測試在 `ShujiTests/HabitEstimateTests.swift`（五個）與 BridgeTests。
-
-- 2026-11-26 效能審查（docs/效能審查-2026-11-26.md）與第一批修正也在 qc-0011：473b5dc 聲音預熱／震動／藤限速、f5d383c AI 離開就取消＋bridge 殺 CLI、6953589 捷徑 makeLive。同樣沒編譯；真機要看的點寫在報告「第一批已改」。第二批（tick、formatter、小工具比對、存檔移背景）也做了（cad0641），一樣沒編譯；存檔現在是背景序列佇列，讀檔與進背景前 flush，若 CI 有存檔相關測試掛掉先看這裡。
-
-- 2026-11-26 多米點頭後 push qc-0011，手動觸發 iOS 建置與測試（run 45741842042）全綠：編譯過、191 個測試 0 失敗、Domy 代號與中繼伺服器測試都過。注意：這個分支 push 不會自動跑 CI，要 `gh workflow run ios.yml --ref qc-0011`。
-
-- 2026-11-26 qc-0011 併 main（bf63a0d），main CI 綠，TestFlight 1.0（12）已上傳（run 45744538451），等多米真機回饋；Limrun 拍圖沒做。
+- 所有地瓜都是 D 了：土裡那顆（HoldButton 的 PotatoBody）、竹籃／挖出來／付費頁的 PotatoView、回來卡／對話／這週的田／田的「還太少」的有眼睛地瓜（PotatoFace，TalkPotato 與 WeekPotato 都包它）。畫法全在 `Shuji/Views/HoldButton.swift` 的 PotatoArt，改 D 只改那裡。
+- PotatoView 的位子從 寬×0.68 變 寬×0.9（變高）；TalkPotato、WeekPotato 位子沒變。
+- 竹籃「種到一半的」點進去有「現在種回來」「排進排隊」。種回來＝同一句同一時機重種一輪（新 id，藤從頭長，旅行版那句沒帶）；有種著的會先問。`Store.queueUnfinished / replantUnfinished`，`AppState.unfinished` 不列跟現在同一句的。
+- 「你回來了」往上 30 點，放在黃色肉心（多米選 C，比較圖 `E:\習慣地瓜\你回來了位置比較.html`）。
+- `docs/上架檢查-5.1.2-第三方AI.md`：送審前一定要補隱私權政策連結（`VeggieSetup.swift` 的 privacyURL 是 nil）；「連電腦加說明」「AI 設定加不再送到伺服器」多米說不做。
+- main CI 全綠（run 45819707510）；TestFlight 1.0（13）已上傳（run 45821021131），等多米真機。
 
 ## ⏭️ 下一步
-1. ~~push 與 CI~~ 已完成（全綠）。
-2. CI 綠之後用 Limrun 拍今天頁（淺深、按住中、記好、回來那天寫字、跳過、放手），特別看 D 的煙有沒有被切、「你回來了」有沒有壓在剝開的肉上、根有沒有接到頂。`tools/limrun/states.mjs` 的 unfit 那張已拿掉。
-3. ~~併 main、出 TestFlight~~ 已完成：1.0（12）。等多米真機回饋，真機要看的點在 docs/效能審查-2026-11-26.md「第一批已改」。
+1. 等多米真機回饋，特別看：挖出來那頁、付費頁、竹籃的小地瓜大小；回來卡和這週的田的 D 加眼睛；「你回來了」位置；種回來流程。
+2. Limrun `tools/limrun/states.mjs` 的存檔是舊格式（logs），記好、跳過狀態拍不出來；要用就改成 records 格式。
+3. 上架前寫隱私權政策並填網址。
 
 ## 📌 定了的（別再問）
-- 地瓜造型 D。送到自己的電腦不問同意。AI 幫忙不放選單，照時機出現。
-- 提交要指定檔名；不開 worktree。
-
-## ⚠️ 已知沒處理
-- 竹籃裡的小地瓜（PotatoView）、挖出來那頁、付費頁還是舊造型，這次只換土裡那顆。
-- 「種到一半的」只能看，不能種回來或排進排隊。
-- 送自己電腦不問同意，上架前要再對 Apple 5.1.2 的第三方 AI 條文。
+- 地瓜一律 D。「你回來了」用 C。5.1.2 那兩件不做。
+- 提交要指定檔名；不開 worktree；repo 是 PUBLIC，推之前問。
