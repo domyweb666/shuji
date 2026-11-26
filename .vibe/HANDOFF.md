@@ -10,8 +10,10 @@
 
 - 2026-11-26 效能審查（docs/效能審查-2026-11-26.md）與第一批修正也在 qc-0011：473b5dc 聲音預熱／震動／藤限速、f5d383c AI 離開就取消＋bridge 殺 CLI、6953589 捷徑 makeLive。同樣沒編譯；真機要看的點寫在報告「第一批已改」。第二批（tick、formatter、小工具比對、存檔移背景）也做了（cad0641），一樣沒編譯；存檔現在是背景序列佇列，讀檔與進背景前 flush，若 CI 有存檔相關測試掛掉先看這裡。
 
+- 2026-11-26 多米點頭後 push qc-0011，手動觸發 iOS 建置與測試（run 45741842042）全綠：編譯過、191 個測試 0 失敗、Domy 代號與中繼伺服器測試都過。注意：這個分支 push 不會自動跑 CI，要 `gh workflow run ios.yml --ref qc-0011`。
+
 ## ⏭️ 下一步
-1. 問多米可不可以 push（repo 是 PUBLIC，單子只說 commit）。點頭後 `git push -u origin qc-0011`，看 CI；編不過就修。
+1. ~~push 與 CI~~ 已完成（全綠）。
 2. CI 綠之後用 Limrun 拍今天頁（淺深、按住中、記好、回來那天寫字、跳過、放手），特別看 D 的煙有沒有被切、「你回來了」有沒有壓在剝開的肉上、根有沒有接到頂。`tools/limrun/states.mjs` 的 unfit 那張已拿掉。
 3. 多米看圖後併 main、出 TestFlight。
 
