@@ -199,6 +199,12 @@ final class TalkModel {
         if phase != .ready { back() }
     }
 
+    /// 畫面關掉：還在等就不等了，跟按「不等了」一樣回到問之前那一步；沒在等就什麼都不動
+    func cancel() {
+        guard phase == .waiting else { return }
+        leave()
+    }
+
     func restart() {
         stop()
         go(.goal)

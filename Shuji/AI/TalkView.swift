@@ -67,6 +67,9 @@ struct TalkView: View {
             AIConsentSheet(agree: { model.agree() }, decline: { model.decline() })
         }
         .sheet(isPresented: $connecting, onDismiss: { connectClosed() }) { connectSheet }
+        // 關掉這頁（排隊那張滑掉、重新規劃整頁關掉、改成自己填）時，還在等的那一句不等了。
+        // 這頁不推子頁；開的都是 sheet（不會觸發 onDisappear），而且只在沒在等的時候開，cancel 沒在等就不動
+        .onDisappear { model.cancel() }
     }
 
     // MARK: 上面那一排

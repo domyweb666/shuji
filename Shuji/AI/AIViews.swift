@@ -20,6 +20,8 @@ final class AICall<O: Decodable> {
     var phase: Phase = .idle
     var needsConsent = false
     @ObservationIgnored private var pending: (() async -> Void)?
+    /// 還在路上的那一次。畫面關掉時取消，電腦那頭才不會一直想、伺服器也不白扣一次
+    @ObservationIgnored private var task: Task<Void, Never>?
 
     var isLoading: Bool {
         if case .loading = phase { return true }
@@ -46,7 +48,7 @@ final class AICall<O: Decodable> {
             needsConsent = true
             return
         }
-        Task { await job() }
+        start(job)
     }
 
     func consented() {
@@ -54,7 +56,7 @@ final class AICall<O: Decodable> {
         needsConsent = false
         if let job = pending {
             pending = nil
-            Task { await job() }
+            start(job)
         }
     }
 
@@ -63,17 +65,35 @@ final class AICall<O: Decodable> {
         needsConsent = false
     }
 
-    private func perform<I: Encodable>(_ task: AITask, _ input: I, _ habitId: String?) async {
+    /// 畫面關掉：不等了。還在想就回到沒按之前，已經回來的結果不動
+    func cancel() {
+        task?.cancel()
+        task = nil
+        if isLoading { phase = .idle }
+    }
+
+    /// 先把狀態設成載入中再開 Task，連點兩下也只送一次
+    private func start(_ job: @escaping () async -> Void) {
         phase = .loading
+        task = Task { await job() }
+    }
+
+    private func perform<I: Encodable>(_ task: AITask, _ input: I, _ habitId: String?) async {
+        // 取消之後晚到的結果、錯誤都丟掉：不改畫面、不震動
+        guard !Task.isCancelled else { return }
         do {
-            switch try await AIClient.shared.run(task, input: input, habitId: habitId, as: O.self) {
+            let out = try await AIClient.shared.run(task, input: input, habitId: habitId, as: O.self)
+            guard !Task.isCancelled else { return }
+            switch out {
             case .result(let o): phase = .done(o)
             case .unfit(_, let referral): phase = .unfit(referral)
             }
         } catch let f as AIClient.Failure {
+            guard !Task.isCancelled else { return }
             phase = .failed(f.message)
             Haptic.error()
         } catch {
+            guard !Task.isCancelled else { return }
             phase = .failed(AIClient.fallbackMessage)
             Haptic.error()
         }
@@ -288,6 +308,7 @@ struct PlantHelper: View {
             }
         }
         .aiConsent(call)
+        .onDisappear { call.cancel() }
         .onChange(of: call.output?.triggers ?? []) { _, t in
             if !t.isEmpty { aiTriggers = t }
         }
@@ -328,6 +349,7 @@ struct ObstacleSheet: View {
             if let o = call.output { results(o) }
         }
         .aiConsent(call)
+        .onDisappear { call.cancel() }
         .onAppear {
             guard given, !asked else { return }
             asked = true
@@ -406,6 +428,7 @@ struct RivalHelper: View {
             }
         }
         .aiConsent(call)
+        .onDisappear { call.cancel() }
     }
 
     private func labeled(_ title: String, _ text: String) -> some View {
@@ -459,6 +482,7 @@ struct DiagnoseSheet: View {
             }
         }
         .aiConsent(call)
+        .onDisappear { call.cancel() }
     }
 
     private var filled: Int { [q1, q2, q3].filter { !trimmed($0).isEmpty }.count }
@@ -525,6 +549,7 @@ struct AuditSheet: View {
             }
         }
         .aiConsent(call)
+        .onDisappear { call.cancel() }
     }
 }
 

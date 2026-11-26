@@ -192,6 +192,8 @@ final class AIClient {
             } catch let f as Failure {
                 throw f
             } catch {
+                // 畫面關掉取消的（URLError.cancelled、CancellationError）不重送
+                if Task.isCancelled { throw CancellationError() }
                 lastError = error
                 if attempt == 0 { continue }
             }
