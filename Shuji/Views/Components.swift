@@ -314,46 +314,17 @@ struct FlowLayout: Layout {
     }
 }
 
-/// 竹籃裡那顆地瓜（原型的 potatoSVG）。插畫，座標照原型
+/// 竹籃、挖出來那頁、付費頁的地瓜。跟土裡那顆同一個 D（直立、鬚根、泥），整顆沒剝開
+/// 位子是 寬 width、高 width × 0.9，地瓜照高度塞滿置中
 struct PotatoView: View {
     var width: CGFloat = 44
+    @Environment(\.colorScheme) private var scheme
 
     var body: some View {
-        Canvas { ctx, size in
-            var g = ctx
-            g.scaleBy(x: size.width / 88, y: size.width / 88)
-
-            var vine = Path()
-            vine.move(to: CGPoint(x: 20, y: 22))
-            vine.addCurve(to: CGPoint(x: 60, y: 14), control1: CGPoint(x: 30, y: 4), control2: CGPoint(x: 52, y: 6))
-            g.stroke(vine, with: .color(Theme.vineDynamic), lineWidth: 3)
-
-            var leaf = Path()
-            leaf.move(to: CGPoint(x: 58, y: 13))
-            leaf.addCurve(to: CGPoint(x: 66, y: 3), control1: CGPoint(x: 50, y: 3), control2: CGPoint(x: 60, y: -3))
-            leaf.addCurve(to: CGPoint(x: 72, y: 13), control1: CGPoint(x: 70, y: -3), control2: CGPoint(x: 80, y: 3))
-            leaf.closeSubpath()
-            g.fill(leaf, with: .color(Theme.leafDynamic))
-
-            var body = g
-            body.translateBy(x: 44, y: 38)
-            body.rotate(by: .degrees(-8))
-            body.fill(Path(ellipseIn: CGRect(x: -36, y: -19, width: 72, height: 38)), with: .color(Theme.accent))
-
-            var shine = g
-            shine.translateBy(x: 34, y: 31)
-            shine.rotate(by: .degrees(-14))
-            shine.fill(Path(ellipseIn: CGRect(x: -14, y: -5, width: 28, height: 10)), with: .color(.white.opacity(0.22)))
-
-            var marks = Path()
-            marks.move(to: CGPoint(x: 30, y: 44))
-            marks.addQuadCurve(to: CGPoint(x: 42, y: 44), control: CGPoint(x: 36, y: 46))
-            marks.move(to: CGPoint(x: 52, y: 40))
-            marks.addQuadCurve(to: CGPoint(x: 62, y: 39), control: CGPoint(x: 57, y: 42))
-            g.stroke(marks, with: .color(.black.opacity(0.18)), lineWidth: 1.5)
-        }
-        .frame(width: width, height: width * 60 / 88)
-        .accessibilityHidden(true)
+        PotatoArt(open: false, fill: Theme.accent, rim: Theme.potatoRing(scheme),
+                  mud: Theme.garden(scheme).soilDeep, written: false, scale: nil)
+            .frame(width: width, height: width * 0.9)
+            .accessibilityHidden(true)
     }
 }
 

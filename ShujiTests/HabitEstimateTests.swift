@@ -235,6 +235,41 @@ final class ReplanTests: XCTestCase {
         XCTAssertEqual(s.state.unfinished, [])
     }
 
+    /// 種到一半的排進排隊：排最前面、不重複排
+    func testQueueUnfinishedGoesFirstOnce() {
+        let s = makeStore()
+        s.plant(floor: "坐到鋪墊上", trigger: "洗完臉")
+        s.logToday()
+        s.plant(floor: "握起啞鈴做一下", trigger: "剛坐上椅子")
+        s.addQueue("喝一口水")
+        let u = s.state.unfinished.first!
+        s.queueUnfinished(u)
+        s.queueUnfinished(u)
+        XCTAssertEqual(s.state.queue, ["坐到鋪墊上", "喝一口水"])
+        XCTAssertEqual(s.state.habit?.floor, "握起啞鈴做一下", "不搶正在種的")
+    }
+
+    /// 種回來：同一句同一個時機重新種，換掉的那個收進種到一半的，紀錄都留著
+    func testReplantUnfinishedSwapsBack() {
+        let s = makeStore()
+        s.plant(floor: "坐到鋪墊上", trigger: "洗完臉")
+        let first = s.state.habit!.id
+        s.logToday()
+        s.plant(floor: "握起啞鈴做一下", trigger: "剛坐上椅子")
+        let second = s.state.habit!.id
+        s.logToday()
+        let records = s.state.records.count
+        s.queueUnfinished(s.state.unfinished.first!)
+        s.replantUnfinished(s.state.unfinished.first!)
+        XCTAssertEqual(s.state.habit?.floor, "坐到鋪墊上")
+        XCTAssertEqual(s.state.habit?.trigger, "洗完臉")
+        XCTAssertNotEqual(s.state.habit?.id, first, "新的一輪，藤從頭長")
+        XCTAssertEqual(s.state.records.count, records, "紀錄留著")
+        XCTAssertEqual(s.state.queue, [], "種了就從排隊拿掉")
+        XCTAssertEqual(s.state.unfinished.map(\.id), [second], "同一句種回來了就不列")
+        XCTAssertEqual(s.page, 1)
+    }
+
     /// 回來卡後面只問一次「下次怎麼辦」；想過了就不問
     func testBackupIsOfferedOnce() {
         let s = makeStore()

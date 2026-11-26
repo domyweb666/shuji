@@ -45,19 +45,25 @@ struct PotatoBody<Label: View>: View {
     }
 }
 
-/// D 的地瓜。open：上半的皮剝開、冒煙
-private struct PotatoArt: View {
+/// D 的地瓜。open：上半的皮剝開、冒煙。竹籃、挖出來、付費頁的小地瓜（PotatoView）也用這個畫
+struct PotatoArt: View {
     var open: Bool
     var fill: Color
     var rim: Color
     var mud: Color
     var written: Bool
+    /// 畫布縮放：土裡那顆是 0.72；nil 就照高度塞滿（給小地瓜用）
+    var scale: CGFloat? = 0.72
+
+    /// 整顆含鬚根和泥的高度（畫布座標），照高度塞滿時用
+    static let wholeHeight: CGFloat = 272
 
     var body: some View {
         Canvas { ctx, size in
             var g = ctx
+            let s = scale ?? size.height / Self.wholeHeight
             g.translateBy(x: size.width / 2, y: size.height / 2)
-            g.scaleBy(x: 0.72, y: 0.72)
+            g.scaleBy(x: s, y: s)
             g.translateBy(x: -190, y: -221)
             if open { drawOpen(&g) } else { drawWhole(&g) }
         }
@@ -120,6 +126,37 @@ private struct PotatoArt: View {
         g.fill(DShape.bottom, with: .color(fill))
         g.stroke(DShape.edge, with: .color(Theme.bakedRim), style: StrokeStyle(lineWidth: 6, lineCap: .round, lineJoin: .round))
         strokeLines(&g, [(160, 284, 178, 284), (206, 290, 222, 290)], .black.opacity(0.22), 3)
+    }
+}
+
+/// 有眼睛的 D：回來卡、對話、這週的田、田的「還太少」共用。照高度塞滿置中，位子由呼叫的地方給
+/// dots：想的時候三個點的透明度；nil 畫兩隻眼睛。眼睛顏色跟著壓在產品色上的字色走，深色模式才看得到
+struct PotatoFace: View {
+    var dots: [Double]? = nil
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        ZStack {
+            PotatoArt(open: false, fill: Theme.accent, rim: Theme.potatoRing(scheme),
+                      mud: Theme.garden(scheme).soilDeep, written: false, scale: nil)
+            Canvas { ctx, size in
+                let s = size.height / PotatoArt.wholeHeight
+                func dot(_ x: CGFloat, _ y: CGFloat, _ opacity: Double) {
+                    let c = CGPoint(x: size.width / 2 + (x - 190) * s, y: size.height / 2 + (y - 221) * s)
+                    let r = 9 * s
+                    ctx.fill(Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2)),
+                             with: .color(Theme.onAccent.opacity(opacity)))
+                }
+                if let dots {
+                    for (i, o) in dots.prefix(3).enumerated() { dot(156 + CGFloat(i) * 34, 212, o) }
+                } else {
+                    dot(168, 208, 1)
+                    dot(214, 202, 1)
+                }
+            }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 
@@ -281,6 +318,8 @@ struct HoldButton: View {
                         .minimumScaleFactor(0.6)
                         .foregroundStyle(Theme.bakedInk)
                         .frame(maxWidth: PotatoBody<EmptyView>.bodySize.width * 0.8)
+                        // 往上挪到黃色肉心正中間，離開皮跟肉交界的鋸齒邊（多米 2026-11-26 選 C）
+                        .offset(y: -30) // domy-ignore: 插畫位置
                         .opacity(done && back ? 1 : 0)
                 }
             }

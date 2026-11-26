@@ -537,44 +537,8 @@ struct TalkPotato: View {
         return [1.0, 0.7, 0.4][i]
     }
 
-    /// 座標照畫布的 SVG：寬 180 高 130，原點在地瓜中間
+    /// 地瓜是 D（跟土裡那顆同一個），位子維持原本的 寬 × 130/180，換造型版面不跳
     private func drawing(lit: Int?) -> some View {
-        Canvas { ctx, size in
-            var g = ctx
-            g.scaleBy(x: size.width / 180, y: size.width / 180)
-            g.translateBy(x: 90, y: 65)
-
-            if !thinking {
-                var vine = Path()
-                vine.move(to: CGPoint(x: 0, y: -44))
-                vine.addQuadCurve(to: CGPoint(x: 18, y: -60), control: CGPoint(x: 4, y: -58))
-                g.stroke(vine, with: .color(Theme.vineDynamic), style: StrokeStyle(lineWidth: 4, lineCap: .round))
-
-                var leaf = Path()
-                leaf.move(to: CGPoint(x: 18, y: -60))
-                leaf.addCurve(to: CGPoint(x: 34, y: -50), control1: CGPoint(x: 30, y: -68), control2: CGPoint(x: 42, y: -58))
-                leaf.addCurve(to: CGPoint(x: 18, y: -60), control1: CGPoint(x: 28, y: -44), control2: CGPoint(x: 20, y: -50))
-                leaf.closeSubpath()
-                g.fill(leaf, with: .color(Theme.leafDynamic))
-            }
-
-            var skin = g
-            skin.rotate(by: .degrees(-8))
-            skin.fill(Path(ellipseIn: CGRect(x: -78, y: -45, width: 156, height: 90)), with: .color(Theme.accent))
-            skin.fill(Path(ellipseIn: CGRect(x: -56, y: -31, width: 56, height: 18)), with: .color(.white.opacity(0.18)))
-
-            // 眼睛的顏色跟著壓在產品色上的字色走，深色的淺地瓜上才看得到
-            if thinking {
-                for i in 0..<3 {
-                    let dot = CGRect(x: CGFloat(i - 1) * 24 - 5, y: -5, width: 10, height: 10)
-                    g.fill(Path(ellipseIn: dot), with: .color(Theme.onAccent.opacity(dotOpacity(i, lit: lit))))
-                }
-            } else {
-                for p in [CGPoint(x: -18, y: 0), CGPoint(x: 22, y: -4)] {
-                    let eye = CGRect(x: p.x - 4.5, y: p.y - 4.5, width: 9, height: 9)
-                    g.fill(Path(ellipseIn: eye), with: .color(Theme.onAccent))
-                }
-            }
-        }
+        PotatoFace(dots: thinking ? (0..<3).map { dotOpacity($0, lit: lit) } : nil)
     }
 }
