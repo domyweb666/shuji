@@ -139,8 +139,8 @@ describe('規劃習慣與每週看紀錄（任務 8、9）', () => {
     expect(await r.json()).toEqual({ ok: true, task: 9, result: OK9 });
     expect(JSON.parse(seen().stdin).user_text).toEqual({ floor: '打開檔案寫一句', trigger: '喝完水', skipped: [], reasons: [] });
   });
-  it('任務 8、9 的指令有資料規則，舊任務沒有', () => {
-    for (const id of TASK_IDS) expect(instructionFor(id).includes(DATA_RULE)).toBe(id === 8 || id === 9);
+  it('有打字欄位的任務都有資料規則；只有舊的任務 5、7 沒有', () => {
+    for (const id of TASK_IDS) expect(instructionFor(id).includes(DATA_RULE)).toBe(id !== 5 && id !== 7);
   });
 });
 

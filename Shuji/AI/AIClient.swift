@@ -31,6 +31,8 @@ final class AIClient {
     static let unreachableMessage = "連不到電腦。看看電腦那頭有沒有開、是不是同一個 Wi-Fi、iPhone 設定裡薯記的「區域網路」有沒有打開。"
     static let rescanMessage = "電腦重開過，密碼換了。到設定的「AI」斷開，再掃一次。"
     static let notBridgeMessage = "這不是薯記的 QR code。"
+    /// 偏題（伺服器回 off_topic）：模型的字伺服器已經丟掉，這句是寫死的
+    static let offTopicMessage = "這個我不會，我只懂養習慣。改一下上面寫的，再按一次。"
 
     // MARK: 設定
 
@@ -133,7 +135,7 @@ final class AIClient {
         req.setValue("application/json", forHTTPHeaderField: "content-type")
         req.httpBody = body
         let (data, status) = try await reach(req)
-        if status == 200 { return try decode(data, as: O.self) }
+        if status == 200 { return try decode(data, task: task, as: O.self) }
         if status == 401 { throw Failure(message: Self.rescanMessage) }
         let err = try? JSONDecoder().decode(ErrorBody.self, from: data)
         throw Failure(message: err?.message ?? Self.fallbackMessage, rateLimited: status == 429)
@@ -178,7 +180,7 @@ final class AIClient {
         let body = try JSONEncoder().encode(AIEnvelope(ts: ts, habit_id: habitId, account: CreditAccount.id, input: input))
         let (data, status) = try await serverPost("v1/task/\(task.rawValue)", body: body)
         Credits.shared.update((try? JSONDecoder().decode(CreditsProbe.self, from: data))?.credits)
-        if status == 200 { return try decode(data, as: O.self) }
+        if status == 200 { return try decode(data, task: task, as: O.self) }
         let err = try? JSONDecoder().decode(ErrorBody.self, from: data)
         throw Failure(message: err?.message ?? Self.fallbackMessage, rateLimited: status == 429,
                       noCredits: status == 402 || err?.error == "no_credits")
@@ -221,10 +223,18 @@ final class AIClient {
         var message: String?
     }
 
-    private func decode<O: Decodable>(_ data: Data, as type: O.Type) throws -> Outcome<O> {
+    /// 任務 8 自己處理 off_topic（TalkModel 有連續兩次的規則）；其他任務在這裡就變成一句失敗，畫面回到能改的樣子
+    static func treatsOffTopicAsFailure(_ task: AITask, type: String) -> Bool {
+        type == "off_topic" && task != .plan
+    }
+
+    private func decode<O: Decodable>(_ data: Data, task: AITask, as type: O.Type) throws -> Outcome<O> {
         let probe = try JSONDecoder().decode(AIProbe.self, from: data)
         if probe.result.type == "unfit" {
             return .unfit(category: probe.result.category, referral: probe.referral ?? Phrases.referralFallback)
+        }
+        if Self.treatsOffTopicAsFailure(task, type: probe.result.type) {
+            throw Failure(message: Self.offTopicMessage)
         }
         return .result(try JSONDecoder().decode(AIResultBody<O>.self, from: data).result)
     }

@@ -1,5 +1,6 @@
 import { BANNED_LINES, REFERRAL, REFERRAL_EATING } from './generated/packs';
 import type { TaskId, TaskInput, TaskOutput } from './tasks';
+import { freeTexts } from './tasks';
 
 // 模型輸出的第二道關：結構化輸出保證 JSON 合法、欄位都在；這裡管內容。
 // 檢查不過 → 伺服器重問一次 → 再不過就回 bad_output，app 回手動流程。
@@ -64,6 +65,41 @@ const UNSAFE: [RegExp, string][] = [
   // 只擋講自己：「打開 AI 課程」這種習慣要放行
   [/(我是|我只是|身為|作為|本)\s*(一個|一款|個)?\s*(AI|助理|機器人|顧問|模型)|AI\s*(助理|助手|模型)/i, '提到 AI 自己'],
 ];
+
+/** 連續四個以上英文字：像一句英文，不像習慣的名字（「打開 Duolingo」放行） */
+const ENGLISH_RUN = /[A-Za-z]+(?:[\s,.'’!?:-]+[A-Za-z]+){3,}/;
+/** 回聲檢查的長度：照抄使用者原文這麼多字以上就當被帶著走 */
+export const ECHO_MIN = 16;
+
+/** 輸出照抄了使用者打的長段文字。被注入時模型最常做的就是把那段原樣吐出來 */
+export function echoHits(outputs: string[], sources: string[]): string[] {
+  const hits: string[] = [];
+  const outs = outputs.map(same);
+  for (const src of sources) {
+    const t = same(src ?? '');
+    const chars = [...t];
+    if (chars.length < ECHO_MIN) continue;
+    for (let i = 0; i + ECHO_MIN <= chars.length; i++) {
+      const piece = chars.slice(i, i + ECHO_MIN).join('');
+      if (outs.some((o) => o.includes(piece))) {
+        hits.push(`照抄使用者原文：${piece}`);
+        break;
+      }
+    }
+  }
+  return hits;
+}
+
+/** 任務 1、2、3、4、6 回 off_topic 時給 app 的樣子：模型的字一個都不留 */
+const OFF_TOPIC_BLANK: Partial<Record<TaskId, Record<string, unknown>>> = {
+  1: { floors: [], triggers: [], example: '', note: '' },
+  2: { obstacles: [], backup: null, travel: null, note: '' },
+  3: { rival_type: null, block: '', clear: '', note: '' },
+  4: { layer: 0, field: null, suggestion: '', why: '', closing: '' },
+  6: { path: 'keep', change: '', why: '', warn: '' },
+};
+/** 有使用者打字欄位的任務：輸出再多驗網址、程式碼、英文句、回聲 */
+const TYPED_TASKS: TaskId[] = [1, 2, 3, 4, 6];
 
 export function unsafeHits(text: string): string[] {
   return UNSAFE.filter(([re]) => re.test(text)).map(([, name]) => `${name}：${text.slice(0, 40)}`);
@@ -185,6 +221,10 @@ export function review<T extends TaskId>(task: T, raw: TaskOutput<T>, input?: un
     if ((task as TaskId) === 8) Object.assign(out, { lead: '', options: [], difficulty: null, message: null });
     if ((task as TaskId) === 9) Object.assign(out, { finding: '', change: null, message: null });
     return { ok: problems.length === 0, problems, value: out };
+  }
+
+  if (out.type === 'off_topic' && OFF_TOPIC_BLANK[task as TaskId]) {
+    return { ok: true, problems: [], value: { type: 'off_topic', ...OFF_TOPIC_BLANK[task as TaskId], category: null, message: null } as any };
   }
 
   switch (task) {
@@ -365,7 +405,16 @@ export function review<T extends TaskId>(task: T, raw: TaskOutput<T>, input?: un
     }
   }
 
-  for (const s of visibleStrings(out)) problems.push(...bannedHits(s));
+  const shown = visibleStrings(out);
+  if (TYPED_TASKS.includes(task as TaskId)) {
+    // 任務 4 的結語是寫死的那句，不用驗
+    for (const s of shown) if (s !== DIAGNOSE_CLOSING && s !== DIAGNOSE_NOTHING) problems.push(...unsafeHits(s));
+  }
+  if ([...TYPED_TASKS, 8, 9].includes(task as TaskId)) {
+    for (const s of shown) if (ENGLISH_RUN.test(s)) problems.push(`英文句子：${s.slice(0, 40)}`);
+    problems.push(...echoHits(shown, freeTexts(task as TaskId, input)));
+  }
+  for (const s of shown) problems.push(...bannedHits(s));
   return { ok: problems.length === 0, problems, value: out };
 }
 
