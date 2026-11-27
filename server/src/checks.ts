@@ -223,6 +223,8 @@ export function review<T extends TaskId>(task: T, raw: TaskOutput<T>, input?: un
     return { ok: problems.length === 0, problems, value: out };
   }
 
+  // 任務 3 被灌奇怪的字時，模型常回 ok 但對手、擋法都空著（紅隊題庫 2026-11-27）：畫面會是空卡，當偏題處理
+  if ((task as TaskId) === 3 && out.type === 'ok' && (!out.rival_type || !String(out.block ?? '').trim())) out.type = 'off_topic';
   if (out.type === 'off_topic' && OFF_TOPIC_BLANK[task as TaskId]) {
     return { ok: true, problems: [], value: { type: 'off_topic', ...OFF_TOPIC_BLANK[task as TaskId], category: null, message: null } as any };
   }

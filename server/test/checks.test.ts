@@ -392,6 +392,12 @@ describe('偏題防線（2026-11-27：任務 1、2、3、4、6 補上）', () =>
       .toEqual({ type: 'off_topic', path: 'keep', change: '', why: '', warn: '', category: null, message: null });
   });
 
+  it('任務 3 回 ok 但對手或擋法是空的：當偏題，不給空卡', () => {
+    expect(review(3, { ...ok3, rival_type: null, block: '', clear: '前一晚把檔案開好' }, in3).value.type).toBe('off_topic');
+    expect(review(3, { ...ok3, block: '  ' }, in3).value).toEqual({ type: 'off_topic', rival_type: null, block: '', clear: '', note: '', category: null, message: null });
+    expect(review(3, ok3, in3).value.type).toBe('ok');
+  });
+
   it('off_topic 的結果符合輸出 schema（app 照常解得開）', () => {
     for (const id of [1, 2, 3, 4, 6] as const) {
       const v = review(id, { type: 'off_topic' } as any).value;
